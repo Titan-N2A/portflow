@@ -1,16 +1,16 @@
 // ============================================================
 // MapView.jsx — Carte interactive PortFlow
-// Affiche les 3 axes PAA colorés selon leur niveau de congestion.
-// Fond de carte : CARTO Dark Matter (cohérent avec le thème sombre).
+// Reçoit les mesures live en props et colore les axes
+// selon le niveau de congestion temps réel (I7).
 // ============================================================
 
-import { MapContainer, TileLayer, Polyline, Marker, Popup, ZoomControl } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { tokens, getAxeColor, getTrafficColor, getTrafficLabel } from '../../styles/tokens'
 import { AXES_DATA, PAA_CENTER } from '../../data/axes'
 
-// Fix icônes Leaflet — bug connu avec Vite (les images ne se chargent pas sans ça)
+// Fix icônes Leaflet + Vite
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -18,10 +18,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-// Niveau de congestion simulé par axe (sera remplacé par données Firebase temps réel)
-const NIVEAUX_DEMO = { axe1: 4, axe2: 2, axe3: 3 }
-
-function MapView() {
+function MapView({ mesures = {} }) {
   return (
     <div style={{
       width:        '100%',
@@ -34,22 +31,24 @@ function MapView() {
         center={PAA_CENTER}
         zoom={14}
         style={{ width: '100%', height: '100%' }}
-        zoomControl={false} // On repositionne le zoom en bas à droite
+        zoomControl={false}
       >
-
-        {/* Fond de carte sombre CARTO — cohérent avec le dashboard */}
+        {/* Fond de carte sombre CARTO */}
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; OpenStreetMap &copy; CARTO'
         />
-
-        {/* Zoom repositionné en bas à droite */}
         <ZoomControl position="bottomright" />
 
-        {/* Tracé des 3 axes PAA */}
+        {/* Tracé des axes avec couleurs live */}
         {AXES_DATA.map(axe => {
-          const niveau = NIVEAUX_DEMO[axe.id]
-          const couleur = getTrafficColor(niveau)
+          // Récupère la mesure live pour cet axe (sens aller par défaut)
+          const cle     = `${axe.id}_aller`
+          const mesure  = mesures[cle]
+          const niveau  = mesure?.I7 ?? 0
+          const couleur = niveau > 0
+            ? getTrafficColor(niveau)
+            : getAxeColor(axe.num) // couleur par défaut si pas de données live
 
           return (
             <Polyline
@@ -59,31 +58,45 @@ function MapView() {
               weight={5}
               opacity={0.9}
             >
-              {/* Popup au clic sur l'axe */}
               <Popup>
-                <div style={{ minWidth: '180px' }}>
+                <div style={{ minWidth: '200px' }}>
                   <strong style={{ color: getAxeColor(axe.num) }}>
                     {axe.nom}
                   </strong>
                   <hr style={{ margin: '6px 0', opacity: 0.3 }} />
-                  <div>Niveau : <strong style={{ color: couleur }}>
-                    {getTrafficLabel(niveau)} ({niveau}/5)
-                  </strong></div>
-                  <div>Distance : {axe.distance}</div>
-                  <div>Réf. aller : {axe.reference.aller} min</div>
-                  {axe.reference.retour &&
-                    <div>Réf. retour : {axe.reference.retour} min</div>
-                  }
+                  {mesure ? (
+                    <>
+                      <div>⏱ Temps live : <strong>{mesure.I1} min</strong></div>
+                      <div>📊 Référence  : {mesure.I2} min</div>
+                      <div>⚠️ Retard     : <strong style={{ color: couleur }}>
+                        {mesure.I3 > 0 ? `+${mesure.I3}` : mesure.I3} min
+                      </strong></div>
+                      <div>🚗 Vitesse    : {mesure.I5} km/h</div>
+                      <div style={{ marginTop: '6px' }}>
+                        <span style={{
+                          background:   couleur + '33',
+                          color:        couleur,
+                          padding:      '2px 8px',
+                          borderRadius: '999px',
+                          fontSize:     '0.8rem',
+                          fontWeight:   'bold',
+                          border:       `1px solid ${couleur}`,
+                        }}>
+                          {getTrafficLabel(niveau)} (niveau {niveau}/5)
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <p style={{ color: '#888' }}>Chargement des données live...</p>
+                  )}
+                  <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#888' }}>
+                    Dist. : {axe.distance} · Réf. aller : {axe.reference.aller} min
+                  </div>
                 </div>
               </Popup>
             </Polyline>
           )
         })}
-
-        {/* Marqueur centre PAA */}
-        <Marker position={PAA_CENTER}>
-          <Popup>Port Autonome d'Abidjan</Popup>
-        </Marker>
 
       </MapContainer>
     </div>
