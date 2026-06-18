@@ -1,7 +1,7 @@
 // ============================================================
 // MapView.jsx — Carte interactive PortFlow
-// Jour 5 : ajoute le zoom intelligent — un clic sur un axe
-// recentre et zoome automatiquement la carte sur son tracé.
+// Jour 7 : ajoute onAxeSelect — un clic sur un axe notifie
+// le composant parent (pour filtrer les graphiques).
 // ============================================================
 
 import { useRef } from 'react'
@@ -11,7 +11,6 @@ import 'leaflet/dist/leaflet.css'
 import { tokens, getAxeColor, getTrafficColor, getTrafficLabel } from '../../styles/tokens'
 import { AXES_DATA, PAA_CENTER } from '../../data/axes'
 
-// Fix icônes Leaflet + Vite
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
@@ -19,37 +18,27 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
 })
 
-function MapView({ mesures = {} }) {
-  // Référence directe à l'instance Leaflet (fournie par react-leaflet via ref)
+function MapView({ mesures = {}, onAxeSelect = null }) {
   const mapRef = useRef(null)
 
   /**
-   * Zoom intelligent : recentre la carte sur le tracé complet de l'axe cliqué
+   * Au clic sur un axe : zoom intelligent + notification au parent
+   * (le parent peut alors mettre à jour les graphiques affichés)
    */
   function handleAxeClick(axe) {
-    if (!mapRef.current) return
-    const bounds = L.latLngBounds(axe.coordinates)
-    mapRef.current.flyToBounds(bounds, {
-      padding:  [40, 40],
-      duration: 0.8, // animation fluide en secondes
-    })
+    if (mapRef.current) {
+      const bounds = L.latLngBounds(axe.coordinates)
+      mapRef.current.flyToBounds(bounds, { padding: [40, 40], duration: 0.8 })
+    }
+    if (onAxeSelect) onAxeSelect(axe.id) // ← lien carte → graphiques
   }
 
   return (
     <div style={{
-      width:        '100%',
-      height:       '500px',
-      borderRadius: tokens.radius.md,
-      overflow:     'hidden',
-      border:       `1px solid ${tokens.colors.bg.border}`,
+      width: '100%', height: '500px', borderRadius: tokens.radius.md,
+      overflow: 'hidden', border: `1px solid ${tokens.colors.bg.border}`,
     }}>
-      <MapContainer
-        ref={mapRef}
-        center={PAA_CENTER}
-        zoom={14}
-        style={{ width: '100%', height: '100%' }}
-        zoomControl={false}
-      >
+      <MapContainer ref={mapRef} center={PAA_CENTER} zoom={14} style={{ width: '100%', height: '100%' }} zoomControl={false}>
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; OpenStreetMap &copy; CARTO'
@@ -69,7 +58,6 @@ function MapView({ mesures = {} }) {
               color={couleur}
               weight={5}
               opacity={0.9}
-              // Zoom intelligent au clic sur le tracé
               eventHandlers={{ click: () => handleAxeClick(axe) }}
             >
               <Popup>
@@ -86,9 +74,8 @@ function MapView({ mesures = {} }) {
                       <div>🚗 Vitesse    : {mesure.I5} km/h</div>
                       <div style={{ marginTop: '6px' }}>
                         <span style={{
-                          background: couleur + '33', color: couleur,
-                          padding: '2px 8px', borderRadius: '999px',
-                          fontSize: '0.8rem', fontWeight: 'bold',
+                          background: couleur + '33', color: couleur, padding: '2px 8px',
+                          borderRadius: '999px', fontSize: '0.8rem', fontWeight: 'bold',
                           border: `1px solid ${couleur}`,
                         }}>
                           {getTrafficLabel(niveau)} (niveau {niveau}/5)
