@@ -1,9 +1,10 @@
 // ============================================================
 // MapView.jsx — Carte interactive PortFlow
-// Reçoit les mesures live en props et colore les axes
-// selon le niveau de congestion temps réel (I7).
+// Jour 5 : ajoute le zoom intelligent — un clic sur un axe
+// recentre et zoome automatiquement la carte sur son tracé.
 // ============================================================
 
+import { useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -19,6 +20,21 @@ L.Icon.Default.mergeOptions({
 })
 
 function MapView({ mesures = {} }) {
+  // Référence directe à l'instance Leaflet (fournie par react-leaflet via ref)
+  const mapRef = useRef(null)
+
+  /**
+   * Zoom intelligent : recentre la carte sur le tracé complet de l'axe cliqué
+   */
+  function handleAxeClick(axe) {
+    if (!mapRef.current) return
+    const bounds = L.latLngBounds(axe.coordinates)
+    mapRef.current.flyToBounds(bounds, {
+      padding:  [40, 40],
+      duration: 0.8, // animation fluide en secondes
+    })
+  }
+
   return (
     <div style={{
       width:        '100%',
@@ -28,27 +44,23 @@ function MapView({ mesures = {} }) {
       border:       `1px solid ${tokens.colors.bg.border}`,
     }}>
       <MapContainer
+        ref={mapRef}
         center={PAA_CENTER}
         zoom={14}
         style={{ width: '100%', height: '100%' }}
         zoomControl={false}
       >
-        {/* Fond de carte sombre CARTO */}
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; OpenStreetMap &copy; CARTO'
         />
         <ZoomControl position="bottomright" />
 
-        {/* Tracé des axes avec couleurs live */}
         {AXES_DATA.map(axe => {
-          // Récupère la mesure live pour cet axe (sens aller par défaut)
           const cle     = `${axe.id}_aller`
           const mesure  = mesures[cle]
           const niveau  = mesure?.I7 ?? 0
-          const couleur = niveau > 0
-            ? getTrafficColor(niveau)
-            : getAxeColor(axe.num) // couleur par défaut si pas de données live
+          const couleur = niveau > 0 ? getTrafficColor(niveau) : getAxeColor(axe.num)
 
           return (
             <Polyline
@@ -57,12 +69,12 @@ function MapView({ mesures = {} }) {
               color={couleur}
               weight={5}
               opacity={0.9}
+              // Zoom intelligent au clic sur le tracé
+              eventHandlers={{ click: () => handleAxeClick(axe) }}
             >
               <Popup>
                 <div style={{ minWidth: '200px' }}>
-                  <strong style={{ color: getAxeColor(axe.num) }}>
-                    {axe.nom}
-                  </strong>
+                  <strong style={{ color: getAxeColor(axe.num) }}>{axe.nom}</strong>
                   <hr style={{ margin: '6px 0', opacity: 0.3 }} />
                   {mesure ? (
                     <>
@@ -74,13 +86,10 @@ function MapView({ mesures = {} }) {
                       <div>🚗 Vitesse    : {mesure.I5} km/h</div>
                       <div style={{ marginTop: '6px' }}>
                         <span style={{
-                          background:   couleur + '33',
-                          color:        couleur,
-                          padding:      '2px 8px',
-                          borderRadius: '999px',
-                          fontSize:     '0.8rem',
-                          fontWeight:   'bold',
-                          border:       `1px solid ${couleur}`,
+                          background: couleur + '33', color: couleur,
+                          padding: '2px 8px', borderRadius: '999px',
+                          fontSize: '0.8rem', fontWeight: 'bold',
+                          border: `1px solid ${couleur}`,
                         }}>
                           {getTrafficLabel(niveau)} (niveau {niveau}/5)
                         </span>
@@ -97,7 +106,6 @@ function MapView({ mesures = {} }) {
             </Polyline>
           )
         })}
-
       </MapContainer>
     </div>
   )

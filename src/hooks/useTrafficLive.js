@@ -1,27 +1,24 @@
 // ============================================================
 // useTrafficLive.js — Hook React pour les données trafic live
-// Stratégie :
-//   1. Charge les données depuis Firestore (mesures_live)
-//   2. Écoute les mises à jour en temps réel (onSnapshot)
-//   3. Relance le collecteur TomTom toutes les 10 minutes
+// Jour 5 : ajoute le calcul des indicateurs globaux (I8/I9/I10)
+// via useMemo — recalculés automatiquement à chaque mise à jour
+// des mesures, sans appel API supplémentaire.
 // ============================================================
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore'
-import { db }                   from '../services/firebase'
-import { fetchAllRoutes }       from '../services/tomtom'
-import { computeIndicators }    from '../services/indicators'
+import { db }                      from '../services/firebase'
+import { fetchAllRoutes }          from '../services/tomtom'
+import { computeIndicators, computeGlobalIndicators } from '../services/indicators'
 
-// Intervalle de polling TomTom (10 minutes)
-const POLLING_INTERVAL = 10 * 60 * 1000
+const POLLING_INTERVAL = 10 * 60 * 1000 // 10 minutes
 
 export function useTrafficLive() {
-  const [mesures,    setMesures]    = useState({})   // données live par axeId_sens
-  const [lastUpdate, setLastUpdate] = useState(null) // horodatage dernier refresh
+  const [mesures,    setMesures]    = useState({})
+  const [lastUpdate, setLastUpdate] = useState(null)
   const [loading,    setLoading]    = useState(true)
   const [error,      setError]      = useState(null)
 
-  // ── Collecte TomTom + calcul indicateurs + sauvegarde Firestore ──
   const collectAndSave = useCallback(async () => {
     try {
       console.log('🔄 Collecte TomTom...')
@@ -29,11 +26,7 @@ export function useTrafficLive() {
 
       for (const mesure of routes) {
         if (!mesure.temps_min) continue
-
-        // Calcule les indicateurs
         const indicateurs = computeIndicators(mesure)
-
-        // Sauvegarde dans Firestore (écrase la mesure précédente)
         await setDoc(doc(db, 'mesures_live', mesure.id), {
           ...mesure,
           ...indicateurs,
@@ -50,14 +43,11 @@ export function useTrafficLive() {
   }, [])
 
   useEffect(() => {
-    // ── Écoute Firestore en temps réel ──────────────────────
     const unsubscribe = onSnapshot(
       collection(db, 'mesures_live'),
       (snapshot) => {
         const data = {}
-        snapshot.forEach(d => {
-          data[d.id] = d.data()
-        })
+        snapshot.forEach(d => { data[d.id] = d.data() })
         setMesures(data)
         setLoading(false)
       },
@@ -68,18 +58,28 @@ export function useTrafficLive() {
       }
     )
 
-    // ── Premier appel TomTom au montage ─────────────────────
     collectAndSave()
-
-    // ── Polling toutes les 10 minutes ───────────────────────
     const interval = setInterval(collectAndSave, POLLING_INTERVAL)
 
-    // ── Nettoyage au démontage ──────────────────────────────
     return () => {
       unsubscribe()
       clearInterval(interval)
     }
   }, [collectAndSave])
 
-  return { mesures, lastUpdate, loading, error, refresh: collectAndSave }
+  // ── Indicateurs globaux — recalculés automatiquement ────────
+  // useMemo évite de recalculer à chaque rendu si "mesures" n'a pas changé
+  const globalIndicators = useMemo(
+    () => computeGlobalIndicators(mesures),
+    [mesures]
+  )
+
+  return {
+    mesures,
+    lastUpdate,
+    loading,
+    error,
+    refresh: collectAndSave,
+    ...globalIndicators, // expose I8, I9, I10 directement
+  }
 }
