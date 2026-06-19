@@ -1,8 +1,7 @@
 // ============================================================
 // MapView.jsx — Carte interactive PortFlow
-// Jour 9 (révisé) : les axes viennent maintenant de Firestore
-// (useAxesLive) — les modifications admin s'appliquent ici
-// immédiatement, sans redéploiement.
+// Jour 11 (révisé) : un seul mode affiché à la fois — 'live' ou
+// 'prevision' — plus de superposition des deux tracés.
 // ============================================================
 
 import { useRef } from 'react'
@@ -12,17 +11,13 @@ import 'leaflet/dist/leaflet.css'
 import { tokens, getAxeColor, getTrafficColor, getTrafficLabel } from '../../styles/tokens'
 import { PAA_CENTER } from '../../data/axes'
 import { useAxesLive } from '../../hooks/useAxesLive'
+import { getPrediction } from '../../services/predictions'
 
-delete L.Icon.Default.prototype._getIconUrl
-L.Icon.Default.mergeOptions({
-  iconRetinaUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png',
-  iconUrl:       'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
-  shadowUrl:     'https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png',
-})
-
-function MapView({ mesures = {}, onAxeSelect = null }) {
+// mode: 'live' | 'prevision'
+// predictionLayer = { predictions, jourLabel, heure } | null (requis si mode='prevision')
+function MapView({ mesures = {}, onAxeSelect = null, mode = 'live', predictionLayer = null }) {
   const mapRef = useRef(null)
-  const { axes } = useAxesLive() // ← source de vérité Firestore désormais
+  const { axes } = useAxesLive()
 
   function handleAxeClick(axe) {
     if (mapRef.current) {
@@ -45,10 +40,22 @@ function MapView({ mesures = {}, onAxeSelect = null }) {
         <ZoomControl position="bottomright" />
 
         {axes.map(axe => {
-          const cle     = `${axe.id}_aller`
-          const mesure  = mesures[cle]
-          const niveau  = mesure?.I7 ?? 0
-          const couleur = niveau > 0 ? getTrafficColor(niveau) : getAxeColor(axe.num)
+          const mesure = mesures[`${axe.id}_aller`]
+          const prevision = (mode === 'prevision' && predictionLayer)
+            ? getPrediction(predictionLayer.predictions, axe.id, 'aller', predictionLayer.jourLabel, predictionLayer.heure)
+            : null
+
+          // ── Détermine couleur/niveau selon le mode actif ────
+          let niveau, couleur, opacite
+          if (mode === 'prevision') {
+            niveau   = prevision?.niveau_prevu ?? 0
+            couleur  = niveau > 0 ? getTrafficColor(niveau) : getAxeColor(axe.num)
+            opacite  = prevision ? Math.max(0.35, prevision.confiance_pct / 100) : 0.3
+          } else {
+            niveau   = mesure?.I7 ?? 0
+            couleur  = niveau > 0 ? getTrafficColor(niveau) : getAxeColor(axe.num)
+            opacite  = 0.9
+          }
 
           return (
             <Polyline
@@ -56,14 +63,26 @@ function MapView({ mesures = {}, onAxeSelect = null }) {
               positions={axe.coordinates}
               color={couleur}
               weight={5}
-              opacity={0.9}
+              opacity={opacite}
               eventHandlers={{ click: () => handleAxeClick(axe) }}
             >
               <Popup>
                 <div style={{ minWidth: '200px' }}>
                   <strong style={{ color: getAxeColor(axe.num) }}>{axe.nom}</strong>
                   <hr style={{ margin: '6px 0', opacity: 0.3 }} />
-                  {mesure ? (
+
+                  {mode === 'prevision' ? (
+                    prevision ? (
+                      <>
+                        <div>🔮 Prévision {predictionLayer.heure}h</div>
+                        <div>Niveau prévu : <strong style={{ color: couleur }}>{getTrafficLabel(niveau)}</strong></div>
+                        <div>Confiance : {prevision.confiance_pct}%</div>
+                        {prevision.temps_prevu_min && <div>Temps prévu : {prevision.temps_prevu_min} min</div>}
+                      </>
+                    ) : (
+                      <p style={{ color: '#888' }}>Pas de prévision pour ce créneau.</p>
+                    )
+                  ) : mesure ? (
                     <>
                       <div>⏱ Temps live : <strong>{mesure.I1} min</strong></div>
                       <div>📊 Référence  : {mesure.I2} min</div>
@@ -84,6 +103,7 @@ function MapView({ mesures = {}, onAxeSelect = null }) {
                   ) : (
                     <p style={{ color: '#888' }}>Chargement des données live...</p>
                   )}
+
                   <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#888' }}>
                     Dist. : {axe.distance}
                   </div>

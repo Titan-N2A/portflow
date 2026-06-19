@@ -3,9 +3,14 @@
 // Jour 9 (révisé) : axes en lecture live depuis Firestore,
 // édition complète (nom/distance/coordonnées) + tronçons CRUD.
 // ============================================================
+import PrevisionRecap from '../components/Dashboard/PrevisionRecap'
 
 import { useCollecteAuto } from '../hooks/useCollecteAuto'
 import { exportToCSV, exportToExcel } from '../utils/exportData'
+
+import { usePredictions }     from '../hooks/usePredictions'
+import { getJourLabel }       from '../services/predictions'
+import AlertesPredictives     from '../components/Dashboard/AlertesPredictives'
 
 import { useState } from 'react'
 import { seedAll }              from '../services/seed'
@@ -44,6 +49,11 @@ function AdminView() {
   const { data: collecteAuto, loading: loadingCollecte } = useCollecteAuto()
 
   const { data: historique, loading: loadingHisto } = useHistoricalData()
+
+  const [heureApercu, setHeureApercu] = useState(Math.min(18, Math.max(7, new Date().getHours())))
+  const [jourApercu,  setJourApercu]  = useState(getJourLabel())
+  const [carteMode, setCarteMode] = useState('live') // 'live' | 'prevision'
+const { predictions, meta: predictionsMeta } = usePredictions()
 
   async function handleSeed() {
     setStatus('loading'); setProgress(0); setMessage('Import en cours...')
@@ -224,8 +234,56 @@ function AdminView() {
         </div>
       </div>
 
+      {/* ── Bascule Temps réel / Prévision + filtres jour/heure ── */}
+      <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', marginBottom: tokens.spacing.gap, flexWrap: 'wrap' }}>
+        <button
+          onClick={() => setCarteMode('live')}
+          style={{
+            background: carteMode === 'live' ? tokens.colors.accent.primary : tokens.colors.bg.surface,
+            color: carteMode === 'live' ? '#fff' : tokens.colors.text.secondary,
+            border: `1px solid ${tokens.colors.bg.border}`, borderRadius: tokens.radius.sm,
+            padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold',
+          }}
+        >
+          🔴 Temps réel
+        </button>
+        <button
+          onClick={() => setCarteMode('prevision')}
+          style={{
+            background: carteMode === 'prevision' ? tokens.colors.accent.primary : tokens.colors.bg.surface,
+            color: carteMode === 'prevision' ? '#fff' : tokens.colors.text.secondary,
+            border: `1px solid ${tokens.colors.bg.border}`, borderRadius: tokens.radius.sm,
+            padding: '0.5rem 1rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold',
+          }}
+        >
+          🔮 Prévision
+        </button>
+
+        {carteMode === 'prevision' && (
+          <>
+            <select value={jourApercu} onChange={(e) => setJourApercu(e.target.value)} style={selectStyle}>
+              {['lundi','mardi','mercredi','jeudi','vendredi','samedi','dimanche'].map(j => (
+                <option key={j} value={j}>{j.charAt(0).toUpperCase() + j.slice(1)}</option>
+              ))}
+            </select>
+            <select value={heureApercu} onChange={(e) => setHeureApercu(Number(e.target.value))} style={selectStyle}>
+              {Array.from({ length: 12 }, (_, i) => i + 7).map(h => <option key={h} value={h}>{h}h</option>)}
+            </select>
+          </>
+        )}
+      </div>
+
+      {/* Récapitulatif chiffré — visible seulement en mode Prévision */}
+      {carteMode === 'prevision' && (
+        <PrevisionRecap predictions={predictions} jourLabel={jourApercu} heure={heureApercu} />
+      )}
+
       <div style={{ marginBottom: tokens.spacing.gap }}>
-        <MapView onAxeSelect={handleAxeChange} />
+        <MapView
+          onAxeSelect={handleAxeChange}
+          mode={carteMode}
+          predictionLayer={predictions ? { predictions, jourLabel: jourApercu, heure: heureApercu } : null}
+        />
       </div>
 
       <div style={{ display: 'flex', gap: tokens.spacing.gap, flexWrap: 'wrap', marginBottom: tokens.spacing.gap }}>
