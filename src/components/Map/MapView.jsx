@@ -1,7 +1,8 @@
 // ============================================================
 // MapView.jsx — Carte interactive PortFlow
-// Jour 7 : ajoute onAxeSelect — un clic sur un axe notifie
-// le composant parent (pour filtrer les graphiques).
+// Jour 9 (révisé) : les axes viennent maintenant de Firestore
+// (useAxesLive) — les modifications admin s'appliquent ici
+// immédiatement, sans redéploiement.
 // ============================================================
 
 import { useRef } from 'react'
@@ -9,7 +10,8 @@ import { MapContainer, TileLayer, Polyline, Popup, ZoomControl } from 'react-lea
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { tokens, getAxeColor, getTrafficColor, getTrafficLabel } from '../../styles/tokens'
-import { AXES_DATA, PAA_CENTER } from '../../data/axes'
+import { PAA_CENTER } from '../../data/axes'
+import { useAxesLive } from '../../hooks/useAxesLive'
 
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
@@ -20,17 +22,14 @@ L.Icon.Default.mergeOptions({
 
 function MapView({ mesures = {}, onAxeSelect = null }) {
   const mapRef = useRef(null)
+  const { axes } = useAxesLive() // ← source de vérité Firestore désormais
 
-  /**
-   * Au clic sur un axe : zoom intelligent + notification au parent
-   * (le parent peut alors mettre à jour les graphiques affichés)
-   */
   function handleAxeClick(axe) {
     if (mapRef.current) {
       const bounds = L.latLngBounds(axe.coordinates)
       mapRef.current.flyToBounds(bounds, { padding: [40, 40], duration: 0.8 })
     }
-    if (onAxeSelect) onAxeSelect(axe.id) // ← lien carte → graphiques
+    if (onAxeSelect) onAxeSelect(axe.id)
   }
 
   return (
@@ -45,7 +44,7 @@ function MapView({ mesures = {}, onAxeSelect = null }) {
         />
         <ZoomControl position="bottomright" />
 
-        {AXES_DATA.map(axe => {
+        {axes.map(axe => {
           const cle     = `${axe.id}_aller`
           const mesure  = mesures[cle]
           const niveau  = mesure?.I7 ?? 0
@@ -86,7 +85,7 @@ function MapView({ mesures = {}, onAxeSelect = null }) {
                     <p style={{ color: '#888' }}>Chargement des données live...</p>
                   )}
                   <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#888' }}>
-                    Dist. : {axe.distance} · Réf. aller : {axe.reference.aller} min
+                    Dist. : {axe.distance}
                   </div>
                 </div>
               </Popup>

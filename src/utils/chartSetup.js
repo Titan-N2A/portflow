@@ -1,7 +1,6 @@
 // ============================================================
 // chartSetup.js — Enregistrement des composants Chart.js
-// Importé (effet de bord) par chaque graphique du projet.
-// Évite l'erreur "X is not a registered element" de Chart.js v4.
+// Jour 8 : ajoute ArcElement pour le donut.
 // ============================================================
 
 import {
@@ -11,6 +10,7 @@ import {
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
@@ -23,6 +23,7 @@ ChartJS.register(
   PointElement,
   LineElement,
   BarElement,
+  ArcElement,
   Title,
   Tooltip,
   Legend,
