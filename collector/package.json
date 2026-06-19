@@ -1,0 +1,12 @@
+{
+  "name": "portflow-collecteur",
+  "version": "1.0.0",
+  "type": "commonjs",
+  "description": "Script de collecte automatique TomTom -> Firestore, exécuté par GitHub Actions",
+  "scripts": {
+    "collecte": "node collecte.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}

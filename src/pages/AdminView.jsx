@@ -4,6 +4,9 @@
 // édition complète (nom/distance/coordonnées) + tronçons CRUD.
 // ============================================================
 
+import { useCollecteAuto } from '../hooks/useCollecteAuto'
+import { exportToCSV, exportToExcel } from '../utils/exportData'
+
 import { useState } from 'react'
 import { seedAll }              from '../services/seed'
 import { useHistoricalData }    from '../hooks/useHistoricalData'
@@ -37,6 +40,8 @@ function AdminView() {
   const [editingTroncon, setEditingTroncon] = useState(null)
   const { troncons } = useTroncons()
   const { axes }      = useAxesLive() // ← liste d'axes vivante (Firestore)
+
+  const { data: collecteAuto, loading: loadingCollecte } = useCollecteAuto()
 
   const { data: historique, loading: loadingHisto } = useHistoricalData()
 
@@ -122,6 +127,34 @@ function AdminView() {
           <TronconList troncons={troncons} onEdit={setEditingTroncon} />
         </div>
       </div>
+{/* ── Collecte automatique (GitHub Actions) ──────────────── */}
+<h2 style={{ color: tokens.colors.text.primary, marginBottom: '0.5rem' }}>
+  Collecte automatique
+</h2>
+<p style={{ color: tokens.colors.text.muted, fontSize: '0.78rem', marginBottom: '0.8rem' }}>
+  {loadingCollecte
+    ? 'Chargement...'
+    : `${collecteAuto.length} mesures accumulées automatiquement (toutes les 15 min, 24h/24).`}
+</p>
+<div style={{
+  display: 'flex', gap: '0.6rem', marginBottom: tokens.spacing.section,
+  background: tokens.colors.bg.elevated, padding: tokens.spacing.card, borderRadius: tokens.radius.md,
+}}>
+  <button
+    onClick={() => exportToCSV(collecteAuto, `portflow_collecte_${Date.now()}.csv`)}
+    disabled={collecteAuto.length === 0}
+    style={exportBtn}
+  >
+    📥 Export CSV
+  </button>
+  <button
+    onClick={() => exportToExcel(collecteAuto, `portflow_collecte_${Date.now()}.xlsx`)}
+    disabled={collecteAuto.length === 0}
+    style={exportBtn}
+  >
+    📊 Export Excel
+  </button>
+</div>
 
       {/* ── Dashboard analytique ───────────────────────────── */}
       <h2 style={{ color: tokens.colors.text.primary, marginBottom: '0.5rem' }}>Dashboard analytique</h2>
@@ -216,7 +249,11 @@ function AdminView() {
     </div>
   )
 }
-
+const exportBtn = {
+  background: tokens.colors.bg.surface, color: tokens.colors.text.primary,
+  border: `1px solid ${tokens.colors.bg.border}`, borderRadius: tokens.radius.sm,
+  padding: '0.6rem 1.2rem', cursor: 'pointer', fontSize: '0.85rem', fontWeight: 'bold',
+}
 const filterLabel = { color: '#64748B', fontSize: '0.75rem', display: 'block', marginBottom: '4px' }
 const selectStyle  = { background: '#1E293B', color: '#F1F5F9', border: '1px solid #334155', borderRadius: '6px', padding: '0.4rem 0.6rem', fontSize: '0.8rem' }
 

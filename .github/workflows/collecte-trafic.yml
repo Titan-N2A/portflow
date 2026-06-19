@@ -1,0 +1,27 @@
+name: Collecte trafic PortFlow
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'   # toutes les 15 minutes, 24h/24
+  workflow_dispatch:          # permet de lancer manuellement depuis l'onglet "Actions"
+
+jobs:
+  collecte:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Installer les dépendances
+        working-directory: ./collector
+        run: npm install
+
+      - name: Lancer la collecte
+        working-directory: ./collector
+        env:
+          TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: npm run collecte
