@@ -5,47 +5,109 @@ import {
 import { db } from './firebase'
 import { DEFAULT_AXES, DEFAULT_TRONCONS, DEFAULT_SEUILS } from '../data/defaultData'
 
-// ── Collections Firestore ─────────────────────────────────
 const COL_AXES     = 'flowport_axes'
 const COL_TRONCONS = 'flowport_troncons'
 const COL_SEUILS   = 'flowport_seuils'
 
 // ══════════════════════════════════════════════════════════
-// SEED : Initialise Firestore avec les données PAA officielles
-// si les collections sont vides (premier démarrage)
+// Conversion coordonnées ↔ Firestore
+// Firestore interdit les tableaux imbriqués [[lat,lng],...]
+// On stocke donc [{lat, lng}, ...] et on reconvertit à la lecture.
 // ══════════════════════════════════════════════════════════
-// Force-resync des axes PAA officiels dans Firestore (écrase les existants)
+
+// [[lat,lng],...] → [{lat,lng},...] pour écriture Firestore
+function coordsToFs(coords) {
+  if (!Array.isArray(coords)) return []
+  return coords.map(p => Array.isArray(p) ? { lat: p[0], lng: p[1] } : p)
+}
+
+// [{lat,lng},...] ou [[lat,lng],...] → [[lat,lng],...] pour Leaflet
+function coordsFromFs(coords) {
+  if (!Array.isArray(coords)) return []
+  return coords.map(p => Array.isArray(p) ? p : [p.lat, p.lng])
+}
+
+// start peut être [lat,lng] ou {lat,lng}
+function startToFs(start) {
+  if (!start) return null
+  if (Array.isArray(start)) return { lat: start[0], lng: start[1] }
+  return start
+}
+
+function startFromFs(start) {
+  if (!start) return null
+  if (Array.isArray(start)) return start
+  return [start.lat, start.lng]
+}
+
+// Prépare un axe pour Firestore (supprime les tableaux imbriqués)
+function axeToFs({ id, coordinates, coordinatesRetour, start, ...rest }) {
+  return {
+    ...rest,
+    coordinates:       coordsToFs(coordinates),
+    ...(coordinatesRetour ? { coordinatesRetour: coordsToFs(coordinatesRetour) } : {}),
+    ...(start ? { start: startToFs(start) } : {}),
+  }
+}
+
+// Restaure un axe depuis Firestore (reconvertit en tableaux Leaflet)
+function axeFromFs(data, id) {
+  return {
+    ...data,
+    id,
+    coordinates:       coordsFromFs(data.coordinates),
+    coordinatesRetour: data.coordinatesRetour ? coordsFromFs(data.coordinatesRetour) : undefined,
+    start:             startFromFs(data.start),
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// SYNC — réécrit les axes PAA officiels dans Firestore
+// ══════════════════════════════════════════════════════════
 export async function syncDefaultAxes() {
   const batch = writeBatch(db)
-  DEFAULT_AXES.forEach(({ id, ...data }) => {
-    batch.set(doc(db, COL_AXES, id), { ...data, updatedAt: serverTimestamp() }, { merge: false })
+  DEFAULT_AXES.forEach(axe => {
+    const { id } = axe
+    batch.set(
+      doc(db, COL_AXES, id),
+      { ...axeToFs(axe), updatedAt: serverTimestamp() },
+      { merge: false },
+    )
   })
   await batch.commit()
   console.log('✅ Axes PAA synchronisés avec defaultData.js')
 }
 
+// ══════════════════════════════════════════════════════════
+// SEED — initialise si vide (premier démarrage)
+// ══════════════════════════════════════════════════════════
 export async function seedIfEmpty() {
   try {
     const snap = await getDocs(collection(db, COL_AXES))
-    if (!snap.empty) return false // déjà initialisé
+    if (!snap.empty) return false
 
     const batch = writeBatch(db)
 
-    DEFAULT_AXES.forEach(({ id, ...data }) => {
-      batch.set(doc(db, COL_AXES, id), { ...data, createdAt: serverTimestamp() })
+    DEFAULT_AXES.forEach(axe => {
+      const { id } = axe
+      batch.set(doc(db, COL_AXES, id), { ...axeToFs(axe), createdAt: serverTimestamp() })
     })
-    DEFAULT_TRONCONS.forEach(({ id, ...data }) => {
-      batch.set(doc(db, COL_TRONCONS, id), { ...data, createdAt: serverTimestamp() })
+    DEFAULT_TRONCONS.forEach(({ id, coordinates, ...data }) => {
+      batch.set(doc(db, COL_TRONCONS, id), {
+        ...data,
+        coordinates: coordsToFs(coordinates),
+        createdAt: serverTimestamp(),
+      })
     })
     DEFAULT_SEUILS.forEach(({ axeId, ...data }) => {
       batch.set(doc(db, COL_SEUILS, axeId), { ...data, createdAt: serverTimestamp() })
     })
 
     await batch.commit()
-    console.log('✅ FlowPort: Firestore initialisé avec les données PAA officielles')
+    console.log('✅ Firestore initialisé avec les données PAA officielles')
     return true
   } catch (err) {
-    console.warn('⚠ Seed Firestore impossible (mode offline):', err.code)
+    console.warn('⚠ Seed Firestore impossible :', err.message)
     return false
   }
 }
@@ -57,14 +119,17 @@ export function subscribeAxes(onData, onError) {
   const q = query(collection(db, COL_AXES), orderBy('ordre'))
   return onSnapshot(
     q,
-    snap => onData(snap.docs.map(d => ({ ...d.data(), id: d.id }))),
-    err  => { console.warn('subscribeAxes error:', err.code); onError?.(err) }
+    snap => onData(snap.docs.map(d => axeFromFs(d.data(), d.id))),
+    err  => { console.warn('subscribeAxes error:', err.code); onError?.(err) },
   )
 }
 
 export async function saveAxe(axe) {
-  const { id, ...data } = axe
-  await setDoc(doc(db, COL_AXES, id), { ...data, updatedAt: serverTimestamp() })
+  const { id } = axe
+  await setDoc(
+    doc(db, COL_AXES, id),
+    { ...axeToFs(axe), updatedAt: serverTimestamp() },
+  )
 }
 
 export async function removeAxe(id) {
@@ -72,25 +137,31 @@ export async function removeAxe(id) {
 }
 
 // ══════════════════════════════════════════════════════════
-// TRONÇONS — listeners & CRUD (batch avec sync axe parent)
+// TRONÇONS
 // ══════════════════════════════════════════════════════════
 export function subscribeTroncons(onData, onError) {
   const q = query(collection(db, COL_TRONCONS), orderBy('ordre'))
   return onSnapshot(
     q,
-    snap => onData(snap.docs.map(d => ({ ...d.data(), id: d.id }))),
-    err  => { console.warn('subscribeTroncons error:', err.code); onError?.(err) }
+    snap => onData(snap.docs.map(d => ({
+      ...d.data(),
+      id:          d.id,
+      coordinates: coordsFromFs(d.data().coordinates),
+    }))),
+    err => { console.warn('subscribeTroncons error:', err.code); onError?.(err) },
   )
 }
 
-// Sauvegarde tronçon ET met à jour la liste troncons[] de l'axe parent
 export async function saveTroncon(t, allTroncons) {
-  const { id, ...data } = t
+  const { id, coordinates, ...data } = t
   const batch = writeBatch(db)
 
-  batch.set(doc(db, COL_TRONCONS, id), { ...data, updatedAt: serverTimestamp() })
+  batch.set(doc(db, COL_TRONCONS, id), {
+    ...data,
+    coordinates: coordsToFs(coordinates),
+    updatedAt:   serverTimestamp(),
+  })
 
-  // Recompute troncons list for parent axe
   const sibling  = allTroncons.filter(x => x.axeId === t.axeId && x.id !== t.id)
   const newCodes = [...new Set([...sibling.map(x => x.code), t.code])]
   batch.update(doc(db, COL_AXES, t.axeId), { troncons: newCodes, updatedAt: serverTimestamp() })
@@ -98,9 +169,8 @@ export async function saveTroncon(t, allTroncons) {
   await batch.commit()
 }
 
-// Supprime tronçon ET met à jour la liste troncons[] de l'axe parent
 export async function removeTroncon(id, allTroncons) {
-  const t = allTroncons.find(x => x.id === id)
+  const t     = allTroncons.find(x => x.id === id)
   const batch = writeBatch(db)
 
   batch.delete(doc(db, COL_TRONCONS, id))
@@ -121,10 +191,8 @@ export async function removeTroncon(id, allTroncons) {
 export function subscribeSeuils(onData) {
   return onSnapshot(
     collection(db, COL_SEUILS),
-    snap => {
-      if (!snap.empty) onData(snap.docs.map(d => ({ ...d.data(), axeId: d.id })))
-    },
-    err => console.warn('subscribeSeuils error:', err.code)
+    snap => { if (!snap.empty) onData(snap.docs.map(d => ({ ...d.data(), axeId: d.id }))) },
+    err  => console.warn('subscribeSeuils error:', err.code),
   )
 }
 
