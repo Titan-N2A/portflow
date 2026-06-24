@@ -1,79 +1,36 @@
-import { useState, useEffect } from 'react'
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js'
+import { useState, useMemo } from 'react'
+import {
+  Chart as ChartJS, CategoryScale, LinearScale, PointElement,
+  LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler,
+} from 'chart.js'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
 import { C } from '../styles/tokens'
-import { AXES_OFFICIELS } from '../hooks/useTrafficData'
+import { useHistoricalData } from '../hooks/useHistoricalData'
+import { computeCourbe24h, computeRepartitionNiveaux } from '../services/aggregations'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler)
 
-// ── Données simulées réalistes pour les graphiques ─────────
-const HEURES = ['7h','8h','9h','10h','11h','12h','13h','14h','15h','16h','17h','18h']
+const HEURES_LABELS = ['7h','8h','9h','10h','11h','12h','13h','14h','15h','16h','17h','18h']
 
-function genCurve(base, seed) {
-  return HEURES.map((_, i) => {
-    const rush = (i === 1 || i === 2 || i === 9 || i === 10) ? 1.4 : 1
-    const noise = 0.9 + Math.sin((i + seed) * 2.3) * 0.15
-    return Math.round(base * rush * noise * 10) / 10
+const AXE_DEFS = [
+  { id: 'axe1', label: 'CARENA',        color: '#1B4F8A', dist: 14.8, tRef: 27.4 },
+  { id: 'axe2', label: 'Toyota CFAO',   color: '#E67E22', dist:  9.6, tRef: 16.9 },
+  { id: 'axe3', label: 'Agence SODECI', color: '#27AE60', dist:  8.4, tRef: 17.8 },
+]
+
+function computeMinMaxParAxe(data) {
+  return AXE_DEFS.map(axe => {
+    const vals = data
+      .filter(d => d.axeId === axe.id && d.sens === 'aller')
+      .map(d => d.temps_min)
+      .filter(v => v != null)
+    if (!vals.length) return { min: 0, moy: 0, max: 0 }
+    return {
+      min: Math.round(Math.min(...vals) * 10) / 10,
+      moy: Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10,
+      max: Math.round(Math.max(...vals) * 10) / 10,
+    }
   })
-}
-
-const TRAVERSEE_DATA = {
-  labels: HEURES,
-  datasets: [
-    {
-      label: 'CARENA',
-      data: genCurve(27.4, 1),
-      borderColor: '#1B4F8A', backgroundColor: 'rgba(27,79,138,0.08)',
-      tension: 0.4, fill: true, pointRadius: 4, pointHoverRadius: 6,
-      pointBackgroundColor: '#1B4F8A',
-    },
-    {
-      label: 'Toyota CFAO',
-      data: genCurve(16.9, 3),
-      borderColor: '#E67E22', backgroundColor: 'rgba(230,126,34,0.08)',
-      tension: 0.4, fill: true, pointRadius: 4, pointHoverRadius: 6,
-      pointBackgroundColor: '#E67E22',
-    },
-    {
-      label: 'Agence SODECI',
-      data: genCurve(17.8, 5),
-      borderColor: '#27AE60', backgroundColor: 'rgba(39,174,96,0.08)',
-      tension: 0.4, fill: true, pointRadius: 4, pointHoverRadius: 6,
-      pointBackgroundColor: '#27AE60',
-    },
-  ],
-}
-
-const MINMAX_DATA = {
-  labels: ['CARENA', 'Toyota CFAO', 'Agence SODECI'],
-  datasets: [
-    {
-      label: 'Min',
-      data: [22, 13, 14],
-      backgroundColor: 'rgba(27,79,138,0.75)', borderRadius: 5, borderSkipped: false,
-    },
-    {
-      label: 'Moyen',
-      data: [32, 20, 22],
-      backgroundColor: 'rgba(230,126,34,0.85)', borderRadius: 5, borderSkipped: false,
-    },
-    {
-      label: 'Max',
-      data: [48, 31, 35],
-      backgroundColor: 'rgba(192,57,43,0.85)', borderRadius: 5, borderSkipped: false,
-    },
-  ],
-}
-
-const DONUT_DATA = {
-  labels: ['N1 Fluide', 'N2 Bon', 'N3 Ralenti', 'N4 Congestionné', 'N5 Très congestionné'],
-  datasets: [{
-    data: [28, 32, 20, 13, 7],
-    backgroundColor: ['#1E8449', '#27AE60', '#F1C40F', '#E67E22', '#C0392B'],
-    borderColor: '#fff',
-    borderWidth: 3,
-    hoverOffset: 8,
-  }],
 }
 
 const CHART_OPTIONS_BASE = {
@@ -92,44 +49,97 @@ const CHART_OPTIONS_BASE = {
     },
   },
   scales: {
-    x: {
-      grid: { color: '#f0f4f8' },
-      ticks: { font: { family: 'Inter', size: 11 }, color: C.textMuted },
-    },
-    y: {
-      grid: { color: '#f0f4f8' },
-      ticks: { font: { family: 'Inter', size: 11 }, color: C.textMuted },
-    },
+    x: { grid: { color: '#f0f4f8' }, ticks: { font: { family: 'Inter', size: 11 }, color: C.textMuted } },
+    y: { grid: { color: '#f0f4f8' }, ticks: { font: { family: 'Inter', size: 11 }, color: C.textMuted } },
   },
 }
 
+function Spinner() {
+  return (
+    <div style={{ padding: '1.25rem', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ textAlign: 'center' }}>
+        <div className="fp-spin" style={{
+          width: 36, height: 36, borderRadius: '50%',
+          border: `3px solid ${C.primary}20`,
+          borderTopColor: C.primary,
+          margin: '0 auto 12px',
+        }} />
+        <p style={{ color: C.textMuted, fontSize: 13 }}>Chargement des données historiques…</p>
+      </div>
+    </div>
+  )
+}
+
 function GraphiquesPage() {
+  const { data, loading } = useHistoricalData()
   const [axeFilter, setAxeFilter] = useState('tous')
+  const [periode,   setPeriode]   = useState('tous')
 
-  const filteredDatasets = axeFilter === 'tous'
-    ? TRAVERSEE_DATA.datasets
-    : TRAVERSEE_DATA.datasets.filter((_, i) => i === parseInt(axeFilter))
+  // Courbes 24h par axe (données réelles Firestore)
+  const lineDatasets = useMemo(() => AXE_DEFS.map(axe => {
+    const courbe = computeCourbe24h(data, axe.id, 'aller')
+    return {
+      label:                axe.label,
+      data:                 courbe.map(p => p.temps_moyen),
+      borderColor:          axe.color,
+      backgroundColor:      `${axe.color}14`,
+      tension:              0.4,
+      fill:                 true,
+      pointRadius:          4,
+      pointHoverRadius:     6,
+      pointBackgroundColor: axe.color,
+    }
+  }), [data])
 
-  const traverseeData = { ...TRAVERSEE_DATA, datasets: filteredDatasets }
+  const filteredLineDatasets = axeFilter === 'tous'
+    ? lineDatasets
+    : lineDatasets.filter((_, i) => i === parseInt(axeFilter))
+
+  const lineData = { labels: HEURES_LABELS, datasets: filteredLineDatasets }
+
+  // Min / Moyen / Max par axe (données réelles)
+  const minMaxData = useMemo(() => {
+    const stats = computeMinMaxParAxe(data)
+    return {
+      labels: AXE_DEFS.map(a => a.label),
+      datasets: [
+        { label: 'Min',   data: stats.map(s => s.min), backgroundColor: 'rgba(27,79,138,0.75)',  borderRadius: 5, borderSkipped: false },
+        { label: 'Moyen', data: stats.map(s => s.moy), backgroundColor: 'rgba(230,126,34,0.85)', borderRadius: 5, borderSkipped: false },
+        { label: 'Max',   data: stats.map(s => s.max), backgroundColor: 'rgba(192,57,43,0.85)',  borderRadius: 5, borderSkipped: false },
+      ],
+    }
+  }, [data])
+
+  // Répartition niveaux (données réelles)
+  const repartition = useMemo(() => computeRepartitionNiveaux(data, periode), [data, periode])
+  const donutData = {
+    labels: repartition.map(r => `${r.label} (${r.pct}%)`),
+    datasets: [{
+      data:            repartition.map(r => r.count),
+      backgroundColor: ['#1E8449', '#27AE60', '#F1C40F', '#C0392B'],
+      borderColor:     '#fff',
+      borderWidth:     3,
+      hoverOffset:     8,
+    }],
+  }
+
+  if (loading) return <Spinner />
 
   return (
     <div style={{ padding: '1.25rem', height: '100vh', overflow: 'auto', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Graphiques</h1>
-        <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Analyse historique et comparative des axes routiers</p>
+        <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+          Analyse historique · <strong>{data.length}</strong> mesures réelles (fév. 2025)
+        </p>
       </div>
 
-      {/* G1 — Courbe temporelle */}
+      {/* G1 — Courbe 24h */}
       <div className="fp-card" style={{ flexShrink: 0 }}>
         <div className="fp-section-header">
-          <span className="fp-section-title">Temps de traversée par axe</span>
-          <select
-            className="fp-select"
-            style={{ width: 'auto' }}
-            value={axeFilter}
-            onChange={e => setAxeFilter(e.target.value)}
-          >
+          <span className="fp-section-title">Temps de traversée moyen par heure</span>
+          <select className="fp-select" style={{ width: 'auto' }} value={axeFilter} onChange={e => setAxeFilter(e.target.value)}>
             <option value="tous">Tous les axes</option>
             <option value="0">CARENA</option>
             <option value="1">Toyota CFAO</option>
@@ -137,21 +147,18 @@ function GraphiquesPage() {
           </select>
         </div>
         <div style={{ height: '240px' }}>
-          <Line
-            data={traverseeData}
-            options={{
-              ...CHART_OPTIONS_BASE,
-              plugins: {
-                ...CHART_OPTIONS_BASE.plugins,
-                legend: { ...CHART_OPTIONS_BASE.plugins.legend, position: 'top' },
-                title: { display: false },
-              },
-              scales: {
-                ...CHART_OPTIONS_BASE.scales,
-                y: { ...CHART_OPTIONS_BASE.scales.y, title: { display: true, text: 'minutes', font: { family: 'Inter', size: 11 }, color: C.textMuted } },
-              },
-            }}
-          />
+          <Line data={lineData} options={{
+            ...CHART_OPTIONS_BASE,
+            plugins: {
+              ...CHART_OPTIONS_BASE.plugins,
+              legend: { ...CHART_OPTIONS_BASE.plugins.legend, position: 'top' },
+              title: { display: false },
+            },
+            scales: {
+              ...CHART_OPTIONS_BASE.scales,
+              y: { ...CHART_OPTIONS_BASE.scales.y, title: { display: true, text: 'minutes', font: { family: 'Inter', size: 11 }, color: C.textMuted } },
+            },
+          }} />
         </div>
       </div>
 
@@ -164,21 +171,18 @@ function GraphiquesPage() {
             <span className="fp-section-title">Min / Moyen / Max par axe</span>
           </div>
           <div style={{ height: '240px' }}>
-            <Bar
-              data={MINMAX_DATA}
-              options={{
-                ...CHART_OPTIONS_BASE,
-                plugins: {
-                  ...CHART_OPTIONS_BASE.plugins,
-                  legend: { ...CHART_OPTIONS_BASE.plugins.legend, position: 'top' },
-                  title: { display: false },
-                },
-                scales: {
-                  ...CHART_OPTIONS_BASE.scales,
-                  y: { ...CHART_OPTIONS_BASE.scales.y, title: { display: true, text: 'minutes', font: { family: 'Inter', size: 11 }, color: C.textMuted } },
-                },
-              }}
-            />
+            <Bar data={minMaxData} options={{
+              ...CHART_OPTIONS_BASE,
+              plugins: {
+                ...CHART_OPTIONS_BASE.plugins,
+                legend: { ...CHART_OPTIONS_BASE.plugins.legend, position: 'top' },
+                title: { display: false },
+              },
+              scales: {
+                ...CHART_OPTIONS_BASE.scales,
+                y: { ...CHART_OPTIONS_BASE.scales.y, title: { display: true, text: 'minutes', font: { family: 'Inter', size: 11 }, color: C.textMuted } },
+              },
+            }} />
           </div>
         </div>
 
@@ -186,24 +190,21 @@ function GraphiquesPage() {
         <div className="fp-card" style={{ flex: 1 }}>
           <div className="fp-section-header">
             <span className="fp-section-title">Répartition par niveau</span>
+            <select className="fp-select" style={{ width: 'auto' }} value={periode} onChange={e => setPeriode(e.target.value)}>
+              <option value="tous">Tous les jours</option>
+              <option value="ouvrable">Jours ouvrables</option>
+              <option value="weekend">Week-end</option>
+            </select>
           </div>
-          <div style={{ height: '240px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Doughnut
-              data={DONUT_DATA}
-              options={{
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '62%',
-                plugins: {
-                  legend: {
-                    position: 'bottom',
-                    labels: { font: { family: 'Inter', size: 11 }, color: C.text, padding: 10, usePointStyle: true },
-                  },
-                  tooltip: CHART_OPTIONS_BASE.plugins.tooltip,
-                  title: { display: false },
-                },
-              }}
-            />
+          <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Doughnut data={donutData} options={{
+              responsive: true, maintainAspectRatio: false, cutout: '62%',
+              plugins: {
+                legend: { position: 'bottom', labels: { font: { family: 'Inter', size: 11 }, color: C.text, padding: 10, usePointStyle: true } },
+                tooltip: CHART_OPTIONS_BASE.plugins.tooltip,
+                title: { display: false },
+              },
+            }} />
           </div>
         </div>
       </div>

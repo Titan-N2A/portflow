@@ -6,10 +6,24 @@ import { Clock, AlertTriangle, BarChart2, Gauge, RefreshCw, Zap, MapPin } from '
 import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
+import { usePredictions } from '../hooks/usePredictions'
 import { AXE_COLORS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
 
 const PAA_CENTER = [5.2550, -4.0000]
+
+const JOURS_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+
+function getPredForAxe(predictions, axeId) {
+  if (!predictions) return null
+  const now   = new Date()
+  const jour  = JOURS_FR[now.getDay()]
+  const heure = now.getHours()
+  // Cherche l'heure courante, sinon la plus proche dans 7h-18h
+  const h = Math.max(7, Math.min(18, heure))
+  const key = `${axeId}_aller_${jour}_${h}h`
+  return predictions[key] ?? null
+}
 
 // ── Marqueur numéroté (cercle bleu) ──────────────────────
 function makeNumIcon(num, color = C.primary) {
@@ -68,7 +82,7 @@ function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, sub, b
 }
 
 // ── Dashboard Map ─────────────────────────────────────────
-function DashboardMap({ mesures, mapMode }) {
+function DashboardMap({ mesures, mapMode, predictions }) {
   return (
     <MapContainer center={PAA_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false}>
       <TileLayer
@@ -77,16 +91,34 @@ function DashboardMap({ mesures, mapMode }) {
       />
       <ZoomControl position="bottomright" />
 
-      {/* Axes polylines colorées selon congestion */}
+      {/* Axes polylines colorées selon congestion ou prévision ML */}
       {AXES_OFFICIELS.map(axe => {
+        const isPrevision = mapMode === 'prevision'
+        const pred   = isPrevision ? getPredForAxe(predictions, axe.id) : null
         const m      = mesures[axe.id]
-        const niveau = m?.niveau ?? 0
+        const niveau = isPrevision ? (pred?.niveau_prevu ?? 0) : (m?.niveau ?? 0)
         const color  = niveau > 0 ? levelColor(niveau) : AXE_COLORS[axe.id]
         return (
           <Polyline key={axe.id} positions={axe.coordinates} color={color} weight={6} opacity={0.9}>
             <Popup>
               <strong style={{ color }}>{axe.nom}</strong><br />
-              {m ? (
+              {isPrevision ? (
+                pred ? (
+                  <>
+                    <em style={{ fontSize: 10, color: '#888' }}>Prévision ML · Random Forest</em><br />
+                    Temps prévu : <strong>{pred.temps_prevu_min} min</strong><br />
+                    Confiance : <strong>{pred.confiance_pct}%</strong><br />
+                    <span style={{
+                      display: 'inline-block', marginTop: 4,
+                      padding: '2px 8px', borderRadius: 999,
+                      background: levelBg(niveau), color: levelColor(niveau),
+                      fontWeight: 600, fontSize: 11,
+                    }}>
+                      Niveau {niveau} — {levelLabel(niveau)}
+                    </span>
+                  </>
+                ) : 'Prévision indisponible'
+              ) : m ? (
                 <>
                   Temps live : <strong>{m.tempsLive} min</strong><br />
                   Retard : <strong style={{ color: m.retard > 0 ? '#C0392B' : '#27AE60' }}>+{m.retard} min</strong><br />
@@ -129,6 +161,7 @@ function DashboardPage() {
 
   // Données trafic TomTom (calculées sur les axes Firestore)
   const { mesures, kpis, loading, lastUpdate, refresh } = useTrafficData(axes)
+  const { predictions } = usePredictions()
   const [mapMode, setMapMode]         = useState('live')
   const [iaText,  setIaText]          = useState('')
   const [iaLoading, setIaLoading]     = useState(false)
@@ -192,7 +225,7 @@ function DashboardPage() {
 
         {/* Carte */}
         <div style={{ flex: '1 1 65%', position: 'relative', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
-          <DashboardMap mesures={mesures} mapMode={mapMode} />
+          <DashboardMap mesures={mesures} mapMode={mapMode} predictions={predictions} />
 
           {/* Boutons superposés */}
           <div style={{

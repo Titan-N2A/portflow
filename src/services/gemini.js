@@ -1,8 +1,9 @@
-const GEMINI_KEY   = 'AQ.Ab8RN6JMrwHmCi_RJ88CivhHV5PpClbBfXzCmYY1Aiv-SDF-NQ'
+const GEMINI_KEY   = import.meta.env.VITE_GEMINI_API_KEY ?? ''
 const GEMINI_MODEL = 'gemini-1.5-flash'
 const GEMINI_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`
 
 export async function askGemini(prompt) {
+  if (!GEMINI_KEY) return 'Clé API Gemini non configurée (VITE_GEMINI_API_KEY).'
   try {
     const res = await fetch(GEMINI_URL, {
       method:  'POST',

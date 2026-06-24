@@ -1,14 +1,20 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Activity, Lock } from 'lucide-react'
 import { signIn } from '../services/auth'
-import { tokens } from '../styles/tokens'
+import { C } from '../styles/tokens'
+
+const AUTH_ERRORS = {
+  'auth/invalid-credential': 'Email ou mot de passe incorrect.',
+  'auth/user-not-found':     'Aucun compte avec cet email.',
+  'auth/wrong-password':     'Mot de passe incorrect.',
+  'auth/too-many-requests':  'Trop de tentatives. Réessayez dans quelques minutes.',
+}
 
 function LoginPage() {
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
-  const navigate = useNavigate()
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -16,15 +22,9 @@ function LoginPage() {
     setLoading(true)
     try {
       await signIn(email, password)
-      navigate('/admin')
+      // useAuth() dans App.jsx détecte le changement et affiche le dashboard
     } catch (err) {
-      const messages = {
-        'auth/invalid-credential': 'Email ou mot de passe incorrect.',
-        'auth/user-not-found':     'Aucun compte avec cet email.',
-        'auth/wrong-password':     'Mot de passe incorrect.',
-        'auth/too-many-requests':  'Trop de tentatives. Réessayez plus tard.',
-      }
-      setError(messages[err.code] || 'Erreur de connexion. Réessayez.')
+      setError(AUTH_ERRORS[err.code] ?? 'Erreur de connexion. Réessayez.')
     } finally {
       setLoading(false)
     }
@@ -32,160 +32,87 @@ function LoginPage() {
 
   return (
     <div style={{
-      minHeight:       'calc(100vh - 56px)',
-      display:         'flex',
-      alignItems:      'center',
-      justifyContent:  'center',
-      padding:         '2rem',
+      minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center',
+      background: C.bg, padding: '2rem',
     }}>
-      {/* Card de connexion */}
-      <div style={{
-        width:        '100%',
-        maxWidth:     '400px',
-        animation:    'fadeSlideUp 0.35s ease both',
-      }}>
-        {/* Logo / Brand */}
+      <div style={{ width: '100%', maxWidth: '400px' }}>
+
+        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <svg width="48" height="48" viewBox="0 0 32 32" fill="none" style={{ margin: '0 auto 12px', display: 'block' }}>
-            <polygon
-              points="16,2 28,9 28,23 16,30 4,23 4,9"
-              fill="rgba(0,245,212,0.08)"
-              stroke="#00F5D4"
-              strokeWidth="1.5"
-              strokeLinejoin="round"
-            />
-            <text x="16" y="20" textAnchor="middle" fill="#00F5D4" fontSize="9" fontFamily="Space Mono, monospace" fontWeight="700">PF</text>
-          </svg>
-          <h1 style={{
-            color:         tokens.colors.text.primary,
-            fontFamily:    tokens.fonts.ui,
-            fontSize:      '1.3rem',
-            fontWeight:    700,
-            letterSpacing: '0.05em',
-            margin:        0,
+          <div style={{
+            width: 56, height: 56, borderRadius: '14px',
+            background: C.sidebarActive,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            margin: '0 auto 14px',
+            boxShadow: `0 4px 20px ${C.sidebarActive}40`,
           }}>
-            PORT<span style={{ color: tokens.colors.accent.primary }}>FLOW</span>
+            <Activity size={28} color="#fff" />
+          </div>
+          <h1 style={{ fontSize: 22, fontWeight: 800, color: C.text, letterSpacing: '-0.3px', margin: 0 }}>
+            FlowPort
           </h1>
-          <p style={{
-            color:         tokens.colors.text.muted,
-            fontSize:      '0.72rem',
-            fontFamily:    tokens.fonts.data,
-            letterSpacing: '0.12em',
-            textTransform: 'uppercase',
-            marginTop:     '4px',
-          }}>
-            Accès Administration
+          <p style={{ fontSize: 12, color: C.textMuted, marginTop: 4, letterSpacing: '0.05em' }}>
+            Port Autonome d'Abidjan · Accès sécurisé
           </p>
         </div>
 
-        {/* Form card */}
-        <div style={{
-          background:    tokens.colors.bg.surface,
-          borderRadius:  tokens.radius.lg,
-          padding:       '2rem',
-          border:        `1px solid ${tokens.colors.bg.border}`,
-          boxShadow:     `${tokens.shadows.panel}, 0 0 60px rgba(0,245,212,0.04)`,
-          position:      'relative',
-          overflow:      'hidden',
-        }}>
-          {/* Top accent */}
-          <div style={{
-            position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
-            background: `linear-gradient(90deg, transparent 0%, ${tokens.colors.accent.primary} 50%, transparent 100%)`,
-          }} />
+        {/* Card formulaire */}
+        <div className="fp-card" style={{ padding: '2rem', borderRadius: '12px' }}>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1.5rem' }}>
+            <Lock size={15} color={C.primary} />
+            <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Connexion</span>
+          </div>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div>
-              <label style={{
-                color:         tokens.colors.text.secondary,
-                fontSize:      '0.75rem',
-                fontFamily:    tokens.fonts.ui,
-                fontWeight:    600,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                display:       'block',
-                marginBottom:  '6px',
-              }}>
-                Email
-              </label>
+              <label className="fp-label">Adresse email</label>
               <input
                 type="email"
+                className="fp-input"
+                placeholder="admin@portabidjan.ci"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
                 required
-                className="pf-input"
-                placeholder="admin@portflow.ci"
+                autoFocus
               />
             </div>
 
             <div>
-              <label style={{
-                color:         tokens.colors.text.secondary,
-                fontSize:      '0.75rem',
-                fontFamily:    tokens.fonts.ui,
-                fontWeight:    600,
-                letterSpacing: '0.06em',
-                textTransform: 'uppercase',
-                display:       'block',
-                marginBottom:  '6px',
-              }}>
-                Mot de passe
-              </label>
+              <label className="fp-label">Mot de passe</label>
               <input
                 type="password"
+                className="fp-input"
+                placeholder="••••••••"
                 value={password}
                 onChange={e => setPassword(e.target.value)}
                 required
-                className="pf-input"
-                placeholder="••••••••"
               />
             </div>
 
             {error && (
               <div style={{
-                padding:      '0.6rem 0.9rem',
-                background:   'rgba(255,51,102,0.08)',
-                border:       '1px solid rgba(255,51,102,0.25)',
-                borderRadius: tokens.radius.sm,
+                padding: '0.65rem 0.9rem',
+                background: '#FEF2F2', border: '1px solid #FECACA',
+                borderRadius: '8px',
               }}>
-                <p style={{
-                  color:      tokens.colors.traffic.blocked,
-                  fontSize:   '0.82rem',
-                  margin:     0,
-                  fontFamily: tokens.fonts.ui,
-                }}>
-                  {error}
-                </p>
+                <p style={{ fontSize: 12, color: C.danger, margin: 0 }}>{error}</p>
               </div>
             )}
 
             <button
               type="submit"
+              className="fp-btn fp-btn-primary"
+              style={{ justifyContent: 'center', padding: '0.75rem', fontSize: 14, marginTop: '0.25rem', opacity: loading ? 0.7 : 1 }}
               disabled={loading}
-              className="pf-btn-primary"
-              style={{
-                width:      '100%',
-                padding:    '0.75rem',
-                fontSize:   '0.9rem',
-                marginTop:  '0.25rem',
-                opacity:    loading ? 0.65 : 1,
-                cursor:     loading ? 'not-allowed' : 'pointer',
-              }}
             >
-              {loading ? '⏳ Connexion...' : 'Se connecter →'}
+              {loading ? 'Connexion en cours…' : 'Se connecter'}
             </button>
           </form>
         </div>
 
-        <p style={{
-          textAlign:  'center',
-          color:      tokens.colors.text.muted,
-          fontSize:   '0.68rem',
-          fontFamily: tokens.fonts.data,
-          marginTop:  '1.25rem',
-          letterSpacing: '0.04em',
-        }}>
-          Port Autonome d'Abidjan — accès réservé
+        <p style={{ textAlign: 'center', fontSize: 11, color: C.textLight, marginTop: '1rem' }}>
+          Accès réservé aux agents autorisés PAA
         </p>
       </div>
     </div>

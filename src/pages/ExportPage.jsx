@@ -1,82 +1,86 @@
-import { useState } from 'react'
-import { Download, FileSpreadsheet } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Download, FileSpreadsheet, Database } from 'lucide-react'
 import { C } from '../styles/tokens'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 import { AXES_OFFICIELS } from '../hooks/useTrafficData'
+import { useHistoricalData } from '../hooks/useHistoricalData'
+import { computeNiveau } from '../services/indicators'
+import { getReference } from '../data/references'
 
-const TRONCONS_MAP = {
-  tous: 'Tous les tronçons',
-  axe1: ['T1A', 'T1B', 'T1C', 'T1D', 'T1E'],
-  axe2: ['T2A', 'T2B', 'T2C'],
-  axe3: ['T3A', 'T3B', 'T3C'],
-}
+const DIST_KM = { axe1: 14.8, axe2: 9.6, axe3: 8.4 }
 
-function generateMockData(axeId, troncon, debut, fin) {
-  const rows = []
-  const axes  = axeId === 'tous' ? AXES_OFFICIELS : AXES_OFFICIELS.filter(a => a.id === axeId)
-  const start = new Date(debut)
-  const end   = new Date(fin)
+function buildExportRows(data, axeId, dateDebut, dateFin) {
+  const start = new Date(dateDebut)
+  const end   = new Date(dateFin)
 
-  for (let d = new Date(start); d <= end; d.setHours(d.getHours() + 1)) {
-    axes.forEach(axe => {
-      const trList = troncon === 'tous' ? axe.troncons : [troncon].filter(t => axe.troncons.includes(t))
-      trList.forEach(t => {
-        const base  = axe.tRef / axe.troncons.length
-        const live  = Math.round((base * (1 + Math.random() * 0.5)) * 10) / 10
-        const retard = Math.round((live - base) * 10) / 10
-        rows.push({
-          Date:     d.toLocaleDateString('fr-FR'),
-          Heure:    d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-          Axe:      axe.shortNom,
-          Troncon:  t,
-          'T_ref (min)':  Math.round(base * 10) / 10,
-          'T_live (min)': live,
-          'Retard (min)': retard,
-          Niveau:   retard < 2 ? 1 : retard < 5 ? 2 : retard < 10 ? 3 : retard < 15 ? 4 : 5,
-          'Vitesse (km/h)': Math.round((axe.dist / parseFloat(axe.distance) / live) * 60 * 10) / 10,
-        })
-      })
-    })
-  }
-  return rows
+  return data.filter(d => {
+    if (axeId !== 'tous' && d.axeId !== axeId) return false
+    const date = new Date(d.date + 'T00:00:00')
+    return date >= start && date <= end
+  }).map(d => {
+    const tRef   = getReference(d.axeId, d.sens, d.heure) ?? AXES_OFFICIELS.find(a => a.id === d.axeId)?.tRef ?? 0
+    const retard  = Math.round((d.temps_min - tRef) * 10) / 10
+    const ratio   = tRef ? d.temps_min / tRef : null
+    const niveau  = computeNiveau(ratio)
+    const dist    = DIST_KM[d.axeId] ?? 10
+    const vitesse = Math.round((dist / d.temps_min) * 60 * 10) / 10
+
+    return {
+      Date:            d.date,
+      Heure:           `${d.heure}:00`,
+      Axe:             AXES_OFFICIELS.find(a => a.id === d.axeId)?.shortNom ?? d.axeId,
+      Sens:            d.sens,
+      'T_ref (min)':   tRef,
+      'T_live (min)':  d.temps_min,
+      'Retard (min)':  retard,
+      Niveau:          niveau,
+      'Vitesse (km/h)': vitesse,
+    }
+  })
 }
 
 function ExportPage() {
-  const [axe,    setAxe]    = useState('tous')
-  const [troncon, setTroncon] = useState('tous')
-  const [debut,  setDebut]  = useState(new Date(Date.now() - 86400000).toISOString().slice(0, 16))
-  const [fin,    setFin]    = useState(new Date().toISOString().slice(0, 16))
-  const [format, setFormat] = useState('csv')
-  const [loading, setLoading] = useState(false)
+  const { data, loading } = useHistoricalData()
 
-  const tronconOptions = axe === 'tous'
-    ? ['tous']
-    : ['tous', ...AXES_OFFICIELS.find(a => a.id === axe)?.troncons ?? []]
+  const [axe,    setAxe]    = useState('tous')
+  const [debut,  setDebut]  = useState('2025-02-01')
+  const [fin,    setFin]    = useState('2025-02-28')
+  const [format, setFormat] = useState('csv')
+  const [exporting, setExporting] = useState(false)
+
+  const previewCount = useMemo(() => {
+    if (!data.length) return 0
+    return data.filter(d => {
+      if (axe !== 'tous' && d.axeId !== axe) return false
+      const date = new Date(d.date + 'T00:00:00')
+      return date >= new Date(debut) && date <= new Date(fin)
+    }).length
+  }, [data, axe, debut, fin])
 
   function telecharger() {
-    setLoading(true)
+    setExporting(true)
     setTimeout(() => {
-      const data = generateMockData(axe, troncon, debut, fin)
-      if (data.length === 0) { alert('Aucune donnée pour cette sélection.'); setLoading(false); return }
+      const rows = buildExportRows(data, axe, debut, fin)
+      if (!rows.length) { alert('Aucune donnée pour cette sélection.'); setExporting(false); return }
 
-      const fname = `FlowPort_Export_${axe}_${debut.slice(0,10)}_${fin.slice(0,10)}`
+      const fname = `FlowPort_Export_${axe}_${debut}_${fin}`
 
       if (format === 'csv') {
-        const csv  = Papa.unparse(data)
+        const csv  = Papa.unparse(rows)
         const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' })
         const url  = URL.createObjectURL(blob)
         const a    = document.createElement('a')
         a.href = url; a.download = `${fname}.csv`; a.click()
         URL.revokeObjectURL(url)
       } else {
-        const ws = XLSX.utils.json_to_sheet(data)
+        const ws = XLSX.utils.json_to_sheet(rows)
         const wb = XLSX.utils.book_new()
-        XLSX.utils.book_append_sheet(wb, ws, 'Export Trafic')
+        XLSX.utils.book_append_sheet(wb, ws, 'Mesures Trafic PAA')
         XLSX.writeFile(wb, `${fname}.xlsx`)
       }
-      setLoading(false)
-    }, 600)
+      setExporting(false)
+    }, 400)
   }
 
   return (
@@ -84,7 +88,25 @@ function ExportPage() {
       <div style={{ width: '100%', maxWidth: '580px' }}>
         <div style={{ marginBottom: '1.5rem' }}>
           <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Export de données</h1>
-          <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Exportez les mesures de trafic au format CSV ou Excel</p>
+          <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+            Exportez les mesures réelles PAA (fév. 2025) au format CSV ou Excel
+          </p>
+        </div>
+
+        {/* Indicateur source */}
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '8px',
+          padding: '0.65rem 1rem', marginBottom: '1rem',
+          background: loading ? '#f8fafc' : '#EBF8F1',
+          border: `1px solid ${loading ? '#e2e8f0' : '#A7E3C3'}`,
+          borderRadius: '8px',
+        }}>
+          <Database size={14} color={loading ? C.textMuted : C.success} />
+          <span style={{ fontSize: 12, color: loading ? C.textMuted : C.success, fontWeight: 500 }}>
+            {loading
+              ? 'Chargement des données Firestore…'
+              : `${data.length} mesures réelles chargées · ${previewCount} correspondront aux filtres`}
+          </span>
         </div>
 
         <div className="fp-card" style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
@@ -94,26 +116,16 @@ function ExportPage() {
             </div>
             <div>
               <p style={{ fontSize: 14, fontWeight: 700, color: C.text }}>Paramètres d'export</p>
-              <p style={{ fontSize: 11, color: C.textMuted }}>Sélectionnez la plage et le format</p>
+              <p style={{ fontSize: 11, color: C.textMuted }}>Données historiques réelles (TomTom fév. 2025)</p>
             </div>
           </div>
 
           {/* Axe */}
           <div>
             <label className="fp-label">Axe routier</label>
-            <select className="fp-select" value={axe} onChange={e => { setAxe(e.target.value); setTroncon('tous') }}>
+            <select className="fp-select" value={axe} onChange={e => setAxe(e.target.value)}>
               <option value="tous">Tous les axes</option>
               {AXES_OFFICIELS.map(a => <option key={a.id} value={a.id}>{a.shortNom}</option>)}
-            </select>
-          </div>
-
-          {/* Tronçon */}
-          <div>
-            <label className="fp-label">Tronçon</label>
-            <select className="fp-select" value={troncon} onChange={e => setTroncon(e.target.value)}>
-              {tronconOptions.map(t => (
-                <option key={t} value={t}>{t === 'tous' ? 'Tous les tronçons' : t}</option>
-              ))}
             </select>
           </div>
 
@@ -121,11 +133,11 @@ function ExportPage() {
           <div style={{ display: 'flex', gap: '1rem' }}>
             <div style={{ flex: 1 }}>
               <label className="fp-label">Date de début</label>
-              <input type="datetime-local" className="fp-input" value={debut} onChange={e => setDebut(e.target.value)} />
+              <input type="date" className="fp-input" value={debut} min="2025-02-01" max="2025-02-28" onChange={e => setDebut(e.target.value)} />
             </div>
             <div style={{ flex: 1 }}>
               <label className="fp-label">Date de fin</label>
-              <input type="datetime-local" className="fp-input" value={fin} onChange={e => setFin(e.target.value)} />
+              <input type="date" className="fp-input" value={fin} min="2025-02-01" max="2025-02-28" onChange={e => setFin(e.target.value)} />
             </div>
           </div>
 
@@ -133,7 +145,7 @@ function ExportPage() {
           <div>
             <label className="fp-label">Format d'export</label>
             <select className="fp-select" value={format} onChange={e => setFormat(e.target.value)}>
-              <option value="csv">CSV</option>
+              <option value="csv">CSV (UTF-8)</option>
               <option value="excel">Excel (.xlsx)</option>
             </select>
           </div>
@@ -142,15 +154,15 @@ function ExportPage() {
             className="fp-btn fp-btn-primary"
             style={{ padding: '0.75rem', justifyContent: 'center', fontSize: 14, marginTop: '0.25rem' }}
             onClick={telecharger}
-            disabled={loading}
+            disabled={exporting || loading || !previewCount}
           >
             <Download size={16} />
-            {loading ? 'Préparation...' : 'Télécharger'}
+            {exporting ? 'Préparation…' : `Télécharger (${previewCount} lignes)`}
           </button>
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 11, color: C.textLight, marginTop: '0.9rem' }}>
-          Les données exportées proviennent des mesures TomTom collectées toutes les 30 secondes.
+          Colonnes : Date · Heure · Axe · Sens · T_ref · T_live · Retard · Niveau · Vitesse
         </p>
       </div>
     </div>

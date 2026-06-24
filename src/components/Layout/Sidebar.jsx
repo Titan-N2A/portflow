@@ -1,13 +1,17 @@
 import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Activity } from 'lucide-react'
 import { C } from '../../styles/tokens'
 
-const NAV = [
-  { id: 'dashboard',   icon: LayoutDashboard, label: 'Dashboard'      },
-  { id: 'graphiques',  icon: BarChart2,        label: 'Graphiques'     },
-  { id: 'rapports',    icon: FileText,         label: 'Rapports'       },
-  { id: 'admin',       icon: Settings,         label: 'Administration' },
-  { id: 'ia',          icon: Bot,              label: 'IA FlowPort'    },
-  { id: 'export',      icon: Download,         label: 'Export'         },
+const NAV_PUBLIC = [
+  { id: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard'  },
+  { id: 'graphiques', icon: BarChart2,        label: 'Graphiques' },
+  { id: 'rapports',   icon: FileText,         label: 'Rapports'   },
+  { id: 'ia',         icon: Bot,              label: 'IA FlowPort' },
+  { id: 'export',     icon: Download,         label: 'Export'     },
+]
+
+const NAV_ADMIN = [
+  ...NAV_PUBLIC,
+  { id: 'admin', icon: Settings, label: 'Administration' },
 ]
 
 function NavItem({ item, active, onClick }) {
@@ -41,7 +45,8 @@ function NavItem({ item, active, onClick }) {
   )
 }
 
-function Sidebar({ currentPage, onNavigate }) {
+function Sidebar({ currentPage, onNavigate, onLogout, isAdmin = false }) {
+  const NAV = isAdmin ? NAV_ADMIN : NAV_PUBLIC
   return (
     <aside style={{
       width:         '200px',
@@ -132,6 +137,7 @@ function Sidebar({ currentPage, onNavigate }) {
         </div>
 
         <button
+          onClick={onLogout}
           style={{
             display:    'flex', alignItems: 'center', gap: '7px',
             width:      '100%', padding:    '0.45rem 0.75rem',
