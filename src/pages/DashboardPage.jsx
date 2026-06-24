@@ -83,7 +83,7 @@ function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, sub, b
 }
 
 // ── Dashboard Map ─────────────────────────────────────────
-function DashboardMap({ mesures, mapMode, predictions }) {
+function DashboardMap({ axes, mesures, mapMode, predictions }) {
   return (
     <MapContainer center={PAA_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false}>
       <TileLayer
@@ -92,15 +92,17 @@ function DashboardMap({ mesures, mapMode, predictions }) {
       />
       <ZoomControl position="bottomright" />
 
-      {/* Axes polylines colorées selon congestion ou prévision ML */}
-      {AXES_OFFICIELS.map(axe => {
+      {/* Axes polylines — utilise les axes Firestore dynamiques */}
+      {axes.map((axe, idx) => {
         const isPrevision = mapMode === 'prevision'
         const pred      = isPrevision ? getPredForAxe(predictions, axe.id) : null
         const m         = mesures[axe.id]
         const niveau    = isPrevision ? (pred?.niveau_prevu ?? 0) : (m?.niveau ?? 0)
-        const baseColor = AXE_COLORS[axe.id] ?? '#1B4F8A'
+        const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
+        const baseColor = AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length]
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
-        const positions = (m?.geometry?.length > 5) ? m.geometry : axe.coordinates
+        const positions = (m?.geometry?.length > 5) ? m.geometry : (axe.coordinates ?? [])
+        if (positions.length < 2) return null
         return (
           <Polyline key={axe.id} positions={positions} color={color} weight={7} opacity={0.95}>
             <Popup>
@@ -143,13 +145,14 @@ function DashboardMap({ mesures, mapMode, predictions }) {
 
       {/* Retour axe 1 — tracé en pointillés */}
       {(() => {
-        const axe1 = AXES_OFFICIELS.find(a => a.id === 'axe1')
-        const m1   = mesures['axe1']
-        if (!axe1) return null
-        const retourPos = (m1?.geometryRetour?.length > 5) ? m1.geometryRetour : (axe1.coordinatesRetour ?? [])
+        // Retour axe1 (bidirectionnel) depuis axes Firestore
+        const axe1Fs = axes.find(a => a.id === 'axe1')
+        const m1     = mesures['axe1']
+        if (!axe1Fs?.bidirectionnel) return null
+        const retourPos = (m1?.geometryRetour?.length > 5) ? m1.geometryRetour : (axe1Fs.coordinatesRetour ?? [])
         if (retourPos.length < 2) return null
-        const niveau    = m1?.niveau ?? 0
-        const color     = niveau > 0 ? levelColor(niveau) : AXE_COLORS.axe1
+        const niveau = m1?.niveau ?? 0
+        const color  = niveau > 0 ? levelColor(niveau) : (AXE_COLORS.axe1 ?? '#1B4F8A')
         return (
           <Polyline key="axe1_retour" positions={retourPos} color={color} weight={4} opacity={0.6} dashArray="8 6">
             <Popup>
@@ -160,16 +163,22 @@ function DashboardMap({ mesures, mapMode, predictions }) {
         )
       })()}
 
-      {/* Marqueurs numérotés (départs) */}
-      {AXES_OFFICIELS.map(axe => (
-        <Marker key={axe.id + '_mk'} position={axe.start} icon={makeNumIcon(axe.num, AXE_COLORS[axe.id] ?? '#1B4F8A')}>
-          <Popup>
-            <strong>{axe.shortNom}</strong><br />
-            {axe.distance} · Réf. {axe.tRef} min
-            {axe.bidirectionnel && <><br /><em style={{ fontSize: 10, color: '#888' }}>Axe bidirectionnel (aller + retour)</em></>}
-          </Popup>
-        </Marker>
-      ))}
+      {/* Marqueurs numérotés — depuis Firestore */}
+      {axes.map((axe, idx) => {
+        const startPos = axe.start ?? axe.coordinates?.[0]
+        if (!startPos) return null
+        const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
+        const color = AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length]
+        return (
+          <Marker key={axe.id + '_mk'} position={startPos} icon={makeNumIcon(axe.num ?? idx + 1, color)}>
+            <Popup>
+              <strong>{axe.shortNom ?? axe.nom}</strong><br />
+              {axe.distance} · Réf. {axe.tRef} min
+              {axe.bidirectionnel && <><br /><em style={{ fontSize: 10, color: '#888' }}>Bidirectionnel (aller + retour)</em></>}
+            </Popup>
+          </Marker>
+        )
+      })}
 
       {/* Marqueur PAA */}
       <Marker position={PAA_CENTER_COORDS} icon={PAA_ICON}>
@@ -260,7 +269,7 @@ function DashboardPage() {
 
         {/* Carte */}
         <div style={{ flex: '1 1 65%', position: 'relative', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
-          <DashboardMap mesures={mesures} mapMode={mapMode} predictions={predictions} />
+          <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} />
 
           {/* Boutons superposés */}
           <div style={{

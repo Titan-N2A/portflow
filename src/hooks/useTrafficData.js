@@ -49,7 +49,7 @@ export function useTrafficData(axes = DEFAULT_AXES) {
   const refresh = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await fetchAllAxes()
+      const data = await fetchAllAxes(axes)   // axes Firestore → routing dynamique
       setMesures(data)
       setKpis(computeKPIs(data, axes))
       setLastUpdate(new Date())

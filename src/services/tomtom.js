@@ -1,14 +1,15 @@
 const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY ?? 'zReyA5uWwhZ7fdKNlnoYi5tfi6v3GKLC'
 
+// Routes PAA par défaut (fallback si Firestore indisponible)
 const CARENA    = { lat: 5.330980, lng: -4.029706 }
 const PALM      = { lat: 5.258715, lng: -3.982088 }
 const CFAO      = { lat: 5.296002, lng: -4.005151 }
 const SODECI_PT = { lat: 5.313880, lng: -4.010854 }
 
-const AXES_ROUTES = [
-  { id: 'axe1', shortNom: 'CARENA',       from: CARENA,    to: PALM,  dist: 12.4, tRef: 27.4, bidirectionnel: true  },
-  { id: 'axe2', shortNom: 'Toyota CFAO',  from: CFAO,      to: PALM,  dist:  7.0, tRef: 16.9, bidirectionnel: false },
-  { id: 'axe3', shortNom: 'SODECI',       from: SODECI_PT, to: PALM,  dist: 10.9, tRef: 17.8, bidirectionnel: false },
+export const DEFAULT_ROUTES = [
+  { id: 'axe1', shortNom: 'CARENA',      from: CARENA,    to: PALM, dist: 12.4, tRef: 27.4, bidirectionnel: true  },
+  { id: 'axe2', shortNom: 'Toyota CFAO', from: CFAO,      to: PALM, dist:  7.0, tRef: 16.9, bidirectionnel: false },
+  { id: 'axe3', shortNom: 'SODECI',      from: SODECI_PT, to: PALM, dist: 10.9, tRef: 17.8, bidirectionnel: false },
 ]
 
 function computeNiveau(ratio) {
@@ -32,33 +33,23 @@ async function fetchAxeRoute(axe) {
   const route = data?.routes?.[0]
   const secs  = route?.summary?.travelTimeInSeconds
   if (!secs) throw new Error('No route data')
-
-  // Géométrie réelle de la route (tous les points de la route)
-  const points = route?.legs?.[0]?.points ?? []
-  const geometry = points.map(p => [p.latitude, p.longitude])
-
-  return {
-    tempsMin: Math.round(secs / 60 * 10) / 10,
-    geometry: geometry.length > 1 ? geometry : null,
-  }
+  const points  = route?.legs?.[0]?.points ?? []
+  const geometry = points.length > 1 ? points.map(p => [p.latitude, p.longitude]) : null
+  return { tempsMin: Math.round(secs / 60 * 10) / 10, geometry }
 }
 
-// Données simulées réalistes basées sur les heures de pointe d'Abidjan
 function simulateAxe(axe) {
   const hour   = new Date().getHours()
   const isRush = (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)
-  const base   = axe.tRef
-  // Simulation réaliste : rush +20-50%, hors-rush +0-15%
-  const factor = isRush
-    ? 1.2 + Math.random() * 0.3
-    : 1.0 + Math.random() * 0.15
+  const base   = axe.tRef ?? 20
+  const factor = isRush ? 1.2 + Math.random() * 0.3 : 1.0 + Math.random() * 0.15
   const tempsLive = Math.round(base * factor * 10) / 10
   const ratio     = tempsLive / base
-  const niveau    = computeNiveau(ratio)
+  const dist      = axe.dist ?? 10
   return {
     tempsLive,
-    niveau,
-    vitesse:   Math.round((axe.dist / tempsLive) * 60 * 10) / 10,
+    niveau:    computeNiveau(ratio),
+    vitesse:   Math.round((dist / tempsLive) * 60 * 10) / 10,
     retard:    Math.round((tempsLive - base) * 10) / 10,
     ratio,
     simulated: true,
@@ -66,9 +57,32 @@ function simulateAxe(axe) {
   }
 }
 
-export async function fetchAllAxes() {
+// Convertit un axe Firestore (avec coordinates[]) en route TomTom
+function firestoreAxeToRoute(axe) {
+  const coords = axe.coordinates
+  if (!coords || coords.length < 2) return null
+  const first = coords[0]
+  const last  = coords[coords.length - 1]
+  const distRaw = typeof axe.dist === 'number' ? axe.dist : parseFloat(axe.distance ?? '10')
+  return {
+    id:             axe.id,
+    shortNom:       axe.shortNom ?? axe.nom ?? axe.id,
+    from:           { lat: first[0], lng: first[1] },
+    to:             { lat: last[0],  lng: last[1]  },
+    dist:           isNaN(distRaw) ? 10 : distRaw,
+    tRef:           axe.tRef ?? 20,
+    bidirectionnel: axe.bidirectionnel ?? false,
+  }
+}
+
+// axes : liste depuis Firestore. Si null/vide, utilise les routes PAA par défaut.
+export async function fetchAllAxes(axes) {
+  const routes = (axes && axes.length > 0)
+    ? axes.map(firestoreAxeToRoute).filter(Boolean)
+    : DEFAULT_ROUTES
+
   const results = {}
-  await Promise.all(AXES_ROUTES.map(async axe => {
+  await Promise.all(routes.map(async axe => {
     try {
       const { tempsMin, geometry } = await fetchAxeRoute(axe)
       const ratio  = tempsMin / axe.tRef
@@ -81,13 +95,13 @@ export async function fetchAllAxes() {
         ratio,
         geometry,
       }
-      // Axe 1 bidirectionnel : récupérer aussi le retour
+      // Retour pour les axes bidirectionnels
       if (axe.bidirectionnel) {
         try {
           const ret = await fetchAxeRoute({ from: axe.to, to: axe.from })
-          results[axe.id].tempsRetour   = ret.tempsMin
+          results[axe.id].tempsRetour    = ret.tempsMin
           results[axe.id].geometryRetour = ret.geometry
-        } catch { /* retour indisponible, pas bloquant */ }
+        } catch { /* retour optionnel */ }
       }
     } catch {
       results[axe.id] = simulateAxe(axe)
@@ -95,5 +109,3 @@ export async function fetchAllAxes() {
   }))
   return results
 }
-
-export { AXES_ROUTES }

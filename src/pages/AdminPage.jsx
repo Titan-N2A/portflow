@@ -4,12 +4,13 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
   Plus, Pencil, Ban, Trash2, Save, X,
-  Users, AlertOctagon, MapPin, Layers,
+  Users, AlertOctagon, MapPin, Layers, RefreshCw,
   CheckCircle, AlertCircle, Eye, EyeOff,
   Navigation, Copy, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import { C } from '../styles/tokens'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
+import { syncDefaultAxes } from '../services/axesService'
 import { AXE_COLORS as DEFAULT_AXE_COLORS } from '../data/defaultData'
 
 const INIT_USERS = [
@@ -988,6 +989,16 @@ function AdminPage() {
 
   function showToast(msg, type = 'success') { setToast({ msg, type }) }
 
+  async function handleSyncDefaults() {
+    setSaving(true)
+    try {
+      await syncDefaultAxes()
+      showToast('Axes PAA officiels synchronisés — Dashboard mis à jour')
+    } catch (err) {
+      showToast('Erreur synchronisation : ' + err.message, 'error')
+    } finally { setSaving(false) }
+  }
+
   // ── Wrappers avec feedback ─────────────────────────────
   async function saveAxe(axe) {
     setSaving(true)
@@ -1140,9 +1151,21 @@ function AdminPage() {
             <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>
               {axes.length} axe(s) · {axes.filter(a => a.actif).length} actif(s)
             </span>
-            <button className="fp-btn fp-btn-primary" onClick={() => setModal({ type: 'axe', data: null })}>
-              <Plus size={14} /> Ajouter un axe
-            </button>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button
+                className="fp-btn fp-btn-ghost"
+                onClick={handleSyncDefaults}
+                disabled={saving}
+                title="Réinitialise les 3 axes PAA officiels depuis defaultData.js"
+                style={{ fontSize: 12 }}
+              >
+                <RefreshCw size={13} className={saving ? 'fp-spin' : ''} />
+                Sync axes PAA
+              </button>
+              <button className="fp-btn fp-btn-primary" onClick={() => setModal({ type: 'axe', data: null })}>
+                <Plus size={14} /> Ajouter un axe
+              </button>
+            </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             {axes.map(axe => (

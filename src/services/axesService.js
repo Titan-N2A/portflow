@@ -14,6 +14,16 @@ const COL_SEUILS   = 'flowport_seuils'
 // SEED : Initialise Firestore avec les données PAA officielles
 // si les collections sont vides (premier démarrage)
 // ══════════════════════════════════════════════════════════
+// Force-resync des axes PAA officiels dans Firestore (écrase les existants)
+export async function syncDefaultAxes() {
+  const batch = writeBatch(db)
+  DEFAULT_AXES.forEach(({ id, ...data }) => {
+    batch.set(doc(db, COL_AXES, id), { ...data, updatedAt: serverTimestamp() }, { merge: false })
+  })
+  await batch.commit()
+  console.log('✅ Axes PAA synchronisés avec defaultData.js')
+}
+
 export async function seedIfEmpty() {
   try {
     const snap = await getDocs(collection(db, COL_AXES))
