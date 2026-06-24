@@ -10,7 +10,8 @@ import { usePredictions } from '../hooks/usePredictions'
 import { AXE_COLORS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
 
-const PAA_CENTER = [5.3150, -3.9950]
+const PAA_CENTER   = [5.310, -4.000]   // Centre entre Port-Bouet et Palm Beach
+const PALM_BEACH   = [5.350997, -4.006838]
 
 const JOURS_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 
@@ -148,11 +149,11 @@ function DashboardMap({ mesures, mapMode, predictions }) {
         </Marker>
       ))}
 
-      {/* Marqueur destination : Pharmacie Palm Beach / PAA */}
-      <Marker position={[5.2900, -4.0200]} icon={PAA_ICON}>
+      {/* Marqueur destination : Pharmacie Palm Beach */}
+      <Marker position={PALM_BEACH} icon={PAA_ICON}>
         <Popup>
-          <strong>Port Autonome d'Abidjan</strong><br />
-          <span style={{ fontSize: 11, color: '#555' }}>Pharmacie Palm Beach · Destination commune</span>
+          <strong>Pharmacie Palm Beach</strong><br />
+          <span style={{ fontSize: 11, color: '#555' }}>Destination commune des 3 axes PAA</span>
         </Popup>
       </Marker>
     </MapContainer>

@@ -1,26 +1,26 @@
 const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY ?? 'zReyA5uWwhZ7fdKNlnoYi5tfi6v3GKLC'
 
-// Destination commune : entrée PAA (Port Autonome d'Abidjan)
-const PAA_DEST = { lat: 5.2900, lng: -4.0200 }
+// Destination commune : Pharmacie Palm Beach, Abidjan
+const PALM_BEACH = { lat: 5.350997, lng: -4.006838 }
 
 const AXES_ROUTES = [
   {
     id: 'axe1', shortNom: 'CARENA',
-    from: { lat: 5.3450, lng: -3.9600 },
-    to:   PAA_DEST,
-    dist: 16.8, tRef: 27.4,
+    from: { lat: 5.282263, lng: -4.008424 },  // CARENA, Vridi (Port-Bouët)
+    to:   PALM_BEACH,
+    dist: 12.1, tRef: 27.4,
   },
   {
     id: 'axe2', shortNom: 'Toyota CFAO',
-    from: { lat: 5.3100, lng: -3.9650 },
-    to:   PAA_DEST,
-    dist: 9.0, tRef: 16.9,
+    from: { lat: 5.292182, lng: -3.996454 },  // CFAO Motors Abidjan
+    to:   PALM_BEACH,
+    dist: 10.4, tRef: 16.9,
   },
   {
     id: 'axe3', shortNom: 'SODECI',
-    from: { lat: 5.2900, lng: -3.9650 },
-    to:   PAA_DEST,
-    dist: 8.2, tRef: 17.8,
+    from: { lat: 5.258702, lng: -3.981635 },  // SODECI Vridi (Port-Bouët)
+    to:   PALM_BEACH,
+    dist: 17.1, tRef: 17.8,
   },
 ]
 

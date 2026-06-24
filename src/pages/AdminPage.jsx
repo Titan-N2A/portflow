@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { MapContainer, TileLayer, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, Marker, useMap, useMapEvents } from 'react-leaflet'
+import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
   Plus, Pencil, Ban, Trash2, Save, X,
@@ -318,52 +319,98 @@ function FitBoundsHelper({ positions }) {
   return null
 }
 
-function MiniMapPreview({ points, color = '#1B4F8A' }) {
-  const valid   = points.filter(isValidPoint)
-  const positions = valid.map(p => [parseFloat(p.lat), parseFloat(p.lng)])
+// Icône point cliquable sur la carte
+function makeClickIcon(n) {
+  return L.divIcon({
+    html: `<div style="
+      background:#1B4F8A;color:#fff;border-radius:50%;
+      width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+      font-weight:700;font-size:10px;font-family:Inter,sans-serif;
+      box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid #fff;
+    ">${n}</div>`,
+    className: '', iconSize: [22, 22], iconAnchor: [11, 11],
+  })
+}
 
-  if (valid.length < 2) {
-    return (
-      <div style={{
-        height: '180px', background: '#f8fafc',
-        border: '1px dashed #e2e8f0', borderRadius: '8px',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '6px',
-      }}>
-        <Navigation size={24} color="#e2e8f0" />
-        <p style={{ fontSize: 12, color: C.textLight, fontFamily: "'Inter',sans-serif" }}>
-          Ajoutez au moins 2 points valides pour voir l'aperçu du tracé
-        </p>
-      </div>
-    )
-  }
+// Handler clic carte → ajoute un point
+function MapClickHandler({ active, onAdd }) {
+  useMapEvents({
+    click(e) {
+      if (!active) return
+      onAdd(
+        String(Math.round(e.latlng.lat * 100000) / 100000),
+        String(Math.round(e.latlng.lng * 100000) / 100000),
+      )
+    },
+  })
+  return null
+}
+
+function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint }) {
+  const [clickMode, setClickMode] = useState(false)
+  const valid     = points.filter(isValidPoint)
+  const positions = valid.map(p => [parseFloat(p.lat), parseFloat(p.lng)])
+  const center    = positions.length > 0 ? positions[0] : [5.315, -4.006]
 
   return (
-    <div style={{ height: '180px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-      <MapContainer
-        key={positions[0].join(',')}
-        center={positions[0]}
-        zoom={14}
-        style={{ width: '100%', height: '100%' }}
-        zoomControl={false}
-        attributionControl={false}
-      >
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
-        <Polyline positions={positions} color={color} weight={5} opacity={0.9} />
-        {/* Marqueurs début/fin */}
-        {[positions[0], positions[positions.length - 1]].map((pos, i) => (
-          <Polyline
-            key={i}
-            positions={[
-              [pos[0] - 0.0002, pos[1] - 0.0002],
-              [pos[0] + 0.0002, pos[1] + 0.0002],
-            ]}
-            color={i === 0 ? '#27AE60' : '#C0392B'}
-            weight={8}
-            opacity={0.9}
-          />
-        ))}
-        <FitBoundsHelper positions={positions} />
-      </MapContainer>
+    <div>
+      {/* Bouton activer clic-sur-carte */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+        <button
+          type="button"
+          onClick={() => setClickMode(v => !v)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: '6px',
+            padding: '0.35rem 0.85rem', borderRadius: '7px', fontSize: 12,
+            fontFamily: "'Inter',sans-serif", fontWeight: 600, cursor: 'pointer',
+            background: clickMode ? '#1B4F8A' : '#EBF2FB',
+            color: clickMode ? '#fff' : '#1B4F8A',
+            border: '1px solid #1B4F8A',
+            transition: 'all 0.15s',
+          }}
+        >
+          <MapPin size={13} />
+          {clickMode ? 'Clic actif — cliquer sur la carte' : 'Récupérer coords depuis la carte'}
+        </button>
+        {clickMode && (
+          <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
+            Chaque clic ajoute un point GPS
+          </span>
+        )}
+      </div>
+
+      {/* Carte (preview + clic) */}
+      <div style={{
+        height: '240px', borderRadius: '8px', overflow: 'hidden',
+        border: `2px solid ${clickMode ? '#1B4F8A' : '#e2e8f0'}`,
+        cursor: clickMode ? 'crosshair' : 'grab',
+        transition: 'border-color 0.2s',
+      }}>
+        <MapContainer
+          key={center.join(',')}
+          center={center}
+          zoom={positions.length > 1 ? 13 : 12}
+          style={{ width: '100%', height: '100%' }}
+          zoomControl={true}
+          attributionControl={false}
+        >
+          <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+          <MapClickHandler active={clickMode} onAdd={(lat, lng) => onAddPoint?.(lat, lng)} />
+          {positions.length >= 2 && (
+            <Polyline positions={positions} color={color} weight={5} opacity={0.9} />
+          )}
+          {positions.map((pos, i) => (
+            <Marker key={i} position={pos} icon={makeClickIcon(i + 1)} />
+          ))}
+          {positions.length >= 2 && <FitBoundsHelper positions={positions} />}
+        </MapContainer>
+      </div>
+
+      {positions.length < 2 && (
+        <p style={{ fontSize: 11, color: C.textLight, marginTop: 5, fontFamily: "'Inter',sans-serif", textAlign: 'center' }}>
+          {clickMode ? 'Cliquez sur la carte pour placer des points de passage' : 'Ajoutez au moins 2 points pour voir le tracé'}
+        </p>
+      )}
     </div>
   )
 }
@@ -566,26 +613,20 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
       {/* ── Coordonnées GPS ───────────────────────────── */}
       <SectionSep label="Tracé GPS — points du tracé routier" />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        {/* Éditeur */}
-        <div>
-          <CoordinatesEditor points={coords} onChange={setCoords} minPoints={0} />
-          {errors.coords && (
-            <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
-              ⚠ {errors.coords}
-            </p>
-          )}
-        </div>
-        {/* Aperçu carte */}
-        <div>
-          <p style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px', fontFamily: "'Inter',sans-serif" }}>
-            Aperçu du tracé
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        {/* Carte interactive en premier */}
+        <MiniMapPreview
+          points={coords}
+          color={axeColor}
+          onAddPoint={(lat, lng) => setCoords(prev => [...prev, { lat, lng }])}
+        />
+        {/* Éditeur manuel dessous */}
+        <CoordinatesEditor points={coords} onChange={setCoords} minPoints={0} />
+        {errors.coords && (
+          <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
+            ⚠ {errors.coords}
           </p>
-          <MiniMapPreview points={coords} color={axeColor} />
-          <p style={{ fontSize: 10, color: C.textLight, marginTop: '5px', fontFamily: "'Inter',sans-serif" }}>
-            La carte se met à jour en temps réel au fur et à mesure de la saisie.
-          </p>
-        </div>
+        )}
       </div>
 
       {/* ── Actions ───────────────────────────────────── */}
@@ -727,24 +768,18 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
       {/* ── Coordonnées GPS ───────────────────────────── */}
       <SectionSep label="Points GPS du tronçon" />
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-        <div>
-          <CoordinatesEditor points={coords} onChange={setCoords} minPoints={0} />
-          {errors.coords && (
-            <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
-              ⚠ {errors.coords}
-            </p>
-          )}
-        </div>
-        <div>
-          <p style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '6px', fontFamily: "'Inter',sans-serif" }}>
-            Aperçu du tracé
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <MiniMapPreview
+          points={coords}
+          color={axeColor}
+          onAddPoint={(lat, lng) => setCoords(prev => [...prev, { lat, lng }])}
+        />
+        <CoordinatesEditor points={coords} onChange={setCoords} minPoints={0} />
+        {errors.coords && (
+          <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
+            ⚠ {errors.coords}
           </p>
-          <MiniMapPreview points={coords} color={axeColor} />
-          <p style={{ fontSize: 10, color: C.textLight, marginTop: '5px', fontFamily: "'Inter',sans-serif" }}>
-            Aperçu mis à jour en temps réel. ● Vert = départ · ● Rouge = arrivée.
-          </p>
-        </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid #e2e8f0' }}>
