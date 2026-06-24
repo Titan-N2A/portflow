@@ -21,6 +21,7 @@ function computeNiveau(ratio) {
   return 5
 }
 
+// Route simple A→B (temps + géométrie)
 async function fetchAxeRoute(axe) {
   const { from, to } = axe
   const url = `https://api.tomtom.com/routing/1/calculateRoute/` +
@@ -33,9 +34,34 @@ async function fetchAxeRoute(axe) {
   const route = data?.routes?.[0]
   const secs  = route?.summary?.travelTimeInSeconds
   if (!secs) throw new Error('No route data')
-  const points  = route?.legs?.[0]?.points ?? []
+  const points   = route?.legs?.flatMap(l => l.points) ?? []
   const geometry = points.length > 1 ? points.map(p => [p.latitude, p.longitude]) : null
   return { tempsMin: Math.round(secs / 60 * 10) / 10, geometry }
+}
+
+// Route multi-stops à travers tous les waypoints → géométrie complète longeant les rues
+// Utilisé lors de la sauvegarde d'un axe dans l'admin
+export async function computeRouteGeometry(coordsArray) {
+  // Accepte [[lat,lng],...] ou [{lat,lng},...]
+  const pts = coordsArray
+    .map(p => Array.isArray(p) ? p : [p.lat, p.lng])
+    .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng))
+
+  if (pts.length < 2) return null
+
+  const stops = pts.map(([lat, lng]) => `${lat},${lng}`).join(':')
+  const url   = `https://api.tomtom.com/routing/1/calculateRoute/${stops}/json` +
+    `?key=${TOMTOM_KEY}&traffic=false&travelMode=car`
+
+  const res  = await fetch(url)
+  if (!res.ok) throw new Error(`TomTom geometry ${res.status}`)
+  const data  = await res.json()
+  const route = data?.routes?.[0]
+  if (!route) throw new Error('No route')
+
+  // Fusionne tous les legs en une seule liste de points
+  const allPts = route.legs?.flatMap(l => l.points) ?? []
+  return allPts.map(p => [p.latitude, p.longitude])
 }
 
 function simulateAxe(axe) {

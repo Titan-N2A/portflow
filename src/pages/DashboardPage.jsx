@@ -101,7 +101,10 @@ function DashboardMap({ axes, mesures, mapMode, predictions }) {
         const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
         const baseColor = AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length]
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
-        const positions = (m?.geometry?.length > 5) ? m.geometry : (axe.coordinates ?? [])
+        // Priorité : géométrie TomTom live > géométrie pré-calculée Firestore > waypoints admin
+        const positions = (m?.geometry?.length > 5)        ? m.geometry
+          : (axe.geometryRoute?.length > 5)                ? axe.geometryRoute
+          : (axe.coordinates ?? [])
         if (positions.length < 2) return null
         return (
           <Polyline key={axe.id} positions={positions} color={color} weight={7} opacity={0.95}>

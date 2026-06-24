@@ -4,6 +4,7 @@ import {
 } from 'firebase/firestore'
 import { db } from './firebase'
 import { DEFAULT_AXES, DEFAULT_TRONCONS, DEFAULT_SEUILS } from '../data/defaultData'
+import { computeRouteGeometry } from './tomtom'
 
 const COL_AXES     = 'flowport_axes'
 const COL_TRONCONS = 'flowport_troncons'
@@ -40,23 +41,25 @@ function startFromFs(start) {
   return [start.lat, start.lng]
 }
 
-// Prépare un axe pour Firestore (supprime les tableaux imbriqués)
-function axeToFs({ id, coordinates, coordinatesRetour, start, ...rest }) {
+// Prépare un axe pour Firestore (convertit tableaux imbriqués → objets)
+function axeToFs({ id, coordinates, coordinatesRetour, geometryRoute, start, ...rest }) {
   return {
     ...rest,
     coordinates:       coordsToFs(coordinates),
     ...(coordinatesRetour ? { coordinatesRetour: coordsToFs(coordinatesRetour) } : {}),
-    ...(start ? { start: startToFs(start) } : {}),
+    ...(geometryRoute    ? { geometryRoute:    coordsToFs(geometryRoute)    } : {}),
+    ...(start            ? { start:            startToFs(start)             } : {}),
   }
 }
 
-// Restaure un axe depuis Firestore (reconvertit en tableaux Leaflet)
+// Restaure un axe depuis Firestore (reconvertit objets → tableaux Leaflet)
 function axeFromFs(data, id) {
   return {
     ...data,
     id,
     coordinates:       coordsFromFs(data.coordinates),
     coordinatesRetour: data.coordinatesRetour ? coordsFromFs(data.coordinatesRetour) : undefined,
+    geometryRoute:     data.geometryRoute     ? coordsFromFs(data.geometryRoute)     : undefined,
     start:             startFromFs(data.start),
   }
 }
@@ -68,9 +71,12 @@ export async function syncDefaultAxes() {
   const batch = writeBatch(db)
   DEFAULT_AXES.forEach(axe => {
     const { id } = axe
+    // Pour les axes PAA officiels, coordinates = géométrie TomTom déjà calculée
+    // On la réutilise comme geometryRoute pour l'affichage sur la carte
+    const enriched = { ...axe, geometryRoute: axe.coordinates }
     batch.set(
       doc(db, COL_AXES, id),
-      { ...axeToFs(axe), updatedAt: serverTimestamp() },
+      { ...axeToFs(enriched), updatedAt: serverTimestamp() },
       { merge: false },
     )
   })
@@ -126,9 +132,24 @@ export function subscribeAxes(onData, onError) {
 
 export async function saveAxe(axe) {
   const { id } = axe
+  let enriched = axe
+
+  // Calcul automatique de la géométrie routière via TomTom
+  if (axe.coordinates && axe.coordinates.length >= 2) {
+    try {
+      const geometry = await computeRouteGeometry(axe.coordinates)
+      if (geometry && geometry.length > 5) {
+        enriched = { ...axe, geometryRoute: geometry }
+        console.log(`✅ Géométrie calculée pour ${id} : ${geometry.length} points`)
+      }
+    } catch (err) {
+      console.warn(`⚠ Géométrie non calculée pour ${id} :`, err.message)
+    }
+  }
+
   await setDoc(
     doc(db, COL_AXES, id),
-    { ...axeToFs(axe), updatedAt: serverTimestamp() },
+    { ...axeToFs(enriched), updatedAt: serverTimestamp() },
   )
 }
 

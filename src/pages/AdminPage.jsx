@@ -610,9 +610,9 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
 
   function handleSubmit() {
     if (!validate()) return
-    const savedCoords  = formToCoords(coords)
+    const savedCoords = formToCoords(coords)
     const newAxe = {
-      id:          axe?.id   ?? `axe_${Date.now()}`,
+      id:          axe?.id ?? `axe_${Date.now()}`,
       nom:         form.nom.trim(),
       shortNom:    form.shortNom.trim(),
       distance:    form.distance.trim(),
@@ -623,7 +623,9 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
       start:       savedCoords[0] ?? axe?.start ?? [5.29, -4.02],
       actif:       axe?.actif ?? true,
       num:         axe?.num ?? (axes.length + 1),
+      bidirectionnel: axe?.bidirectionnel ?? false,
     }
+    // TomTom geometry is computed inside saveAxe() → affiche un toast pendant le calcul
     onSave(newAxe)
     onClose()
   }
@@ -1002,11 +1004,12 @@ function AdminPage() {
   // ── Wrappers avec feedback ─────────────────────────────
   async function saveAxe(axe) {
     setSaving(true)
+    showToast('Calcul de la géométrie routière via TomTom…', 'info')
     try {
       await fsSaveAxe(axe)
-      showToast(axe.id.startsWith('axe_') ? 'Axe ajouté — Firestore mis à jour' : 'Axe modifié — Firestore mis à jour')
+      showToast(axe.id.startsWith('axe_') ? 'Axe ajouté — tracé routier calculé et sauvegardé' : 'Axe modifié — tracé routier mis à jour')
     } catch (err) {
-      showToast('Erreur Firestore : ' + err.message, 'error')
+      showToast('Erreur : ' + err.message, 'error')
     } finally { setSaving(false) }
   }
 
