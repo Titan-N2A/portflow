@@ -976,7 +976,7 @@ function AdminPage() {
     { id: 'seuils',   icon: AlertOctagon, label: 'Seuils d\'alerte' },
     { id: 'users',    icon: Users,        label: 'Utilisateurs'     },
   ]
-  const AXE_COLORS = DEFAULT_AXE_COLORS
+
 
   return (
     <div style={{ padding: '1.25rem', height: '100vh', overflow: 'auto' }}>
@@ -1050,7 +1050,7 @@ function AdminPage() {
             {axes.map(axe => (
               <div key={axe.id} className="fp-card"
                 style={{ display: 'flex', alignItems: 'flex-start', gap: '1rem', opacity: axe.actif ? 1 : 0.65 }}>
-                <div style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, flexShrink: 0, background: AXE_COLORS[(axe.num ?? 1) - 1] ?? C.primary }} />
+                <div style={{ width: 4, alignSelf: 'stretch', borderRadius: 2, flexShrink: 0, background: DEFAULT_AXE_COLORS[axe.id] ?? C.primary ?? C.primary }} />
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
                     <span style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{axe.nom}</span>
@@ -1100,8 +1100,8 @@ function AdminPage() {
             const axeTroncons = troncons.filter(t => t.axeId === axe.id).sort((a, b) => a.ordre - b.ordre)
             return (
               <div key={axe.id} style={{ marginBottom: '1.5rem' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.6rem', padding: '0.4rem 0', borderBottom: `2px solid ${AXE_COLORS[(axe.num ?? 1) - 1]}20` }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: AXE_COLORS[(axe.num ?? 1) - 1], flexShrink: 0 }} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.6rem', padding: '0.4rem 0', borderBottom: `2px solid ${DEFAULT_AXE_COLORS[axe.id] ?? C.primary}20` }}>
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: DEFAULT_AXE_COLORS[axe.id] ?? C.primary, flexShrink: 0 }} />
                   <span style={{ fontSize: 13, fontWeight: 700, color: C.text }}>{axe.shortNom}</span>
                   <span style={{ fontSize: 11, color: C.textMuted }}>({axeTroncons.length} tronçon{axeTroncons.length > 1 ? 's' : ''})</span>
                   <button className="fp-btn fp-btn-ghost" style={{ marginLeft: 'auto', padding: '0.25rem 0.65rem', fontSize: 11 }}
@@ -1160,7 +1160,7 @@ function AdminPage() {
             {seuils.map((s, i) => (
               <div key={s.axeId} className="fp-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: AXE_COLORS[i], flexShrink: 0 }} />
+                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: DEFAULT_AXE_COLORS[s.axeId] ?? C.primary, flexShrink: 0 }} />
                   <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{s.shortNom}</h3>
                   {seuilsSaved[s.axeId] && (
                     <span className="fp-badge fp-badge-green" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>

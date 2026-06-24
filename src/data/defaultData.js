@@ -89,5 +89,9 @@ export const DEFAULT_SEUILS = DEFAULT_AXES.map(a => ({
   seuilRouge:  Math.round(a.tRef * 1.8),
 }))
 
-// Couleurs carte par axe (index = num - 1)
-export const AXE_COLORS = ['#1B4F8A', '#E67E22', '#27AE60']
+// Couleurs carte par axe — objet indexé par axeId
+export const AXE_COLORS = {
+  axe1: '#1B4F8A',
+  axe2: '#E67E22',
+  axe3: '#27AE60',
+}

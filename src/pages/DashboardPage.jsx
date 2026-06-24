@@ -94,14 +94,15 @@ function DashboardMap({ mesures, mapMode, predictions }) {
       {/* Axes polylines colorées selon congestion ou prévision ML */}
       {AXES_OFFICIELS.map(axe => {
         const isPrevision = mapMode === 'prevision'
-        const pred   = isPrevision ? getPredForAxe(predictions, axe.id) : null
-        const m      = mesures[axe.id]
-        const niveau = isPrevision ? (pred?.niveau_prevu ?? 0) : (m?.niveau ?? 0)
-        const color  = niveau > 0 ? levelColor(niveau) : AXE_COLORS[axe.id]
-        // Géométrie réelle depuis TomTom, sinon fallback waypoints
-        const positions = (m?.geometry?.length > 1) ? m.geometry : axe.coordinates
+        const pred      = isPrevision ? getPredForAxe(predictions, axe.id) : null
+        const m         = mesures[axe.id]
+        const niveau    = isPrevision ? (pred?.niveau_prevu ?? 0) : (m?.niveau ?? 0)
+        const baseColor = AXE_COLORS[axe.id] ?? '#1B4F8A'
+        const color     = niveau > 0 ? levelColor(niveau) : baseColor
+        // Géométrie réelle depuis TomTom si disponible, sinon coords hardcodées
+        const positions = (m?.geometry?.length > 5) ? m.geometry : axe.coordinates
         return (
-          <Polyline key={axe.id} positions={positions} color={color} weight={6} opacity={0.9}>
+          <Polyline key={axe.id} positions={positions} color={color} weight={7} opacity={0.95}>
             <Popup>
               <strong style={{ color }}>{axe.nom}</strong><br />
               {isPrevision ? (
@@ -140,16 +141,19 @@ function DashboardMap({ mesures, mapMode, predictions }) {
         )
       })}
 
-      {/* Marqueurs numérotés */}
+      {/* Marqueurs numérotés (départs) */}
       {AXES_OFFICIELS.map(axe => (
-        <Marker key={axe.id + '_mk'} position={axe.start} icon={makeNumIcon(axe.num, AXE_COLORS[axe.id])}>
+        <Marker key={axe.id + '_mk'} position={axe.start} icon={makeNumIcon(axe.num, AXE_COLORS[axe.id] ?? '#1B4F8A')}>
           <Popup><strong>{axe.shortNom}</strong><br />{axe.distance} · Réf. {axe.tRef} min</Popup>
         </Marker>
       ))}
 
-      {/* Marqueur PAA */}
+      {/* Marqueur destination : Pharmacie Palm Beach / PAA */}
       <Marker position={[5.2900, -4.0200]} icon={PAA_ICON}>
-        <Popup><strong>Port Autonome d'Abidjan</strong><br />Point de référence</Popup>
+        <Popup>
+          <strong>Port Autonome d'Abidjan</strong><br />
+          <span style={{ fontSize: 11, color: '#555' }}>Pharmacie Palm Beach · Destination commune</span>
+        </Popup>
       </Marker>
     </MapContainer>
   )
