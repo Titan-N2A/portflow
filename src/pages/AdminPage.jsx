@@ -20,17 +20,30 @@ const INIT_USERS = [
 ]
 
 // ── Helpers coordonnées ────────────────────────────────────
-// Convertit [[lat,lng],...] → [{lat:'', lng:''},...] pour le form
+
+// [[lat,lng]] ou [{lat,lng,name?}] → [{name:'',lat:'',lng:''}] pour le form
 function coordsToForm(coords = []) {
-  return coords.map(([lat, lng]) => ({ lat: String(lat), lng: String(lng) }))
+  return coords.map(p => {
+    if (Array.isArray(p)) return { name: '', lat: String(p[0]), lng: String(p[1]) }
+    return { name: p.name ?? '', lat: String(p.lat ?? ''), lng: String(p.lng ?? '') }
+  })
 }
-// Convertit [{lat:'', lng:''},...] → [[lat,lng],...] pour la sauvegarde
+
+// [{name,lat,lng}] form → [[lat,lng]] pour Leaflet / routing
 function formToCoords(points) {
   return points
-    .filter(p => p.lat.trim() !== '' && p.lng.trim() !== '')
+    .filter(p => p.lat?.trim?.() !== '' && p.lng?.trim?.() !== '')
     .map(p => [parseFloat(p.lat), parseFloat(p.lng)])
     .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng))
 }
+
+// [{name,lat,lng}] form → [{name,lat,lng}] objects pour Firestore
+function formToWaypoints(points) {
+  return points
+    .filter(isValidPoint)
+    .map(p => ({ name: p.name?.trim() ?? '', lat: parseFloat(p.lat), lng: parseFloat(p.lng) }))
+}
+
 // Valide un point GPS
 function isValidPoint(p) {
   const lat = parseFloat(p.lat), lng = parseFloat(p.lng)
@@ -49,7 +62,7 @@ function CoordinatesEditor({ points, onChange, minPoints = 2 }) {
 
   function addPoint() {
     const last = points[points.length - 1] ?? { lat: '5.2900', lng: '-4.0200' }
-    onChange([...points, { lat: last.lat, lng: last.lng }])
+    onChange([...points, { name: '', lat: last.lat, lng: last.lng }])
   }
 
   function removePoint(i) {
@@ -198,11 +211,11 @@ function CoordinatesEditor({ points, onChange, minPoints = 2 }) {
 
       {/* ── En-têtes colonnes ───────────────────────────── */}
       <div style={{
-        display: 'grid', gridTemplateColumns: '28px 1fr 1fr 56px 24px',
+        display: 'grid', gridTemplateColumns: '28px 1.2fr 1fr 1fr 56px 24px',
         gap: '4px', marginBottom: '5px', paddingBottom: '5px',
         borderBottom: '1px solid #f0f4f8',
       }}>
-        {['#', 'Latitude', 'Longitude', 'Ordre', ''].map((h, i) => (
+        {['#', 'Nom du point', 'Latitude', 'Longitude', 'Ordre', ''].map((h, i) => (
           <span key={i} style={{ fontSize: 10, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Inter',sans-serif" }}>
             {h}
           </span>
@@ -218,9 +231,11 @@ function CoordinatesEditor({ points, onChange, minPoints = 2 }) {
         ) : (
           points.map((p, i) => {
             const valid = isValidPoint(p)
+            const dotColor = i === 0 ? '#27AE60' : i === points.length - 1 ? '#C0392B' : '#1B4F8A'
+            const namePlaceholder = i === 0 ? 'Ex : CARENA' : i === points.length - 1 ? 'Ex : Palm Beach' : `Point ${i + 1}`
             return (
               <div key={i} style={{
-                display: 'grid', gridTemplateColumns: '28px 1fr 1fr 56px 24px',
+                display: 'grid', gridTemplateColumns: '28px 1.2fr 1fr 1fr 56px 24px',
                 gap: '4px', alignItems: 'center',
                 background: valid ? 'transparent' : '#fff8f8',
                 borderRadius: '6px', padding: '2px',
@@ -229,38 +244,50 @@ function CoordinatesEditor({ points, onChange, minPoints = 2 }) {
                 {/* Numéro */}
                 <div style={{
                   width: 22, height: 22, borderRadius: '50%',
-                  background: i === 0 ? '#27AE60' : i === points.length - 1 ? '#C0392B' : '#1B4F8A',
-                  color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: dotColor, color: '#fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 10, fontWeight: 700, flexShrink: 0,
                   fontFamily: "'Inter',sans-serif",
                 }}>
                   {i + 1}
                 </div>
 
+                {/* Nom du point */}
+                <input
+                  type="text"
+                  value={p.name ?? ''}
+                  onChange={e => updatePoint(i, 'name', e.target.value)}
+                  placeholder={namePlaceholder}
+                  style={{
+                    padding: '5px 8px', border: '1px solid #e2e8f0',
+                    borderRadius: '6px', fontSize: 12,
+                    fontFamily: "'Inter',sans-serif",
+                    color: C.text, background: '#fff', outline: 'none', width: '100%',
+                  }}
+                />
+
                 {/* Latitude */}
                 <input
-                  type="number"
-                  step="0.00001"
+                  type="number" step="0.00001"
                   value={p.lat}
                   onChange={e => updatePoint(i, 'lat', e.target.value)}
                   placeholder="5.2470"
                   style={{
                     padding: '5px 8px', border: `1px solid ${valid ? '#e2e8f0' : '#fca5a5'}`,
-                    borderRadius: '6px', fontSize: 12, fontFamily: 'monospace',
+                    borderRadius: '6px', fontSize: 11, fontFamily: 'monospace',
                     color: C.text, background: '#fff', outline: 'none', width: '100%',
                   }}
                 />
 
                 {/* Longitude */}
                 <input
-                  type="number"
-                  step="0.00001"
+                  type="number" step="0.00001"
                   value={p.lng}
                   onChange={e => updatePoint(i, 'lng', e.target.value)}
                   placeholder="-3.9720"
                   style={{
                     padding: '5px 8px', border: `1px solid ${valid ? '#e2e8f0' : '#fca5a5'}`,
-                    borderRadius: '6px', fontSize: 12, fontFamily: 'monospace',
+                    borderRadius: '6px', fontSize: 11, fontFamily: 'monospace',
                     color: C.text, background: '#fff', outline: 'none', width: '100%',
                   }}
                 />
@@ -322,15 +349,15 @@ function FitBoundsHelper({ positions }) {
 }
 
 // Icône point numéroté sur la carte preview
-function makeClickIcon(n) {
+function makeClickIcon(n, bg = '#1B4F8A') {
   return L.divIcon({
     html: `<div style="
-      background:#1B4F8A;color:#fff;border-radius:50%;
-      width:22px;height:22px;display:flex;align-items:center;justify-content:center;
+      background:${bg};color:#fff;border-radius:50%;
+      width:24px;height:24px;display:flex;align-items:center;justify-content:center;
       font-weight:700;font-size:10px;font-family:Inter,sans-serif;
       box-shadow:0 2px 6px rgba(0,0,0,0.3);border:2px solid #fff;
     ">${n}</div>`,
-    className: '', iconSize: [22, 22], iconAnchor: [11, 11],
+    className: '', iconSize: [24, 24], iconAnchor: [12, 12],
   })
 }
 
@@ -351,7 +378,7 @@ const GM_BASE_URL = 'https://www.google.com/maps/@5.304290,-4.023577,15z'
 
 const ALT_COLORS = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD']
 
-function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onGeometrySelected }) {
+function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected }) {
   const [gmOpen,       setGmOpen]       = useState(false)
   const [gmInput,      setGmInput]      = useState('')
   const [gmError,      setGmError]      = useState('')
@@ -382,7 +409,7 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onGeometrySelec
 
   async function computeAlts() {
     setComputing(true); setAltError(''); setAlternatives([]); setSelectedIdx(null)
-    onGeometrySelected?.(null)
+    onRouteSelected?.(null)
     try {
       const from = positions[0]
       const to   = positions[positions.length - 1]
@@ -390,7 +417,7 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onGeometrySelec
       setAlternatives(alts)
       if (alts.length === 1) {
         setSelectedIdx(0)
-        onGeometrySelected?.(alts[0].geometry)
+        onRouteSelected?.(alts[0])
       }
     } catch (err) {
       setAltError('Erreur TomTom : ' + err.message)
@@ -401,7 +428,7 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onGeometrySelec
 
   function selectAlt(idx) {
     setSelectedIdx(idx)
-    onGeometrySelected?.(alternatives[idx].geometry)
+    onRouteSelected?.(alternatives[idx])
   }
 
   return (
@@ -499,9 +526,17 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onGeometrySelec
             positions.length >= 2 && <Polyline positions={positions} color={color} weight={4} opacity={0.6} dashArray="6 4" />
           )}
 
-          {/* Marqueurs départ/arrivée */}
-          {positions.length > 0 && <Marker position={positions[0]} icon={makeClickIcon('D')} />}
-          {positions.length > 1 && <Marker position={positions[positions.length - 1]} icon={makeClickIcon('A')} />}
+          {/* Marqueurs avec noms */}
+          {positions.map((pos, i) => {
+            const label = i === 0 ? 'D' : i === positions.length - 1 ? 'A' : String(i)
+            const dotColor = i === 0 ? '#27AE60' : i === positions.length - 1 ? '#C0392B' : '#1B4F8A'
+            const name = points[i]?.name?.trim()
+            return (
+              <Marker key={i} position={pos} icon={makeClickIcon(label, dotColor)}>
+                {name && <Popup><strong>{name}</strong></Popup>}
+              </Marker>
+            )
+          })}
           {(alternatives.length > 0 || positions.length >= 2) && (
             <FitBoundsHelper positions={alternatives[0]?.geometry ?? positions} />
           )}
@@ -651,8 +686,10 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
     tRef:     axe?.tRef     ?? '',
     ordre:    axe?.ordre    ?? (axes.length + 1),
   })
-  const [coords,           setCoords]          = useState(coordsToForm(axe?.coordinates))
+  // Priorité waypoints (avec noms) sur coordinates (sans noms)
+  const [coords,           setCoords]          = useState(coordsToForm(axe?.waypoints?.length ? axe.waypoints : axe?.coordinates ?? []))
   const [selectedGeometry, setSelectedGeometry] = useState(axe?.geometryRoute ?? null)
+  const [distAutoFilled,   setDistAutoFilled]   = useState(false)
   const [errors,           setErrors]           = useState({})
 
   function validate() {
@@ -684,12 +721,11 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
       ordre:          parseInt(form.ordre),
       troncons:       axe?.troncons ?? [],
       coordinates:    savedCoords,
+      waypoints:      formToWaypoints(coords),   // [{name,lat,lng}] avec noms
       start:          savedCoords[0] ?? axe?.start ?? [5.29, -4.02],
       actif:          axe?.actif ?? true,
       num:            axe?.num ?? (axes.length + 1),
       bidirectionnel: axe?.bidirectionnel ?? false,
-      // Si l'admin a sélectionné un itinéraire → sauvegardé directement
-      // sinon saveAxe() calculera automatiquement via TomTom
       ...(selectedGeometry ? { geometryRoute: selectedGeometry } : {}),
     }
     onSave(newAxe)
@@ -723,8 +759,23 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
-          <Field label="Distance *">
-            <input {...inp('distance')} placeholder="ex: 14.8 km" />
+          <Field label={distAutoFilled ? 'Distance (calculée par TomTom)' : 'Distance *'}>
+            <div style={{ position: 'relative' }}>
+              <input
+                {...inp('distance')}
+                placeholder="ex: 14.8 km"
+                readOnly={distAutoFilled}
+                style={{ ...(inp('distance').style ?? {}), paddingRight: distAutoFilled ? 32 : 8, background: distAutoFilled ? '#EBF8F1' : '#fff', borderColor: distAutoFilled ? '#A7E3C3' : undefined }}
+              />
+              {distAutoFilled && (
+                <button
+                  type="button"
+                  onClick={() => { setDistAutoFilled(false); setForm(f => ({ ...f, distance: '' })) }}
+                  title="Modifier manuellement"
+                  style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, fontSize: 14 }}
+                >✕</button>
+              )}
+            </div>
             {errors.distance && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.distance}</p>}
           </Field>
         </div>
@@ -750,12 +801,18 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
         <MiniMapPreview
           points={coords}
           color={axeColor}
-          onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { lat, lng }]); setSelectedGeometry(null) }}
-          onGeometrySelected={setSelectedGeometry}
+          onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { name: '', lat, lng }]); setSelectedGeometry(null) }}
+          onRouteSelected={route => {
+            if (!route) { setSelectedGeometry(null); setDistAutoFilled(false); return }
+            setSelectedGeometry(route.geometry)
+            setForm(f => ({ ...f, distance: `${route.distance} km` }))
+            setDistAutoFilled(true)
+            setErrors(e => ({ ...e, distance: '' }))
+          }}
         />
         {selectedGeometry && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.75rem', background: '#EBF8F1', border: '1px solid #A7E3C3', borderRadius: '7px', fontSize: 12, color: '#27AE60', fontFamily: "'Inter',sans-serif" }}>
-            <CheckCircle size={13} /> Itinéraire sélectionné — {selectedGeometry.length} points GPS · le tracé sera sauvegardé tel quel
+            <CheckCircle size={13} /> Itinéraire sélectionné — {selectedGeometry.length} points GPS — distance auto-remplie
           </div>
         )}
         {/* Éditeur manuel dessous */}

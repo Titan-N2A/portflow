@@ -42,13 +42,14 @@ function startFromFs(start) {
 }
 
 // Prépare un axe pour Firestore (convertit tableaux imbriqués → objets)
-function axeToFs({ id, coordinates, coordinatesRetour, geometryRoute, start, ...rest }) {
+function axeToFs({ id, coordinates, coordinatesRetour, geometryRoute, waypoints, start, ...rest }) {
   return {
     ...rest,
     coordinates:       coordsToFs(coordinates),
     ...(coordinatesRetour ? { coordinatesRetour: coordsToFs(coordinatesRetour) } : {}),
-    ...(geometryRoute    ? { geometryRoute:    coordsToFs(geometryRoute)    } : {}),
-    ...(start            ? { start:            startToFs(start)             } : {}),
+    ...(geometryRoute     ? { geometryRoute:     coordsToFs(geometryRoute)     } : {}),
+    ...(waypoints         ? { waypoints }                                        : {}), // objets {name,lat,lng} déjà valides
+    ...(start             ? { start: startToFs(start) }                          : {}),
   }
 }
 
@@ -60,6 +61,7 @@ function axeFromFs(data, id) {
     coordinates:       coordsFromFs(data.coordinates),
     coordinatesRetour: data.coordinatesRetour ? coordsFromFs(data.coordinatesRetour) : undefined,
     geometryRoute:     data.geometryRoute     ? coordsFromFs(data.geometryRoute)     : undefined,
+    waypoints:         data.waypoints         ?? [],   // [{name,lat,lng}] préservés pour le form
     start:             startFromFs(data.start),
   }
 }
