@@ -1,5 +1,5 @@
 const GEMINI_KEY   = import.meta.env.VITE_GEMINI_API_KEY ?? ''
-const GEMINI_MODEL = 'gemini-1.5-flash'
+const GEMINI_MODEL = 'gemini-2.5-flash'
 const GEMINI_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`
 
 export async function askGemini(prompt) {
