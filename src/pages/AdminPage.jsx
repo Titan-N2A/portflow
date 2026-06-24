@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, Marker, useMap, Popup } from 'react-leaflet'
+import { fetchRouteAlternatives } from '../services/tomtom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
@@ -348,131 +349,193 @@ function parseGoogleMapsCoords(raw) {
 // URL Google Maps centrée sur Port-Bouët / PAA Abidjan
 const GM_BASE_URL = 'https://www.google.com/maps/@5.304290,-4.023577,15z'
 
-function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint }) {
-  const [gmOpen,    setGmOpen]    = useState(false)  // panel Google Maps ouvert
-  const [gmInput,   setGmInput]   = useState('')      // texte collé
-  const [gmError,   setGmError]   = useState('')      // message d'erreur parsing
-  const [gmSuccess, setGmSuccess] = useState(false)   // flash succès
+const ALT_COLORS = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD']
+
+function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onGeometrySelected }) {
+  const [gmOpen,       setGmOpen]       = useState(false)
+  const [gmInput,      setGmInput]      = useState('')
+  const [gmError,      setGmError]      = useState('')
+  const [gmSuccess,    setGmSuccess]    = useState(false)
+  const [alternatives, setAlternatives] = useState([])   // itinéraires TomTom
+  const [selectedIdx,  setSelectedIdx]  = useState(null) // itinéraire choisi
+  const [computing,    setComputing]    = useState(false)
+  const [altError,     setAltError]     = useState('')
 
   const valid     = points.filter(isValidPoint)
   const positions = valid.map(p => [parseFloat(p.lat), parseFloat(p.lng)])
   const center    = positions.length > 0 ? positions[0] : [5.304290, -4.023577]
+  const canCompute = valid.length >= 2
 
   function openGoogleMaps() {
     window.open(GM_BASE_URL, '_blank')
-    setGmOpen(true)
-    setGmInput('')
-    setGmError('')
-    setGmSuccess(false)
+    setGmOpen(true); setGmInput(''); setGmError(''); setGmSuccess(false)
   }
 
   function addFromGm() {
     const parsed = parseGoogleMapsCoords(gmInput)
-    if (!parsed) {
-      setGmError('Format invalide. Exemple : 5.3040, -4.0236')
-      return
-    }
+    if (!parsed) { setGmError('Format invalide. Exemple : 5.3040, -4.0236'); return }
     onAddPoint?.(parsed.lat, parsed.lng)
-    setGmInput('')
-    setGmError('')
+    setGmInput(''); setGmError('')
     setGmSuccess(true)
     setTimeout(() => setGmSuccess(false), 1500)
   }
 
+  async function computeAlts() {
+    setComputing(true); setAltError(''); setAlternatives([]); setSelectedIdx(null)
+    onGeometrySelected?.(null)
+    try {
+      const from = positions[0]
+      const to   = positions[positions.length - 1]
+      const alts = await fetchRouteAlternatives(from, to, 3)
+      setAlternatives(alts)
+      if (alts.length === 1) {
+        setSelectedIdx(0)
+        onGeometrySelected?.(alts[0].geometry)
+      }
+    } catch (err) {
+      setAltError('Erreur TomTom : ' + err.message)
+    } finally {
+      setComputing(false)
+    }
+  }
+
+  function selectAlt(idx) {
+    setSelectedIdx(idx)
+    onGeometrySelected?.(alternatives[idx].geometry)
+  }
+
   return (
     <div>
-
-      {/* Bouton Google Maps */}
+      {/* ── Barre d'outils ─────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
-        <button
-          type="button"
-          onClick={openGoogleMaps}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '0.4rem 1rem', borderRadius: '7px', fontSize: 12,
-            fontFamily: "'Inter',sans-serif", fontWeight: 600, cursor: 'pointer',
-            background: '#1B4F8A', color: '#fff',
-            border: '1px solid #1B4F8A',
-            transition: 'background 0.15s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = '#164076'}
-          onMouseLeave={e => e.currentTarget.style.background = '#1B4F8A'}
-        >
-          <MapPin size={13} />
-          Ouvrir Google Maps
+        <button type="button" onClick={openGoogleMaps} style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '0.4rem 1rem', borderRadius: '7px', fontSize: 12,
+          fontFamily: "'Inter',sans-serif", fontWeight: 600, cursor: 'pointer',
+          background: '#1B4F8A', color: '#fff', border: '1px solid #1B4F8A',
+        }}>
+          <MapPin size={13} /> Ouvrir Google Maps
         </button>
-        <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
-          Clic droit sur la carte → "Plus d'infos ici" → copiez les coordonnées
-        </span>
+
+        <button type="button" onClick={computeAlts} disabled={!canCompute || computing} style={{
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '0.4rem 1rem', borderRadius: '7px', fontSize: 12,
+          fontFamily: "'Inter',sans-serif", fontWeight: 600,
+          cursor: canCompute ? 'pointer' : 'not-allowed',
+          background: canCompute ? '#27AE60' : '#e2e8f0',
+          color: canCompute ? '#fff' : C.textLight, border: 'none',
+        }}>
+          <Navigation size={13} className={computing ? 'fp-spin' : ''} />
+          {computing ? 'Calcul…' : 'Voir les itinéraires'}
+        </button>
+
+        {!canCompute && (
+          <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
+            Ajoutez départ + arrivée d'abord
+          </span>
+        )}
       </div>
 
-      {/* Panel collage coordonnées Google Maps */}
+      {/* ── Panel Google Maps ───────────────────────────── */}
       {gmOpen && (
-        <div style={{
-          marginBottom: '10px', padding: '0.85rem 1rem',
-          background: '#EBF2FB', border: '1px solid #CDDFF5', borderRadius: '8px',
-        }}>
-          <p style={{ fontSize: 12, fontWeight: 700, color: '#1B4F8A', marginBottom: '8px', fontFamily: "'Inter',sans-serif" }}>
-            Coller les coordonnées copiées depuis Google Maps
+        <div style={{ marginBottom: '10px', padding: '0.85rem 1rem', background: '#EBF2FB', border: '1px solid #CDDFF5', borderRadius: '8px' }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#1B4F8A', marginBottom: '6px', fontFamily: "'Inter',sans-serif" }}>
+            Coller les coordonnées depuis Google Maps
           </p>
           <p style={{ fontSize: 11, color: C.textMuted, marginBottom: '8px', fontFamily: "'Inter',sans-serif", lineHeight: 1.5 }}>
-            Sur Google Maps : clic droit sur un point → <strong>"Plus d'infos ici"</strong> → copiez la ligne de coordonnées (ex : <em>5.3040, -4.0236</em>)
+            Clic droit → <strong>"Plus d'infos ici"</strong> → copiez (ex : <em>5.3040, -4.0236</em>)
           </p>
           <div style={{ display: 'flex', gap: '6px' }}>
-            <input
-              className="fp-input"
-              style={{ flex: 1, fontSize: 12 }}
-              placeholder="Ex : 5.3040, -4.0236"
-              value={gmInput}
+            <input className="fp-input" style={{ flex: 1, fontSize: 12 }}
+              placeholder="Ex : 5.3040, -4.0236" value={gmInput}
               onChange={e => { setGmInput(e.target.value); setGmError('') }}
-              onKeyDown={e => e.key === 'Enter' && addFromGm()}
-              autoFocus
-            />
-            <button
-              type="button"
-              className="fp-btn fp-btn-primary"
+              onKeyDown={e => e.key === 'Enter' && addFromGm()} autoFocus />
+            <button type="button" className="fp-btn fp-btn-primary"
               style={{ padding: '0.4rem 0.9rem', fontSize: 12, whiteSpace: 'nowrap' }}
-              onClick={addFromGm}
-              disabled={!gmInput.trim()}
-            >
-              {gmSuccess ? '✓ Ajouté' : 'Ajouter ce point'}
+              onClick={addFromGm} disabled={!gmInput.trim()}>
+              {gmSuccess ? '✓ Ajouté' : 'Ajouter'}
             </button>
-            <button
-              type="button"
-              onClick={() => setGmOpen(false)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, fontSize: 16, padding: '0 4px' }}
-            >×</button>
+            <button type="button" onClick={() => setGmOpen(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, fontSize: 16 }}>×</button>
           </div>
-          {gmError && (
-            <p style={{ fontSize: 11, color: '#C0392B', marginTop: 5, fontFamily: "'Inter',sans-serif" }}>{gmError}</p>
-          )}
+          {gmError && <p style={{ fontSize: 11, color: '#C0392B', marginTop: 5, fontFamily: "'Inter',sans-serif" }}>{gmError}</p>}
         </div>
       )}
 
-      {/* Aperçu carte */}
-      <div style={{ height: '220px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-        <MapContainer
-          key={center.join(',')}
-          center={center}
+      {/* ── Erreur calcul itinéraires ───────────────────── */}
+      {altError && (
+        <div style={{ marginBottom: 8, padding: '0.5rem 0.75rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '7px', fontSize: 12, color: '#C0392B', fontFamily: "'Inter',sans-serif" }}>
+          {altError}
+        </div>
+      )}
+
+      {/* ── Carte ──────────────────────────────────────── */}
+      <div style={{ height: '260px', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${selectedIdx !== null ? '#27AE60' : '#e2e8f0'}`, transition: 'border-color 0.2s' }}>
+        <MapContainer key={center.join(',')} center={center}
           zoom={positions.length > 1 ? 13 : 12}
-          style={{ width: '100%', height: '100%' }}
-          zoomControl={true}
-          attributionControl={false}
-        >
+          style={{ width: '100%', height: '100%' }} zoomControl attributionControl={false}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          {positions.length >= 2 && (
-            <Polyline positions={positions} color={color} weight={5} opacity={0.9} />
+
+          {/* Itinéraires alternatifs */}
+          {alternatives.length > 0 ? alternatives.map((alt, i) => (
+            <Polyline
+              key={i}
+              positions={alt.geometry}
+              color={ALT_COLORS[i % ALT_COLORS.length]}
+              weight={selectedIdx === i ? 7 : 3}
+              opacity={selectedIdx === null ? 0.85 : selectedIdx === i ? 0.95 : 0.35}
+              eventHandlers={{ click: () => selectAlt(i) }}
+            >
+              <Popup>
+                <strong style={{ color: ALT_COLORS[i % ALT_COLORS.length] }}>{alt.label}</strong><br />
+                {alt.distance} km · {alt.duration} min<br />
+                <button onClick={() => selectAlt(i)}
+                  style={{ marginTop: 4, padding: '2px 8px', background: ALT_COLORS[i % ALT_COLORS.length], color: '#fff', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11 }}>
+                  {selectedIdx === i ? '✓ Sélectionné' : 'Choisir cet itinéraire'}
+                </button>
+              </Popup>
+            </Polyline>
+          )) : (
+            positions.length >= 2 && <Polyline positions={positions} color={color} weight={4} opacity={0.6} dashArray="6 4" />
           )}
-          {positions.map((pos, i) => (
-            <Marker key={i} position={pos} icon={makeClickIcon(i + 1)} />
-          ))}
-          {positions.length >= 2 && <FitBoundsHelper positions={positions} />}
+
+          {/* Marqueurs départ/arrivée */}
+          {positions.length > 0 && <Marker position={positions[0]} icon={makeClickIcon('D')} />}
+          {positions.length > 1 && <Marker position={positions[positions.length - 1]} icon={makeClickIcon('A')} />}
+          {(alternatives.length > 0 || positions.length >= 2) && (
+            <FitBoundsHelper positions={alternatives[0]?.geometry ?? positions} />
+          )}
         </MapContainer>
       </div>
 
-      {positions.length < 2 && (
+      {/* ── Sélecteur d'itinéraires ─────────────────────── */}
+      {alternatives.length > 0 && (
+        <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <p style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', fontFamily: "'Inter',sans-serif" }}>
+            Choisissez l'itinéraire correct
+          </p>
+          {alternatives.map((alt, i) => (
+            <button key={i} type="button" onClick={() => selectAlt(i)} style={{
+              display: 'flex', alignItems: 'center', gap: '10px',
+              padding: '0.65rem 1rem', borderRadius: '8px', cursor: 'pointer',
+              border: `2px solid ${selectedIdx === i ? ALT_COLORS[i % ALT_COLORS.length] : '#e2e8f0'}`,
+              background: selectedIdx === i ? `${ALT_COLORS[i % ALT_COLORS.length]}12` : '#fafafa',
+              transition: 'all 0.15s', textAlign: 'left', fontFamily: "'Inter',sans-serif",
+            }}>
+              <div style={{ width: 14, height: 14, borderRadius: '50%', background: ALT_COLORS[i % ALT_COLORS.length], flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{alt.label}</span>
+                <span style={{ fontSize: 12, color: C.textMuted, marginLeft: 8 }}>{alt.distance} km · {alt.duration} min</span>
+              </div>
+              {selectedIdx === i && <span style={{ fontSize: 12, color: ALT_COLORS[i % ALT_COLORS.length], fontWeight: 700 }}>✓ Sélectionné</span>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {positions.length < 2 && alternatives.length === 0 && (
         <p style={{ fontSize: 11, color: C.textLight, marginTop: 5, fontFamily: "'Inter',sans-serif", textAlign: 'center' }}>
-          Ajoutez au moins 2 points pour voir le tracé
+          Ajoutez au moins un point de départ et un point d'arrivée
         </p>
       )}
     </div>
@@ -588,8 +651,9 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
     tRef:     axe?.tRef     ?? '',
     ordre:    axe?.ordre    ?? (axes.length + 1),
   })
-  const [coords,  setCoords]  = useState(coordsToForm(axe?.coordinates))
-  const [errors,  setErrors]  = useState({})
+  const [coords,           setCoords]          = useState(coordsToForm(axe?.coordinates))
+  const [selectedGeometry, setSelectedGeometry] = useState(axe?.geometryRoute ?? null)
+  const [errors,           setErrors]           = useState({})
 
   function validate() {
     const e = {}
@@ -612,20 +676,22 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
     if (!validate()) return
     const savedCoords = formToCoords(coords)
     const newAxe = {
-      id:          axe?.id ?? `axe_${Date.now()}`,
-      nom:         form.nom.trim(),
-      shortNom:    form.shortNom.trim(),
-      distance:    form.distance.trim(),
-      tRef:        parseFloat(form.tRef),
-      ordre:       parseInt(form.ordre),
-      troncons:    axe?.troncons ?? [],
-      coordinates: savedCoords,
-      start:       savedCoords[0] ?? axe?.start ?? [5.29, -4.02],
-      actif:       axe?.actif ?? true,
-      num:         axe?.num ?? (axes.length + 1),
+      id:             axe?.id ?? `axe_${Date.now()}`,
+      nom:            form.nom.trim(),
+      shortNom:       form.shortNom.trim(),
+      distance:       form.distance.trim(),
+      tRef:           parseFloat(form.tRef),
+      ordre:          parseInt(form.ordre),
+      troncons:       axe?.troncons ?? [],
+      coordinates:    savedCoords,
+      start:          savedCoords[0] ?? axe?.start ?? [5.29, -4.02],
+      actif:          axe?.actif ?? true,
+      num:            axe?.num ?? (axes.length + 1),
       bidirectionnel: axe?.bidirectionnel ?? false,
+      // Si l'admin a sélectionné un itinéraire → sauvegardé directement
+      // sinon saveAxe() calculera automatiquement via TomTom
+      ...(selectedGeometry ? { geometryRoute: selectedGeometry } : {}),
     }
-    // TomTom geometry is computed inside saveAxe() → affiche un toast pendant le calcul
     onSave(newAxe)
     onClose()
   }
@@ -684,10 +750,16 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
         <MiniMapPreview
           points={coords}
           color={axeColor}
-          onAddPoint={(lat, lng) => setCoords(prev => [...prev, { lat, lng }])}
+          onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { lat, lng }]); setSelectedGeometry(null) }}
+          onGeometrySelected={setSelectedGeometry}
         />
+        {selectedGeometry && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.75rem', background: '#EBF8F1', border: '1px solid #A7E3C3', borderRadius: '7px', fontSize: 12, color: '#27AE60', fontFamily: "'Inter',sans-serif" }}>
+            <CheckCircle size={13} /> Itinéraire sélectionné — {selectedGeometry.length} points GPS · le tracé sera sauvegardé tel quel
+          </div>
+        )}
         {/* Éditeur manuel dessous */}
-        <CoordinatesEditor points={coords} onChange={setCoords} minPoints={0} />
+        <CoordinatesEditor points={coords} onChange={c => { setCoords(c); setSelectedGeometry(null) }} minPoints={0} />
         {errors.coords && (
           <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
             ⚠ {errors.coords}

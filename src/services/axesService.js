@@ -134,8 +134,9 @@ export async function saveAxe(axe) {
   const { id } = axe
   let enriched = axe
 
-  // Calcul automatique de la géométrie routière via TomTom
-  if (axe.coordinates && axe.coordinates.length >= 2) {
+  // Si l'admin a déjà choisi un itinéraire, on l'utilise directement
+  // Sinon on calcule automatiquement via TomTom multi-stops
+  if (!axe.geometryRoute && axe.coordinates && axe.coordinates.length >= 2) {
     try {
       const geometry = await computeRouteGeometry(axe.coordinates)
       if (geometry && geometry.length > 5) {

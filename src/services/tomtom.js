@@ -39,6 +39,29 @@ async function fetchAxeRoute(axe) {
   return { tempsMin: Math.round(secs / 60 * 10) / 10, geometry }
 }
 
+// Retourne tous les itinéraires alternatifs entre le premier et le dernier point
+// Permet à l'admin de choisir le bon tracé
+export async function fetchRouteAlternatives(fromCoord, toCoord, maxAlternatives = 3) {
+  const from = Array.isArray(fromCoord) ? fromCoord : [fromCoord.lat, fromCoord.lng]
+  const to   = Array.isArray(toCoord)   ? toCoord   : [toCoord.lat,   toCoord.lng]
+
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/` +
+    `${from[0]},${from[1]}:${to[0]},${to[1]}/json` +
+    `?key=${TOMTOM_KEY}&traffic=false&travelMode=car&maxAlternatives=${maxAlternatives}`
+
+  const res  = await fetch(url)
+  if (!res.ok) throw new Error(`TomTom ${res.status}`)
+  const data = await res.json()
+
+  return (data.routes ?? []).map((route, i) => ({
+    index:    i,
+    label:    `Itinéraire ${i + 1}`,
+    distance: Math.round(route.summary.lengthInMeters / 100) / 10,
+    duration: Math.round(route.summary.travelTimeInSeconds / 60),
+    geometry: route.legs.flatMap(l => l.points).map(p => [p.latitude, p.longitude]),
+  }))
+}
+
 // Route multi-stops à travers tous les waypoints → géométrie complète longeant les rues
 // Utilisé lors de la sauvegarde d'un axe dans l'admin
 export async function computeRouteGeometry(coordsArray) {
