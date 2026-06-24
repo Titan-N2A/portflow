@@ -1,23 +1,26 @@
 const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY ?? 'zReyA5uWwhZ7fdKNlnoYi5tfi6v3GKLC'
 
+// Destination commune : entrée PAA (Port Autonome d'Abidjan)
+const PAA_DEST = { lat: 5.2900, lng: -4.0200 }
+
 const AXES_ROUTES = [
   {
     id: 'axe1', shortNom: 'CARENA',
-    from: { lat: 5.2470, lng: -3.9720 },
-    to:   { lat: 5.2420, lng: -3.9580 },
-    dist: 14.8, tRef: 27.4,
+    from: { lat: 5.3450, lng: -3.9600 },
+    to:   PAA_DEST,
+    dist: 16.8, tRef: 27.4,
   },
   {
     id: 'axe2', shortNom: 'Toyota CFAO',
-    from: { lat: 5.2810, lng: -4.0140 },
-    to:   { lat: 5.2420, lng: -3.9580 },
-    dist: 9.6, tRef: 16.9,
+    from: { lat: 5.3100, lng: -3.9650 },
+    to:   PAA_DEST,
+    dist: 9.0, tRef: 16.9,
   },
   {
     id: 'axe3', shortNom: 'SODECI',
-    from: { lat: 5.2710, lng: -4.0030 },
-    to:   { lat: 5.2420, lng: -3.9580 },
-    dist: 8.4, tRef: 17.8,
+    from: { lat: 5.2900, lng: -3.9650 },
+    to:   PAA_DEST,
+    dist: 8.2, tRef: 17.8,
   },
 ]
 

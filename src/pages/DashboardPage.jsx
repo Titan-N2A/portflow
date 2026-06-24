@@ -10,7 +10,7 @@ import { usePredictions } from '../hooks/usePredictions'
 import { AXE_COLORS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
 
-const PAA_CENTER = [5.2550, -4.0000]
+const PAA_CENTER = [5.3150, -3.9950]
 
 const JOURS_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 

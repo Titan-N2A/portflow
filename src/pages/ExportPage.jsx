@@ -1,14 +1,14 @@
 import { useState, useMemo } from 'react'
-import { Download, FileSpreadsheet, Database } from 'lucide-react'
+import { Download, FileSpreadsheet, Database, Zap } from 'lucide-react'
 import { C } from '../styles/tokens'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
-import { AXES_OFFICIELS } from '../hooks/useTrafficData'
+import { AXES_OFFICIELS, useTrafficData } from '../hooks/useTrafficData'
 import { useHistoricalData } from '../hooks/useHistoricalData'
 import { computeNiveau } from '../services/indicators'
 import { getReference } from '../data/references'
 
-const DIST_KM = { axe1: 14.8, axe2: 9.6, axe3: 8.4 }
+const DIST_KM = { axe1: 16.8, axe2: 9.0, axe3: 8.2 }
 
 function buildExportRows(data, axeId, dateDebut, dateFin) {
   const start = new Date(dateDebut)
@@ -40,9 +40,33 @@ function buildExportRows(data, axeId, dateDebut, dateFin) {
   })
 }
 
-function ExportPage() {
-  const { data, loading } = useHistoricalData()
+function buildLiveRows(mesures) {
+  const now  = new Date()
+  const date = now.toLocaleDateString('fr-FR')
+  const heure = `${now.getHours()}:00`
+  return AXES_OFFICIELS.flatMap(axe => {
+    const m = mesures[axe.id]
+    if (!m) return []
+    return [{
+      Date:            date,
+      Heure:           heure,
+      Axe:             axe.shortNom,
+      Sens:            'aller',
+      Source:          m.simulated ? 'simulation' : 'TomTom live',
+      'T_ref (min)':   axe.tRef,
+      'T_live (min)':  m.tempsLive,
+      'Retard (min)':  m.retard,
+      Niveau:          m.niveau,
+      'Vitesse (km/h)': m.vitesse,
+    }]
+  })
+}
 
+function ExportPage() {
+  const { data, loading }           = useHistoricalData()
+  const { mesures, lastUpdate }     = useTrafficData()
+
+  const [source, setSource] = useState('historique')
   const [axe,    setAxe]    = useState('tous')
   const [debut,  setDebut]  = useState('2025-02-01')
   const [fin,    setFin]    = useState('2025-02-28')
@@ -61,7 +85,9 @@ function ExportPage() {
   function telecharger() {
     setExporting(true)
     setTimeout(() => {
-      const rows = buildExportRows(data, axe, debut, fin)
+      const rows = source === 'live'
+        ? buildLiveRows(mesures).filter(r => axe === 'tous' || AXES_OFFICIELS.find(a => a.shortNom === r.Axe)?.id === axe)
+        : buildExportRows(data, axe, debut, fin)
       if (!rows.length) { alert('Aucune donnée pour cette sélection.'); setExporting(false); return }
 
       const fname = `FlowPort_Export_${axe}_${debut}_${fin}`
@@ -120,6 +146,22 @@ function ExportPage() {
             </div>
           </div>
 
+          {/* Source */}
+          <div>
+            <label className="fp-label">Source des données</label>
+            <div style={{ display: 'flex', gap: '0.5rem' }}>
+              {[['historique','Historique (fév. 2025)'],['live','Données live actuelles']].map(([val, lbl]) => (
+                <button key={val} onClick={() => setSource(val)} style={{
+                  flex: 1, padding: '0.5rem', fontSize: 12, fontFamily: "'Inter', sans-serif",
+                  borderRadius: '8px', cursor: 'pointer', fontWeight: source === val ? 700 : 400,
+                  background: source === val ? C.primary : '#f8fafc',
+                  color: source === val ? '#fff' : C.text,
+                  border: `1px solid ${source === val ? C.primary : '#e2e8f0'}`,
+                }}>{val === 'live' && <Zap size={11} style={{ marginRight: 4 }} />}{lbl}</button>
+              ))}
+            </div>
+          </div>
+
           {/* Axe */}
           <div>
             <label className="fp-label">Axe routier</label>
@@ -129,17 +171,24 @@ function ExportPage() {
             </select>
           </div>
 
-          {/* Dates */}
-          <div style={{ display: 'flex', gap: '1rem' }}>
-            <div style={{ flex: 1 }}>
-              <label className="fp-label">Date de début</label>
-              <input type="date" className="fp-input" value={debut} min="2025-02-01" max="2025-02-28" onChange={e => setDebut(e.target.value)} />
+          {/* Dates — seulement pour historique */}
+          {source === 'historique' && (
+            <div style={{ display: 'flex', gap: '1rem' }}>
+              <div style={{ flex: 1 }}>
+                <label className="fp-label">Date de début</label>
+                <input type="date" className="fp-input" value={debut} min="2025-02-01" max="2025-02-28" onChange={e => setDebut(e.target.value)} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label className="fp-label">Date de fin</label>
+                <input type="date" className="fp-input" value={fin} min="2025-02-01" max="2025-02-28" onChange={e => setFin(e.target.value)} />
+              </div>
             </div>
-            <div style={{ flex: 1 }}>
-              <label className="fp-label">Date de fin</label>
-              <input type="date" className="fp-input" value={fin} min="2025-02-01" max="2025-02-28" onChange={e => setFin(e.target.value)} />
+          )}
+          {source === 'live' && lastUpdate && (
+            <div style={{ padding: '0.5rem 0.75rem', background: '#EBF8F1', border: '1px solid #A7E3C3', borderRadius: '8px', fontSize: 12, color: C.success }}>
+              Snapshot live du {lastUpdate.toLocaleString('fr-FR')}
             </div>
-          </div>
+          )}
 
           {/* Format */}
           <div>
@@ -154,7 +203,7 @@ function ExportPage() {
             className="fp-btn fp-btn-primary"
             style={{ padding: '0.75rem', justifyContent: 'center', fontSize: 14, marginTop: '0.25rem' }}
             onClick={telecharger}
-            disabled={exporting || loading || !previewCount}
+            disabled={exporting || (source === 'historique' && loading)}
           >
             <Download size={16} />
             {exporting ? 'Préparation…' : `Télécharger (${previewCount} lignes)`}
