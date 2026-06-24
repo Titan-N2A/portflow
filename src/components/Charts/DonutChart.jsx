@@ -1,9 +1,3 @@
-// ============================================================
-// DonutChart.jsx — Répartition des niveaux de congestion
-// Donut affichant la proportion de temps passé en Fluide /
-// Modéré / Dense / Congestionné sur la période sélectionnée.
-// ============================================================
-
 import { Doughnut } from 'react-chartjs-2'
 import '../../utils/chartSetup'
 import { tokens } from '../../styles/tokens'
@@ -20,9 +14,12 @@ function DonutChart({ data }) {
     labels: data.map(d => `${d.label} (${d.pct}%)`),
     datasets: [{
       data:            data.map(d => d.count),
-      backgroundColor: data.map(d => COULEURS[d.label]),
-      borderColor:     tokens.colors.bg.surface,
-      borderWidth:      2,
+      backgroundColor: data.map(d => COULEURS[d.label] + 'CC'),
+      borderColor:     data.map(d => COULEURS[d.label]),
+      borderWidth:     1,
+      hoverBorderWidth: 2,
+      hoverBorderColor: data.map(d => COULEURS[d.label]),
+      hoverOffset:     6,
     }],
   }
 
@@ -31,20 +28,46 @@ function DonutChart({ data }) {
     plugins: {
       legend: {
         position: 'bottom',
-        labels: { color: tokens.colors.text.secondary, font: { size: 11 } },
+        labels: {
+          color:     tokens.colors.text.secondary,
+          font:      { family: "'Space Grotesk', sans-serif", size: 11 },
+          boxWidth:  12,
+          boxHeight: 12,
+          padding:   12,
+        },
       },
       title: {
-        display: true,
-        text:    'Répartition des niveaux de congestion',
-        color:   tokens.colors.text.primary,
-        font:    { size: 14 },
+        display:  true,
+        text:     'Répartition des niveaux',
+        color:    tokens.colors.text.primary,
+        font:     { family: "'Space Grotesk', sans-serif", size: 13, weight: '600' },
+        padding:  { bottom: 16 },
+      },
+      tooltip: {
+        backgroundColor: tokens.colors.bg.elevated,
+        borderColor:     tokens.colors.bg.border,
+        borderWidth:     1,
+        titleColor:      tokens.colors.text.primary,
+        bodyColor:       tokens.colors.text.secondary,
+        titleFont:       { family: "'Space Grotesk', sans-serif" },
+        bodyFont:        { family: "'Space Mono', monospace" },
       },
     },
-    cutout: '60%',
+    cutout: '65%',
   }
 
   return (
-    <div style={{ background: tokens.colors.bg.surface, borderRadius: tokens.radius.md, padding: tokens.spacing.card }}>
+    <div
+      className="pf-card"
+      style={{
+        background:    tokens.colors.bg.surface,
+        borderRadius:  tokens.radius.md,
+        padding:       tokens.spacing.card,
+        border:        `1px solid ${tokens.colors.bg.border}`,
+        position:      'relative',
+        overflow:      'hidden',
+      }}
+    >
       <Doughnut data={chartData} options={options} />
     </div>
   )

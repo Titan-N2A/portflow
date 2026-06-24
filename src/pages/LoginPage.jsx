@@ -1,9 +1,3 @@
-// ============================================================
-// LoginPage.jsx — Page de connexion administrateur
-// Formulaire email + mot de passe via Firebase Auth.
-// Redirige vers /admin après connexion réussie.
-// ============================================================
-
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { signIn } from '../services/auth'
@@ -38,59 +32,162 @@ function LoginPage() {
 
   return (
     <div style={{
-      minHeight: '100vh', display: 'flex', alignItems: 'center',
-      justifyContent: 'center', background: tokens.colors.bg.app,
+      minHeight:       'calc(100vh - 56px)',
+      display:         'flex',
+      alignItems:      'center',
+      justifyContent:  'center',
+      padding:         '2rem',
     }}>
-      <form onSubmit={handleSubmit} style={{
-        background: tokens.colors.bg.surface, borderRadius: tokens.radius.lg,
-        padding: '2.5rem', width: '100%', maxWidth: '400px',
-        boxShadow: tokens.shadows.panel,
+      {/* Card de connexion */}
+      <div style={{
+        width:        '100%',
+        maxWidth:     '400px',
+        animation:    'fadeSlideUp 0.35s ease both',
       }}>
-        <h1 style={{
-          color: tokens.colors.accent.primary, fontFamily: tokens.fonts.ui,
-          fontSize: '1.5rem', marginBottom: '1.5rem', textAlign: 'center',
-        }}>
-          PortFlow — Connexion Admin
-        </h1>
-
-        <label style={{ color: tokens.colors.text.secondary, fontSize: '0.85rem' }}>Email</label>
-        <input
-          type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-          style={{
-            width: '100%', padding: '0.6rem', marginTop: '0.3rem', marginBottom: '1rem',
-            background: tokens.colors.bg.elevated, border: `1px solid ${tokens.colors.bg.border}`,
-            borderRadius: tokens.radius.sm, color: tokens.colors.text.primary, fontSize: '0.9rem',
-          }}
-        />
-
-        <label style={{ color: tokens.colors.text.secondary, fontSize: '0.85rem' }}>Mot de passe</label>
-        <input
-          type="password" value={password} onChange={(e) => setPassword(e.target.value)} required
-          style={{
-            width: '100%', padding: '0.6rem', marginTop: '0.3rem', marginBottom: '1.2rem',
-            background: tokens.colors.bg.elevated, border: `1px solid ${tokens.colors.bg.border}`,
-            borderRadius: tokens.radius.sm, color: tokens.colors.text.primary, fontSize: '0.9rem',
-          }}
-        />
-
-        {error && (
-          <p style={{ color: tokens.colors.traffic.blocked, fontSize: '0.85rem', marginBottom: '1rem' }}>
-            {error}
+        {/* Logo / Brand */}
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <svg width="48" height="48" viewBox="0 0 32 32" fill="none" style={{ margin: '0 auto 12px', display: 'block' }}>
+            <polygon
+              points="16,2 28,9 28,23 16,30 4,23 4,9"
+              fill="rgba(0,245,212,0.08)"
+              stroke="#00F5D4"
+              strokeWidth="1.5"
+              strokeLinejoin="round"
+            />
+            <text x="16" y="20" textAnchor="middle" fill="#00F5D4" fontSize="9" fontFamily="Space Mono, monospace" fontWeight="700">PF</text>
+          </svg>
+          <h1 style={{
+            color:         tokens.colors.text.primary,
+            fontFamily:    tokens.fonts.ui,
+            fontSize:      '1.3rem',
+            fontWeight:    700,
+            letterSpacing: '0.05em',
+            margin:        0,
+          }}>
+            PORT<span style={{ color: tokens.colors.accent.primary }}>FLOW</span>
+          </h1>
+          <p style={{
+            color:         tokens.colors.text.muted,
+            fontSize:      '0.72rem',
+            fontFamily:    tokens.fonts.data,
+            letterSpacing: '0.12em',
+            textTransform: 'uppercase',
+            marginTop:     '4px',
+          }}>
+            Accès Administration
           </p>
-        )}
+        </div>
 
-        <button
-          type="submit" disabled={loading}
-          style={{
-            width: '100%', background: tokens.colors.accent.primary, color: '#fff',
-            border: 'none', borderRadius: tokens.radius.sm, padding: '0.75rem',
-            cursor: loading ? 'not-allowed' : 'pointer', fontWeight: 'bold',
-            fontSize: '0.95rem', opacity: loading ? 0.7 : 1,
-          }}
-        >
-          {loading ? 'Connexion...' : 'Se connecter'}
-        </button>
-      </form>
+        {/* Form card */}
+        <div style={{
+          background:    tokens.colors.bg.surface,
+          borderRadius:  tokens.radius.lg,
+          padding:       '2rem',
+          border:        `1px solid ${tokens.colors.bg.border}`,
+          boxShadow:     `${tokens.shadows.panel}, 0 0 60px rgba(0,245,212,0.04)`,
+          position:      'relative',
+          overflow:      'hidden',
+        }}>
+          {/* Top accent */}
+          <div style={{
+            position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
+            background: `linear-gradient(90deg, transparent 0%, ${tokens.colors.accent.primary} 50%, transparent 100%)`,
+          }} />
+
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div>
+              <label style={{
+                color:         tokens.colors.text.secondary,
+                fontSize:      '0.75rem',
+                fontFamily:    tokens.fonts.ui,
+                fontWeight:    600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                display:       'block',
+                marginBottom:  '6px',
+              }}>
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                required
+                className="pf-input"
+                placeholder="admin@portflow.ci"
+              />
+            </div>
+
+            <div>
+              <label style={{
+                color:         tokens.colors.text.secondary,
+                fontSize:      '0.75rem',
+                fontFamily:    tokens.fonts.ui,
+                fontWeight:    600,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                display:       'block',
+                marginBottom:  '6px',
+              }}>
+                Mot de passe
+              </label>
+              <input
+                type="password"
+                value={password}
+                onChange={e => setPassword(e.target.value)}
+                required
+                className="pf-input"
+                placeholder="••••••••"
+              />
+            </div>
+
+            {error && (
+              <div style={{
+                padding:      '0.6rem 0.9rem',
+                background:   'rgba(255,51,102,0.08)',
+                border:       '1px solid rgba(255,51,102,0.25)',
+                borderRadius: tokens.radius.sm,
+              }}>
+                <p style={{
+                  color:      tokens.colors.traffic.blocked,
+                  fontSize:   '0.82rem',
+                  margin:     0,
+                  fontFamily: tokens.fonts.ui,
+                }}>
+                  {error}
+                </p>
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="pf-btn-primary"
+              style={{
+                width:      '100%',
+                padding:    '0.75rem',
+                fontSize:   '0.9rem',
+                marginTop:  '0.25rem',
+                opacity:    loading ? 0.65 : 1,
+                cursor:     loading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {loading ? '⏳ Connexion...' : 'Se connecter →'}
+            </button>
+          </form>
+        </div>
+
+        <p style={{
+          textAlign:  'center',
+          color:      tokens.colors.text.muted,
+          fontSize:   '0.68rem',
+          fontFamily: tokens.fonts.data,
+          marginTop:  '1.25rem',
+          letterSpacing: '0.04em',
+        }}>
+          Port Autonome d'Abidjan — accès réservé
+        </p>
+      </div>
     </div>
   )
 }

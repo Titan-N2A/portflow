@@ -1,147 +1,47 @@
-// ============================================================
-// PORTFLOW — SYSTÈME DE DESIGN (tokens.js)
-// Source unique de vérité pour toutes les couleurs, typographies
-// et espacements de l'application.
-// Importe ce fichier dans n'importe quel composant pour
-// garantir la cohérence visuelle sur tout le projet.
-// ============================================================
+export const C = {
+  // Sidebar
+  sidebar:       '#0A2342',
+  sidebarActive: '#1B4F8A',
+  sidebarHover:  'rgba(255,255,255,0.07)',
+  sidebarText:   'rgba(255,255,255,0.85)',
+  sidebarMuted:  'rgba(255,255,255,0.45)',
+  sidebarBorder: 'rgba(255,255,255,0.1)',
 
-export const tokens = {
+  // Page / cards
+  bg:            '#F4F4F4',
+  white:         '#FFFFFF',
+  border:        '#E2E8F0',
+  borderLight:   '#F0F4F8',
 
-  // ----------------------------------------------------------
-  // COULEURS
-  // ----------------------------------------------------------
-  colors: {
+  // Boutons
+  primary:       '#1B4F8A',
+  primaryHover:  '#164076',
+  danger:        '#C0392B',
+  warning:       '#E67E22',
+  success:       '#27AE60',
 
-    // Arrière-plans — thème sombre dashboard industriel
-    bg: {
-      app:      '#0F172A', // slate-900 — fond principal de l'app
-      surface:  '#1E293B', // slate-800 — cards, panels, sidebar
-      elevated: '#293548', // slate-700 — modales, dropdowns
-      border:   '#334155', // slate-600 — séparateurs, contours
-    },
+  // Texte
+  text:          '#2C3E50',
+  textMuted:     '#7F8C8D',
+  textLight:     '#95A5A6',
 
-    // Statuts trafic PAA — couleur sémantique (niveaux 1 à 5)
-    traffic: {
-      fluid:    '#22C55E', // vert    — niveau 1-2 : trafic fluide
-      moderate: '#EAB308', // jaune   — niveau 3   : trafic modéré
-      dense:    '#F97316', // orange  — niveau 4   : trafic dense
-      blocked:  '#EF4444', // rouge   — niveau 5   : congestion
-      unknown:  '#64748B', // gris    — données indisponibles
-    },
-
-    // Accent principal PortFlow
-    accent: {
-      primary: '#F97316', // orange PAA — boutons, badges, highlights
-      hover:   '#EA6C0A', // orange foncé au survol
-      subtle:  '#431407', // fond très sombre pour badges orange
-    },
-
-    // Couleurs des 3 axes PAA (carte Leaflet)
-    axes: {
-      axe1: '#3B82F6', // bleu   — Axe 1 CARENA
-      axe2: '#A855F7', // violet — Axe 2 TOYOTA CFAO
-      axe3: '#F97316', // orange — Axe 3 SODECI
-    },
-
-    // Textes
-    text: {
-      primary:   '#F1F5F9', // blanc cassé — titres, labels principaux
-      secondary: '#94A3B8', // gris clair  — descriptions, sous-titres
-      muted:     '#64748B', // gris foncé  — placeholders, désactivés
-      data:      '#7DD3FC', // bleu clair  — valeurs numériques / KPIs
-    },
-  },
-
-  // ----------------------------------------------------------
-  // TYPOGRAPHIE
-  // ----------------------------------------------------------
-  fonts: {
-    ui:   '"Inter", system-ui, sans-serif',    // Interface, labels, textes
-    data: '"JetBrains Mono", monospace',        // Métriques, temps, chiffres
-  },
-
-  // ----------------------------------------------------------
-  // ESPACEMENTS (padding, gap, margin)
-  // ----------------------------------------------------------
-  spacing: {
-    card:    '1.5rem', // padding interne des cards
-    section: '2rem',   // espacement vertical entre sections
-    gap:     '1rem',   // gap entre éléments d'une grille
-  },
-
-  // ----------------------------------------------------------
-  // FORMES
-  // ----------------------------------------------------------
-  radius: {
-    sm:   '6px',    // boutons, badges, inputs
-    md:   '10px',   // cards, panels
-    lg:   '16px',   // modales, drawers
-    full: '9999px', // pills, avatars ronds
-  },
-
-  // ----------------------------------------------------------
-  // OMBRES
-  // ----------------------------------------------------------
-  shadows: {
-    card:    '0 1px 3px rgba(0,0,0,0.4)',
-    panel:   '0 4px 12px rgba(0,0,0,0.5)',
-    glow:    '0 0 20px rgba(249,115,22,0.25)', // halo orange — alertes
-  },
-
-  // ----------------------------------------------------------
-  // TRANSITIONS
-  // ----------------------------------------------------------
-  transition: {
-    fast:   '150ms ease',
-    normal: '250ms ease',
-    slow:   '400ms ease',
-  },
+  // Niveaux de congestion
+  n1: '#1E8449',
+  n2: '#27AE60',
+  n3: '#F1C40F',
+  n4: '#E67E22',
+  n5: '#C0392B',
 }
 
-// ----------------------------------------------------------
-// HELPERS — Fonctions utilitaires liées aux tokens
-// ----------------------------------------------------------
-
-/**
- * Retourne la couleur Tailwind/hex selon le niveau de congestion (1-5)
- * @param {number} level — niveau de congestion entre 1 et 5
- * @returns {string} couleur hex
- */
-export function getTrafficColor(level) {
-  if (level <= 2) return tokens.colors.traffic.fluid
-  if (level === 3) return tokens.colors.traffic.moderate
-  if (level === 4) return tokens.colors.traffic.dense
-  if (level >= 5) return tokens.colors.traffic.blocked
-  return tokens.colors.traffic.unknown
+export function levelColor(n) {
+  return [C.n1, C.n1, C.n2, C.n3, C.n4, C.n5][n] ?? C.textMuted
 }
 
-/**
- * Retourne la couleur hex d'un axe PAA par son numéro
- * @param {number} axeNum — 1, 2 ou 3
- * @returns {string} couleur hex
- */
-export function getAxeColor(axeNum) {
-  const map = {
-    1: tokens.colors.axes.axe1,
-    2: tokens.colors.axes.axe2,
-    3: tokens.colors.axes.axe3,
-  }
-  return map[axeNum] ?? tokens.colors.traffic.unknown
+export function levelLabel(n) {
+  return ['', 'Fluide', 'Bon', 'Ralenti', 'Congestionné', 'Très congestionné'][n] ?? 'Inconnu'
 }
 
-/**
- * Retourne le label texte d'un niveau de congestion
- * @param {number} level — niveau entre 1 et 5
- * @returns {string} label lisible
- */
-export function getTrafficLabel(level) {
-  const labels = {
-    1: 'Fluide',
-    2: 'Fluide',
-    3: 'Modéré',
-    4: 'Dense',
-    5: 'Congestionné',
-  }
-  return labels[level] ?? 'Inconnu'
+export function levelBg(n) {
+  const colors = { 1: '#d5f5e3', 2: '#d5f5e3', 3: '#fef9c3', 4: '#fdebd0', 5: '#fdecea' }
+  return colors[n] ?? '#f0f0f0'
 }

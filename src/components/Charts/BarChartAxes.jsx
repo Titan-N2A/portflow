@@ -1,9 +1,3 @@
-// ============================================================
-// BarChartAxes.jsx — Histogramme comparatif des 3 axes PAA
-// L'axe sélectionné (via carte ou boutons) est mis en évidence
-// en orange ; les autres gardent leur couleur d'origine.
-// ============================================================
-
 import { Bar } from 'react-chartjs-2'
 import '../../utils/chartSetup'
 import { tokens, getAxeColor } from '../../styles/tokens'
@@ -12,9 +6,10 @@ function BarChartAxes({ data, selectedAxeId }) {
   const labels  = data.map(d => d.nom)
   const valeurs = data.map(d => d.temps_moyen)
 
-  // Met en évidence l'axe sélectionné (orange accent), les autres gardent leur couleur
   const couleurs = data.map(d =>
-    d.axeId === selectedAxeId ? tokens.colors.accent.primary : getAxeColor(Number(d.axeId.slice(-1)))
+    d.axeId === selectedAxeId
+      ? tokens.colors.accent.primary
+      : getAxeColor(Number(d.axeId.slice(-1))) + 'AA'
   )
 
   const chartData = {
@@ -23,7 +18,8 @@ function BarChartAxes({ data, selectedAxeId }) {
       label:           'Temps moyen aller (min)',
       data:            valeurs,
       backgroundColor: couleurs,
-      borderRadius:    6,
+      borderRadius:    8,
+      borderSkipped:   false,
     }],
   }
 
@@ -32,24 +28,52 @@ function BarChartAxes({ data, selectedAxeId }) {
     plugins: {
       legend: { display: false },
       title: {
-        display: true,
-        text:    'Comparatif des 3 axes — sens aller',
-        color:   tokens.colors.text.primary,
-        font:    { size: 14 },
+        display:  true,
+        text:     'Comparatif 3 axes — sens aller',
+        color:    tokens.colors.text.primary,
+        font:     { family: "'Space Grotesk', sans-serif", size: 13, weight: '600' },
+        padding:  { bottom: 16 },
+      },
+      tooltip: {
+        backgroundColor: tokens.colors.bg.elevated,
+        borderColor:     tokens.colors.bg.border,
+        borderWidth:     1,
+        titleColor:      tokens.colors.text.primary,
+        bodyColor:       tokens.colors.text.secondary,
+        titleFont:       { family: "'Space Grotesk', sans-serif" },
+        bodyFont:        { family: "'Space Mono', monospace" },
       },
     },
     scales: {
-      x: { ticks: { color: tokens.colors.text.muted }, grid: { display: false } },
-      y: { ticks: { color: tokens.colors.text.muted }, grid: { color: tokens.colors.bg.border } },
+      x: {
+        ticks: {
+          color: tokens.colors.text.secondary,
+          font:  { family: "'Space Grotesk', sans-serif", size: 11 },
+        },
+        grid: { display: false },
+      },
+      y: {
+        ticks: {
+          color: tokens.colors.text.muted,
+          font:  { family: "'Space Mono', monospace", size: 11 },
+        },
+        grid:  { color: tokens.colors.bg.border, drawBorder: false },
+      },
     },
   }
 
   return (
-    <div style={{
-      background:   tokens.colors.bg.surface,
-      borderRadius: tokens.radius.md,
-      padding:      tokens.spacing.card,
-    }}>
+    <div
+      className="pf-card"
+      style={{
+        background:    tokens.colors.bg.surface,
+        borderRadius:  tokens.radius.md,
+        padding:       tokens.spacing.card,
+        border:        `1px solid ${tokens.colors.bg.border}`,
+        position:      'relative',
+        overflow:      'hidden',
+      }}
+    >
       <Bar data={chartData} options={options} />
     </div>
   )

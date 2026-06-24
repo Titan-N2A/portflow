@@ -1,84 +1,32 @@
-// ============================================================
-// App.jsx — Routeur principal PortFlow
-// Jour 6 : protection de /admin par rôle, navbar dynamique
-// selon l'état de connexion (Connexion / Déconnexion).
-// ============================================================
+import { useState } from 'react'
+import Sidebar        from './components/Layout/Sidebar'
+import DashboardPage  from './pages/DashboardPage'
+import GraphiquesPage from './pages/GraphiquesPage'
+import RapportsPage   from './pages/RapportsPage'
+import AdminPage      from './pages/AdminPage'
+import IAPage         from './pages/IAPage'
+import ExportPage     from './pages/ExportPage'
 
-import { BrowserRouter, Routes, Route, Link, useNavigate } from 'react-router-dom'
-import PublicView      from './pages/PublicView'
-import AdminView       from './pages/AdminView'
-import LoginPage       from './pages/LoginPage'
-import ProtectedRoute  from './components/shared/ProtectedRoute'
-import { useAuth }     from './hooks/useAuth'
-import { logOut }      from './services/auth'
-import { tokens }      from './styles/tokens'
-
-// Navbar séparée pour avoir accès à useNavigate et useAuth
-function Navbar() {
-  const { isLoggedIn, role } = useAuth()
-  const navigate = useNavigate()
-
-  async function handleLogout() {
-    await logOut()
-    navigate('/')
-  }
-
-  return (
-    <nav style={{
-      background: tokens.colors.bg.surface, borderBottom: `1px solid ${tokens.colors.bg.border}`,
-      padding: '0.75rem 1.5rem', display: 'flex', gap: '1.5rem', alignItems: 'center',
-    }}>
-      <span style={{ color: tokens.colors.accent.primary, fontWeight: 'bold', fontSize: '1.1rem' }}>
-        PortFlow
-      </span>
-
-      <Link to="/" style={{ color: tokens.colors.text.secondary, textDecoration: 'none' }}>
-        Carte publique
-      </Link>
-
-      {/* Visible seulement si connecté avec le rôle admin */}
-      {isLoggedIn && role === 'admin' && (
-        <Link to="/admin" style={{ color: tokens.colors.text.secondary, textDecoration: 'none' }}>
-          Administration
-        </Link>
-      )}
-
-      <div style={{ marginLeft: 'auto' }}>
-        {isLoggedIn ? (
-          <button onClick={handleLogout} style={{
-            background: 'transparent', border: `1px solid ${tokens.colors.bg.border}`,
-            color: tokens.colors.text.secondary, borderRadius: tokens.radius.sm,
-            padding: '0.4rem 0.9rem', cursor: 'pointer', fontSize: '0.85rem',
-          }}>
-            Déconnexion
-          </button>
-        ) : (
-          <Link to="/login" style={{ color: tokens.colors.accent.primary, textDecoration: 'none', fontWeight: 'bold' }}>
-            Connexion
-          </Link>
-        )}
-      </div>
-    </nav>
-  )
+const PAGES = {
+  dashboard:  DashboardPage,
+  graphiques: GraphiquesPage,
+  rapports:   RapportsPage,
+  admin:      AdminPage,
+  ia:         IAPage,
+  export:     ExportPage,
 }
 
 function App() {
+  const [currentPage, setCurrentPage] = useState('dashboard')
+  const Page = PAGES[currentPage] ?? DashboardPage
+
   return (
-    <BrowserRouter>
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<PublicView />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/admin"
-          element={
-            <ProtectedRoute requiredRole="admin">
-              <AdminView />
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
-    </BrowserRouter>
+    <div style={{ display: 'flex', minHeight: '100vh', background: '#F4F4F4' }}>
+      <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
+      <main style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+        <Page />
+      </main>
+    </div>
   )
 }
 

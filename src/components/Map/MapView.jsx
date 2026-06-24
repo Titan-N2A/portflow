@@ -1,9 +1,3 @@
-// ============================================================
-// MapView.jsx — Carte interactive PortFlow
-// Jour 11 (révisé) : un seul mode affiché à la fois — 'live' ou
-// 'prevision' — plus de superposition des deux tracés.
-// ============================================================
-
 import { useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, Popup, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
@@ -13,9 +7,13 @@ import { PAA_CENTER } from '../../data/axes'
 import { useAxesLive } from '../../hooks/useAxesLive'
 import { getPrediction } from '../../services/predictions'
 
-// mode: 'live' | 'prevision'
-// predictionLayer = { predictions, jourLabel, heure } | null (requis si mode='prevision')
-function MapView({ mesures = {}, onAxeSelect = null, mode = 'live', predictionLayer = null }) {
+function MapView({
+  mesures = {},
+  onAxeSelect = null,
+  mode = 'live',
+  predictionLayer = null,
+  height = '100%',
+}) {
   const mapRef = useRef(null)
   const { axes } = useAxesLive()
 
@@ -29,32 +27,42 @@ function MapView({ mesures = {}, onAxeSelect = null, mode = 'live', predictionLa
 
   return (
     <div style={{
-      width: '100%', height: '500px', borderRadius: tokens.radius.md,
-      overflow: 'hidden', border: `1px solid ${tokens.colors.bg.border}`,
+      width:    '100%',
+      height,
+      overflow: 'hidden',
     }}>
-      <MapContainer ref={mapRef} center={PAA_CENTER} zoom={14} style={{ width: '100%', height: '100%' }} zoomControl={false}>
+      <MapContainer
+        ref={mapRef}
+        center={PAA_CENTER}
+        zoom={14}
+        style={{ width: '100%', height: '100%' }}
+        zoomControl={false}
+      >
+        {/* ── Tuile fond BLANC (CartoDB Light) ──────────────── */}
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution='&copy; OpenStreetMap &copy; CARTO'
+          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/">CARTO</a>'
+          maxZoom={19}
         />
         <ZoomControl position="bottomright" />
 
         {axes.map(axe => {
-          const mesure = mesures[`${axe.id}_aller`]
+          const mesure   = mesures[`${axe.id}_aller`]
           const prevision = (mode === 'prevision' && predictionLayer)
             ? getPrediction(predictionLayer.predictions, axe.id, 'aller', predictionLayer.jourLabel, predictionLayer.heure)
             : null
 
-          // ── Détermine couleur/niveau selon le mode actif ────
-          let niveau, couleur, opacite
+          let niveau, couleur, opacite, weight
           if (mode === 'prevision') {
-            niveau   = prevision?.niveau_prevu ?? 0
-            couleur  = niveau > 0 ? getTrafficColor(niveau) : getAxeColor(axe.num)
-            opacite  = prevision ? Math.max(0.35, prevision.confiance_pct / 100) : 0.3
+            niveau  = prevision?.niveau_prevu ?? 0
+            couleur = niveau > 0 ? getTrafficColor(niveau) : getAxeColor(axe.num)
+            opacite = prevision ? Math.max(0.5, prevision.confiance_pct / 100) : 0.4
+            weight  = 6
           } else {
-            niveau   = mesure?.I7 ?? 0
-            couleur  = niveau > 0 ? getTrafficColor(niveau) : getAxeColor(axe.num)
-            opacite  = 0.9
+            niveau  = mesure?.I7 ?? 0
+            couleur = niveau > 0 ? getTrafficColor(niveau) : getAxeColor(axe.num)
+            opacite = 0.95
+            weight  = 7
           }
 
           return (
@@ -62,50 +70,90 @@ function MapView({ mesures = {}, onAxeSelect = null, mode = 'live', predictionLa
               key={axe.id}
               positions={axe.coordinates}
               color={couleur}
-              weight={5}
+              weight={weight}
               opacity={opacite}
               eventHandlers={{ click: () => handleAxeClick(axe) }}
             >
               <Popup>
-                <div style={{ minWidth: '200px' }}>
-                  <strong style={{ color: getAxeColor(axe.num) }}>{axe.nom}</strong>
-                  <hr style={{ margin: '6px 0', opacity: 0.3 }} />
+                <div style={{ minWidth: '210px', fontFamily: "'Space Grotesk', sans-serif" }}>
+                  {/* Header popup */}
+                  <div style={{
+                    display:      'flex',
+                    alignItems:   'center',
+                    gap:          '8px',
+                    marginBottom: '8px',
+                    paddingBottom: '8px',
+                    borderBottom: '1px solid #e5e7eb',
+                  }}>
+                    <div style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: getAxeColor(axe.num),
+                      flexShrink: 0,
+                    }} />
+                    <strong style={{ color: '#111', fontSize: '0.85rem' }}>{axe.nom}</strong>
+                  </div>
 
                   {mode === 'prevision' ? (
                     prevision ? (
-                      <>
-                        <div>🔮 Prévision {predictionLayer.heure}h</div>
-                        <div>Niveau prévu : <strong style={{ color: couleur }}>{getTrafficLabel(niveau)}</strong></div>
-                        <div>Confiance : {prevision.confiance_pct}%</div>
-                        {prevision.temps_prevu_min && <div>Temps prévu : {prevision.temps_prevu_min} min</div>}
-                      </>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        <div style={{ fontSize: '0.78rem', color: '#555' }}>
+                          🔮 Prévision <strong>{predictionLayer.heure}h</strong>
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#333' }}>
+                          Niveau : <strong style={{ color: couleur }}>{getTrafficLabel(niveau)}</strong>
+                        </div>
+                        <div style={{ fontSize: '0.78rem', color: '#555' }}>
+                          Confiance : {prevision.confiance_pct}%
+                        </div>
+                        {prevision.temps_prevu_min && (
+                          <div style={{ fontSize: '0.78rem', color: '#555' }}>
+                            Temps prévu : <strong>{prevision.temps_prevu_min} min</strong>
+                          </div>
+                        )}
+                      </div>
                     ) : (
-                      <p style={{ color: '#888' }}>Pas de prévision pour ce créneau.</p>
+                      <p style={{ color: '#888', fontSize: '0.78rem' }}>Pas de prévision pour ce créneau.</p>
                     )
                   ) : mesure ? (
-                    <>
-                      <div>⏱ Temps live : <strong>{mesure.I1} min</strong></div>
-                      <div>📊 Référence  : {mesure.I2} min</div>
-                      <div>⚠️ Retard     : <strong style={{ color: couleur }}>
-                        {mesure.I3 > 0 ? `+${mesure.I3}` : mesure.I3} min
-                      </strong></div>
-                      <div>🚗 Vitesse    : {mesure.I5} km/h</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                        <span style={{ color: '#555' }}>Temps live</span>
+                        <strong style={{ color: '#111' }}>{mesure.I1} min</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                        <span style={{ color: '#555' }}>Référence PAA</span>
+                        <span style={{ color: '#555' }}>{mesure.I2} min</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                        <span style={{ color: '#555' }}>Retard</span>
+                        <strong style={{ color: mesure.I3 > 0 ? '#ef4444' : '#22c55e' }}>
+                          {mesure.I3 > 0 ? '+' : ''}{mesure.I3} min
+                        </strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.78rem' }}>
+                        <span style={{ color: '#555' }}>Vitesse</span>
+                        <span style={{ color: '#111' }}>{mesure.I5} km/h</span>
+                      </div>
                       <div style={{ marginTop: '6px' }}>
                         <span style={{
-                          background: couleur + '33', color: couleur, padding: '2px 8px',
-                          borderRadius: '999px', fontSize: '0.8rem', fontWeight: 'bold',
-                          border: `1px solid ${couleur}`,
+                          background: couleur + '20',
+                          color:      couleur,
+                          padding:    '2px 10px',
+                          borderRadius: '999px',
+                          fontSize:   '0.72rem',
+                          fontWeight: 700,
+                          border:     `1px solid ${couleur}50`,
                         }}>
-                          {getTrafficLabel(niveau)} (niveau {niveau}/5)
+                          {getTrafficLabel(niveau)} · {niveau}/5
                         </span>
                       </div>
-                    </>
+                    </div>
                   ) : (
-                    <p style={{ color: '#888' }}>Chargement des données live...</p>
+                    <p style={{ color: '#888', fontSize: '0.78rem' }}>Chargement des données...</p>
                   )}
 
-                  <div style={{ marginTop: '8px', fontSize: '0.75rem', color: '#888' }}>
-                    Dist. : {axe.distance}
+                  <div style={{ marginTop: '8px', fontSize: '0.7rem', color: '#aaa', borderTop: '1px solid #f0f0f0', paddingTop: '6px' }}>
+                    {axe.distance} · Cliquer pour zoomer
                   </div>
                 </div>
               </Popup>

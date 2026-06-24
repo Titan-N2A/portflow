@@ -1,1 +1,131 @@
 @import "tailwindcss";
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body { background: #F4F4F4; color: #2C3E50; }
+
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #f1f1f1; }
+::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #1B4F8A; }
+
+/* ── Leaflet popup override ─────────────────────────────── */
+.leaflet-popup-content-wrapper {
+  background: #fff !important;
+  border-radius: 10px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.15) !important;
+  border: 1px solid rgba(0,0,0,0.07) !important;
+  color: #2C3E50 !important;
+}
+.leaflet-popup-tip { background: #fff !important; }
+.leaflet-popup-content {
+  font-family: 'Inter', sans-serif !important;
+  font-size: 13px !important;
+  margin: 10px 14px !important;
+  color: #2C3E50 !important;
+  line-height: 1.6 !important;
+}
+.leaflet-popup-close-button { color: #7F8C8D !important; }
+.leaflet-control-zoom {
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 8px !important;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+}
+.leaflet-control-zoom a {
+  background: #fff !important;
+  color: #2C3E50 !important;
+  border-color: #e2e8f0 !important;
+  font-weight: 600;
+}
+.leaflet-control-zoom a:hover { background: #f8fafc !important; color: #1B4F8A !important; }
+.leaflet-control-attribution { font-size: 10px !important; background: rgba(255,255,255,0.7) !important; }
+
+/* ── Animations ─────────────────────────────────────────── */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse  { 0%,100% { opacity:1; } 50% { opacity:.5; } }
+@keyframes spin   { to { transform: rotate(360deg); } }
+
+.fp-fade-in  { animation: fadeIn 0.3s ease both; }
+.fp-pulse    { animation: pulse 2s ease-in-out infinite; }
+.fp-spin     { animation: spin 1s linear infinite; }
+
+/* ── Composants globaux ─────────────────────────────────── */
+.fp-card {
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.07), 0 4px 16px rgba(0,0,0,0.04);
+  padding: 1.25rem;
+}
+
+.fp-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 0.5rem 1.1rem;
+  border-radius: 7px; border: none;
+  font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: all 0.15s ease;
+}
+.fp-btn-primary   { background: #1B4F8A; color: #fff; }
+.fp-btn-primary:hover { background: #164076; box-shadow: 0 4px 12px rgba(27,79,138,0.3); }
+.fp-btn-danger    { background: #C0392B; color: #fff; }
+.fp-btn-danger:hover { background: #a93226; }
+.fp-btn-warning   { background: #E67E22; color: #fff; }
+.fp-btn-warning:hover { background: #ca6f1e; }
+.fp-btn-ghost {
+  background: transparent; color: #7F8C8D;
+  border: 1px solid #e2e8f0;
+}
+.fp-btn-ghost:hover { background: #f8fafc; color: #2C3E50; }
+
+.fp-input, .fp-select {
+  width: 100%; padding: 0.55rem 0.85rem;
+  background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 7px; font-family: 'Inter', sans-serif;
+  font-size: 13px; color: #2C3E50; outline: none;
+  transition: border-color 0.15s;
+}
+.fp-input:focus, .fp-select:focus { border-color: #1B4F8A; box-shadow: 0 0 0 3px rgba(27,79,138,0.1); }
+.fp-select { cursor: pointer; background-image: none; }
+
+.fp-label {
+  display: block; font-size: 12px; font-weight: 600;
+  color: #7F8C8D; text-transform: uppercase; letter-spacing: 0.06em;
+  margin-bottom: 5px;
+}
+
+.fp-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 600;
+}
+.fp-badge-green  { background: #d5f5e3; color: #1E8449; }
+.fp-badge-red    { background: #fdecea; color: #C0392B; }
+.fp-badge-orange { background: #fdebd0; color: #E67E22; }
+.fp-badge-gray   { background: #f0f0f0; color: #7F8C8D; }
+.fp-badge-blue   { background: #dbeafe; color: #1B4F8A; }
+.fp-badge-orange { background: #fdebd0; color: #E67E22; }
+
+/* ── Tab system ──────────────────────────────────────────── */
+.fp-tabs { display: flex; gap: 2px; border-bottom: 2px solid #e2e8f0; margin-bottom: 1.25rem; }
+.fp-tab  {
+  padding: 0.55rem 1.1rem; font-size: 13px; font-weight: 500;
+  color: #7F8C8D; border: none; background: transparent;
+  cursor: pointer; border-bottom: 2px solid transparent;
+  margin-bottom: -2px; transition: all 0.15s;
+}
+.fp-tab:hover    { color: #2C3E50; }
+.fp-tab.active   { color: #1B4F8A; border-bottom-color: #1B4F8A; font-weight: 600; }
+
+/* ── Section header ──────────────────────────────────────── */
+.fp-section-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 1rem;
+}
+.fp-section-title { font-size: 15px; font-weight: 700; color: #2C3E50; }
