@@ -7,11 +7,11 @@ import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
-import { AXE_COLORS } from '../data/defaultData'
+import { AXE_COLORS, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
 
-const PAA_CENTER   = [5.310, -4.000]   // Centre entre Port-Bouet et Palm Beach
-const PALM_BEACH   = [5.350997, -4.006838]
+const PAA_CENTER = PAA_CENTER_COORDS   // [5.304290, -4.023577]
+const PALM_BEACH = PALM_BEACH_COORDS   // [5.258715, -3.982088]
 
 const JOURS_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
 
@@ -100,7 +100,6 @@ function DashboardMap({ mesures, mapMode, predictions }) {
         const niveau    = isPrevision ? (pred?.niveau_prevu ?? 0) : (m?.niveau ?? 0)
         const baseColor = AXE_COLORS[axe.id] ?? '#1B4F8A'
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
-        // Géométrie réelle depuis TomTom si disponible, sinon coords hardcodées
         const positions = (m?.geometry?.length > 5) ? m.geometry : axe.coordinates
         return (
           <Polyline key={axe.id} positions={positions} color={color} weight={7} opacity={0.95}>
@@ -142,18 +141,46 @@ function DashboardMap({ mesures, mapMode, predictions }) {
         )
       })}
 
+      {/* Retour axe 1 — tracé en pointillés */}
+      {(() => {
+        const axe1 = AXES_OFFICIELS.find(a => a.id === 'axe1')
+        const m1   = mesures['axe1']
+        if (!axe1) return null
+        const retourPos = (m1?.geometryRetour?.length > 5) ? m1.geometryRetour : (axe1.coordinatesRetour ?? [])
+        if (retourPos.length < 2) return null
+        const niveau    = m1?.niveau ?? 0
+        const color     = niveau > 0 ? levelColor(niveau) : AXE_COLORS.axe1
+        return (
+          <Polyline key="axe1_retour" positions={retourPos} color={color} weight={4} opacity={0.6} dashArray="8 6">
+            <Popup>
+              <strong style={{ color }}>CARENA ← Palm Beach (retour)</strong><br />
+              {m1?.tempsRetour ? `Temps retour : ${m1.tempsRetour} min` : 'Données retour indisponibles'}
+            </Popup>
+          </Polyline>
+        )
+      })()}
+
       {/* Marqueurs numérotés (départs) */}
       {AXES_OFFICIELS.map(axe => (
         <Marker key={axe.id + '_mk'} position={axe.start} icon={makeNumIcon(axe.num, AXE_COLORS[axe.id] ?? '#1B4F8A')}>
-          <Popup><strong>{axe.shortNom}</strong><br />{axe.distance} · Réf. {axe.tRef} min</Popup>
+          <Popup>
+            <strong>{axe.shortNom}</strong><br />
+            {axe.distance} · Réf. {axe.tRef} min
+            {axe.bidirectionnel && <><br /><em style={{ fontSize: 10, color: '#888' }}>Axe bidirectionnel (aller + retour)</em></>}
+          </Popup>
         </Marker>
       ))}
 
-      {/* Marqueur destination : Pharmacie Palm Beach */}
-      <Marker position={PALM_BEACH} icon={PAA_ICON}>
+      {/* Marqueur PAA */}
+      <Marker position={PAA_CENTER_COORDS} icon={PAA_ICON}>
+        <Popup><strong>Port Autonome d'Abidjan</strong><br />Centre de surveillance trafic</Popup>
+      </Marker>
+
+      {/* Marqueur Pharmacie Palm Beach */}
+      <Marker position={PALM_BEACH} icon={makeNumIcon('★', '#C0392B')}>
         <Popup>
-          <strong>Pharmacie Palm Beach</strong><br />
-          <span style={{ fontSize: 11, color: '#555' }}>Destination commune des 3 axes PAA</span>
+          <strong style={{ color: '#C0392B' }}>Pharmacie Palm Beach</strong><br />
+          <span style={{ fontSize: 11, color: '#555' }}>Arrivée commune · 3 axes convergent ici</span>
         </Popup>
       </Marker>
     </MapContainer>

@@ -1,27 +1,14 @@
 const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY ?? 'zReyA5uWwhZ7fdKNlnoYi5tfi6v3GKLC'
 
-// Destination commune : Pharmacie Palm Beach, Abidjan
-const PALM_BEACH = { lat: 5.350997, lng: -4.006838 }
+const CARENA    = { lat: 5.330980, lng: -4.029706 }
+const PALM      = { lat: 5.258715, lng: -3.982088 }
+const CFAO      = { lat: 5.296002, lng: -4.005151 }
+const SODECI_PT = { lat: 5.313880, lng: -4.010854 }
 
 const AXES_ROUTES = [
-  {
-    id: 'axe1', shortNom: 'CARENA',
-    from: { lat: 5.282263, lng: -4.008424 },  // CARENA, Vridi (Port-Bouët)
-    to:   PALM_BEACH,
-    dist: 12.1, tRef: 27.4,
-  },
-  {
-    id: 'axe2', shortNom: 'Toyota CFAO',
-    from: { lat: 5.292182, lng: -3.996454 },  // CFAO Motors Abidjan
-    to:   PALM_BEACH,
-    dist: 10.4, tRef: 16.9,
-  },
-  {
-    id: 'axe3', shortNom: 'SODECI',
-    from: { lat: 5.258702, lng: -3.981635 },  // SODECI Vridi (Port-Bouët)
-    to:   PALM_BEACH,
-    dist: 17.1, tRef: 17.8,
-  },
+  { id: 'axe1', shortNom: 'CARENA',       from: CARENA,    to: PALM,  dist: 12.4, tRef: 27.4, bidirectionnel: true  },
+  { id: 'axe2', shortNom: 'Toyota CFAO',  from: CFAO,      to: PALM,  dist:  7.0, tRef: 16.9, bidirectionnel: false },
+  { id: 'axe3', shortNom: 'SODECI',       from: SODECI_PT, to: PALM,  dist: 10.9, tRef: 17.8, bidirectionnel: false },
 ]
 
 function computeNiveau(ratio) {
@@ -84,8 +71,8 @@ export async function fetchAllAxes() {
   await Promise.all(AXES_ROUTES.map(async axe => {
     try {
       const { tempsMin, geometry } = await fetchAxeRoute(axe)
-      const ratio   = tempsMin / axe.tRef
-      const niveau  = computeNiveau(ratio)
+      const ratio  = tempsMin / axe.tRef
+      const niveau = computeNiveau(ratio)
       results[axe.id] = {
         tempsLive: tempsMin,
         niveau,
@@ -93,6 +80,14 @@ export async function fetchAllAxes() {
         retard:   Math.round((tempsMin - axe.tRef) * 10) / 10,
         ratio,
         geometry,
+      }
+      // Axe 1 bidirectionnel : récupérer aussi le retour
+      if (axe.bidirectionnel) {
+        try {
+          const ret = await fetchAxeRoute({ from: axe.to, to: axe.from })
+          results[axe.id].tempsRetour   = ret.tempsMin
+          results[axe.id].geometryRetour = ret.geometry
+        } catch { /* retour indisponible, pas bloquant */ }
       }
     } catch {
       results[axe.id] = simulateAxe(axe)
