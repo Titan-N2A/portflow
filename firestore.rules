@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Collections de configuration PAA (lecture publique, écriture admin) ──
+    match /flowport_axes/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /flowport_troncons/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /flowport_seuils/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Données de mesures (lecture/écriture collecte auto + dashboard) ──
+    match /mesures/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /mesures_live/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /collecte_auto/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /references/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Utilisateurs ──────────────────────────────────────────────────────
+    match /users/{uid} {
+      allow read: if true;
+      allow write: if true;
+    }
+
+    // ── Config ───────────────────────────────────────────────────────────
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
+  }
+}
