@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MapContainer, TileLayer, Polyline, Marker, useMap, useMapEvents } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, Marker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
@@ -319,7 +319,7 @@ function FitBoundsHelper({ positions }) {
   return null
 }
 
-// Icône point cliquable sur la carte
+// Icône point numéroté sur la carte preview
 function makeClickIcon(n) {
   return L.divIcon({
     html: `<div style="
@@ -332,60 +332,124 @@ function makeClickIcon(n) {
   })
 }
 
-// Handler clic carte → ajoute un point
-function MapClickHandler({ active, onAdd }) {
-  useMapEvents({
-    click(e) {
-      if (!active) return
-      onAdd(
-        String(Math.round(e.latlng.lat * 100000) / 100000),
-        String(Math.round(e.latlng.lng * 100000) / 100000),
-      )
-    },
-  })
-  return null
+// Parseur de coordonnées copiées depuis Google Maps
+// Formats acceptés : "5.1234, -4.5678"  "5.1234,-4.5678"  "5.1234 -4.5678"
+function parseGoogleMapsCoords(raw) {
+  const m = raw.trim().match(/^(-?\d{1,3}\.?\d*)[,\s]+(-?\d{1,3}\.?\d*)$/)
+  if (!m) return null
+  const lat = parseFloat(m[1])
+  const lng = parseFloat(m[2])
+  if (isNaN(lat) || isNaN(lng)) return null
+  if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null
+  return { lat: String(Math.round(lat * 100000) / 100000), lng: String(Math.round(lng * 100000) / 100000) }
 }
 
+// URL Google Maps centrée sur Port-Bouët / PAA Abidjan
+const GM_BASE_URL = 'https://www.google.com/maps/@5.304290,-4.023577,15z'
+
 function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint }) {
-  const [clickMode, setClickMode] = useState(false)
+  const [gmOpen,    setGmOpen]    = useState(false)  // panel Google Maps ouvert
+  const [gmInput,   setGmInput]   = useState('')      // texte collé
+  const [gmError,   setGmError]   = useState('')      // message d'erreur parsing
+  const [gmSuccess, setGmSuccess] = useState(false)   // flash succès
+
   const valid     = points.filter(isValidPoint)
   const positions = valid.map(p => [parseFloat(p.lat), parseFloat(p.lng)])
-  const center    = positions.length > 0 ? positions[0] : [5.315, -4.006]
+  const center    = positions.length > 0 ? positions[0] : [5.304290, -4.023577]
+
+  function openGoogleMaps() {
+    window.open(GM_BASE_URL, '_blank')
+    setGmOpen(true)
+    setGmInput('')
+    setGmError('')
+    setGmSuccess(false)
+  }
+
+  function addFromGm() {
+    const parsed = parseGoogleMapsCoords(gmInput)
+    if (!parsed) {
+      setGmError('Format invalide. Exemple : 5.3040, -4.0236')
+      return
+    }
+    onAddPoint?.(parsed.lat, parsed.lng)
+    setGmInput('')
+    setGmError('')
+    setGmSuccess(true)
+    setTimeout(() => setGmSuccess(false), 1500)
+  }
 
   return (
     <div>
-      {/* Bouton activer clic-sur-carte */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+
+      {/* Bouton Google Maps */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
         <button
           type="button"
-          onClick={() => setClickMode(v => !v)}
+          onClick={openGoogleMaps}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
-            padding: '0.35rem 0.85rem', borderRadius: '7px', fontSize: 12,
+            padding: '0.4rem 1rem', borderRadius: '7px', fontSize: 12,
             fontFamily: "'Inter',sans-serif", fontWeight: 600, cursor: 'pointer',
-            background: clickMode ? '#1B4F8A' : '#EBF2FB',
-            color: clickMode ? '#fff' : '#1B4F8A',
+            background: '#1B4F8A', color: '#fff',
             border: '1px solid #1B4F8A',
-            transition: 'all 0.15s',
+            transition: 'background 0.15s',
           }}
+          onMouseEnter={e => e.currentTarget.style.background = '#164076'}
+          onMouseLeave={e => e.currentTarget.style.background = '#1B4F8A'}
         >
           <MapPin size={13} />
-          {clickMode ? 'Clic actif — cliquer sur la carte' : 'Récupérer coords depuis la carte'}
+          Ouvrir Google Maps
         </button>
-        {clickMode && (
-          <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
-            Chaque clic ajoute un point GPS
-          </span>
-        )}
+        <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
+          Clic droit sur la carte → "Plus d'infos ici" → copiez les coordonnées
+        </span>
       </div>
 
-      {/* Carte (preview + clic) */}
-      <div style={{
-        height: '240px', borderRadius: '8px', overflow: 'hidden',
-        border: `2px solid ${clickMode ? '#1B4F8A' : '#e2e8f0'}`,
-        cursor: clickMode ? 'crosshair' : 'grab',
-        transition: 'border-color 0.2s',
-      }}>
+      {/* Panel collage coordonnées Google Maps */}
+      {gmOpen && (
+        <div style={{
+          marginBottom: '10px', padding: '0.85rem 1rem',
+          background: '#EBF2FB', border: '1px solid #CDDFF5', borderRadius: '8px',
+        }}>
+          <p style={{ fontSize: 12, fontWeight: 700, color: '#1B4F8A', marginBottom: '8px', fontFamily: "'Inter',sans-serif" }}>
+            Coller les coordonnées copiées depuis Google Maps
+          </p>
+          <p style={{ fontSize: 11, color: C.textMuted, marginBottom: '8px', fontFamily: "'Inter',sans-serif", lineHeight: 1.5 }}>
+            Sur Google Maps : clic droit sur un point → <strong>"Plus d'infos ici"</strong> → copiez la ligne de coordonnées (ex : <em>5.3040, -4.0236</em>)
+          </p>
+          <div style={{ display: 'flex', gap: '6px' }}>
+            <input
+              className="fp-input"
+              style={{ flex: 1, fontSize: 12 }}
+              placeholder="Ex : 5.3040, -4.0236"
+              value={gmInput}
+              onChange={e => { setGmInput(e.target.value); setGmError('') }}
+              onKeyDown={e => e.key === 'Enter' && addFromGm()}
+              autoFocus
+            />
+            <button
+              type="button"
+              className="fp-btn fp-btn-primary"
+              style={{ padding: '0.4rem 0.9rem', fontSize: 12, whiteSpace: 'nowrap' }}
+              onClick={addFromGm}
+              disabled={!gmInput.trim()}
+            >
+              {gmSuccess ? '✓ Ajouté' : 'Ajouter ce point'}
+            </button>
+            <button
+              type="button"
+              onClick={() => setGmOpen(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, fontSize: 16, padding: '0 4px' }}
+            >×</button>
+          </div>
+          {gmError && (
+            <p style={{ fontSize: 11, color: '#C0392B', marginTop: 5, fontFamily: "'Inter',sans-serif" }}>{gmError}</p>
+          )}
+        </div>
+      )}
+
+      {/* Aperçu carte */}
+      <div style={{ height: '220px', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
         <MapContainer
           key={center.join(',')}
           center={center}
@@ -395,7 +459,6 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint }) {
           attributionControl={false}
         >
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-          <MapClickHandler active={clickMode} onAdd={(lat, lng) => onAddPoint?.(lat, lng)} />
           {positions.length >= 2 && (
             <Polyline positions={positions} color={color} weight={5} opacity={0.9} />
           )}
@@ -408,7 +471,7 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint }) {
 
       {positions.length < 2 && (
         <p style={{ fontSize: 11, color: C.textLight, marginTop: 5, fontFamily: "'Inter',sans-serif", textAlign: 'center' }}>
-          {clickMode ? 'Cliquez sur la carte pour placer des points de passage' : 'Ajoutez au moins 2 points pour voir le tracé'}
+          Ajoutez au moins 2 points pour voir le tracé
         </p>
       )}
     </div>
