@@ -98,8 +98,10 @@ function DashboardMap({ mesures, mapMode, predictions }) {
         const m      = mesures[axe.id]
         const niveau = isPrevision ? (pred?.niveau_prevu ?? 0) : (m?.niveau ?? 0)
         const color  = niveau > 0 ? levelColor(niveau) : AXE_COLORS[axe.id]
+        // Géométrie réelle depuis TomTom, sinon fallback waypoints
+        const positions = (m?.geometry?.length > 1) ? m.geometry : axe.coordinates
         return (
-          <Polyline key={axe.id} positions={axe.coordinates} color={color} weight={6} opacity={0.9}>
+          <Polyline key={axe.id} positions={positions} color={color} weight={6} opacity={0.9}>
             <Popup>
               <strong style={{ color }}>{axe.nom}</strong><br />
               {isPrevision ? (
@@ -166,16 +168,17 @@ function DashboardPage() {
   const [iaText,  setIaText]          = useState('')
   const [iaLoading, setIaLoading]     = useState(false)
 
-  async function loadIA() {
+  async function loadIA(currentMesures) {
     setIaLoading(true)
-    const prompt = buildTrafficPrompt(mesures, AXES_OFFICIELS)
+    const prompt = buildTrafficPrompt(currentMesures ?? mesures, AXES_OFFICIELS)
     const resp   = await askGemini(prompt)
     setIaText(resp ?? 'Service IA temporairement indisponible.')
     setIaLoading(false)
   }
 
+  // Chargement initial de l'IA (une seule fois)
   useEffect(() => {
-    if (!loading && Object.keys(mesures).length > 0 && !iaText) loadIA()
+    if (!loading && Object.keys(mesures).length > 0 && !iaText) loadIA(mesures)
   }, [loading])
 
   return (
@@ -190,7 +193,7 @@ function DashboardPage() {
             {mesures.axe1?.simulated && ' · données simulées'}
           </p>
         </div>
-        <button className="fp-btn fp-btn-primary" onClick={refresh} disabled={loading}>
+        <button className="fp-btn fp-btn-primary" onClick={async () => { await refresh(); loadIA() }} disabled={loading}>
           <RefreshCw size={14} className={loading ? 'fp-spin' : ''} />
           Actualiser
         </button>
@@ -212,7 +215,7 @@ function DashboardPage() {
           value={kpis?.retardMoyen} unit="min" />
 
         <KPICard icon={BarChart2} iconColor="#8E44AD"
-          title="Axes congestionnés"
+          title="Axes dégradés (N≥3)"
           value={kpis?.pctCong} unit="%" />
 
         <KPICard icon={Gauge} iconColor={C.success}

@@ -14,8 +14,10 @@ function computeKPIs(mesures, axes) {
   const tempsGlobal    = vals.reduce((s, m) => s + m.tempsLive, 0) / vals.length
   const retardMoyen    = vals.reduce((s, m) => s + m.retard,    0) / vals.length
   const vitesseMoyenne = vals.reduce((s, m) => s + m.vitesse,   0) / vals.length
-  const congestionnes  = vals.filter(m => m.niveau >= 4).length
-  const pctCong        = Math.round((congestionnes / vals.length) * 100)
+  // Niveau >= 3 = axe dégradé (ralenti, congestionné ou bloqué)
+  const degrades   = vals.filter(m => m.niveau >= 3).length
+  const critiques  = vals.filter(m => m.niveau >= 4).length
+  const pctCong    = Math.round((degrades / vals.length) * 100)
 
   const pire = vals.reduce((max, m) => m.niveau > (max?.niveau ?? -1)
     ? { ...m, axe: axes.find(a => mesures[a.id] === m) } : max, null)

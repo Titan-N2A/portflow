@@ -1,6 +1,5 @@
-const TOMTOM_KEY = 'zReyA5uWwhZ7fdKNlnoYi5tfi6v3GKLC'
+const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY ?? 'zReyA5uWwhZ7fdKNlnoYi5tfi6v3GKLC'
 
-// Les 3 axes officiels PAA avec leurs points GPS
 const AXES_ROUTES = [
   {
     id: 'axe1', shortNom: 'CARENA',
@@ -31,7 +30,7 @@ function computeNiveau(ratio) {
   return 5
 }
 
-async function fetchAxeTime(axe) {
+async function fetchAxeRoute(axe) {
   const { from, to } = axe
   const url = `https://api.tomtom.com/routing/1/calculateRoute/` +
     `${from.lat},${from.lng}:${to.lat},${to.lng}/json` +
@@ -39,42 +38,63 @@ async function fetchAxeTime(axe) {
 
   const res  = await fetch(url)
   if (!res.ok) throw new Error(`TomTom ${res.status}`)
-  const data = await res.json()
-  const secs = data?.routes?.[0]?.summary?.travelTimeInSeconds
+  const data  = await res.json()
+  const route = data?.routes?.[0]
+  const secs  = route?.summary?.travelTimeInSeconds
   if (!secs) throw new Error('No route data')
-  return Math.round(secs / 60 * 10) / 10
+
+  // Géométrie réelle de la route (tous les points de la route)
+  const points = route?.legs?.[0]?.points ?? []
+  const geometry = points.map(p => [p.latitude, p.longitude])
+
+  return {
+    tempsMin: Math.round(secs / 60 * 10) / 10,
+    geometry: geometry.length > 1 ? geometry : null,
+  }
+}
+
+// Données simulées réalistes basées sur les heures de pointe d'Abidjan
+function simulateAxe(axe) {
+  const hour   = new Date().getHours()
+  const isRush = (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)
+  const base   = axe.tRef
+  // Simulation réaliste : rush +20-50%, hors-rush +0-15%
+  const factor = isRush
+    ? 1.2 + Math.random() * 0.3
+    : 1.0 + Math.random() * 0.15
+  const tempsLive = Math.round(base * factor * 10) / 10
+  const ratio     = tempsLive / base
+  const niveau    = computeNiveau(ratio)
+  return {
+    tempsLive,
+    niveau,
+    vitesse:   Math.round((axe.dist / tempsLive) * 60 * 10) / 10,
+    retard:    Math.round((tempsLive - base) * 10) / 10,
+    ratio,
+    simulated: true,
+    geometry:  null,
+  }
 }
 
 export async function fetchAllAxes() {
   const results = {}
-  for (const axe of AXES_ROUTES) {
+  await Promise.all(AXES_ROUTES.map(async axe => {
     try {
-      const tempsLive = await fetchAxeTime(axe)
-      const ratio     = tempsLive / axe.tRef
-      const niveau    = computeNiveau(ratio)
-      const vitesse   = Math.round((axe.dist / tempsLive) * 60 * 10) / 10
+      const { tempsMin, geometry } = await fetchAxeRoute(axe)
+      const ratio   = tempsMin / axe.tRef
+      const niveau  = computeNiveau(ratio)
       results[axe.id] = {
-        tempsLive, niveau, vitesse,
-        retard:  Math.round((tempsLive - axe.tRef) * 10) / 10,
+        tempsLive: tempsMin,
+        niveau,
+        vitesse:  Math.round((axe.dist / tempsMin) * 60 * 10) / 10,
+        retard:   Math.round((tempsMin - axe.tRef) * 10) / 10,
         ratio,
+        geometry,
       }
     } catch {
-      // Fallback : données simulées réalistes
-      const base     = axe.tRef
-      const factor   = 1 + Math.random() * 1.2
-      const tempsLive = Math.round(base * factor * 10) / 10
-      const ratio     = tempsLive / base
-      const niveau    = computeNiveau(ratio)
-      results[axe.id] = {
-        tempsLive,
-        niveau,
-        vitesse: Math.round((axe.dist / tempsLive) * 60 * 10) / 10,
-        retard:  Math.round((tempsLive - base) * 10) / 10,
-        ratio,
-        simulated: true,
-      }
+      results[axe.id] = simulateAxe(axe)
     }
-  }
+  }))
   return results
 }
 
