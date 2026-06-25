@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, Popup, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -9,6 +9,7 @@ import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
 import { AXE_COLORS, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const PAA_CENTER = PAA_CENTER_COORDS   // [5.304290, -4.023577]
 const PALM_BEACH = PALM_BEACH_COORDS   // [5.258715, -3.982088]
@@ -206,6 +207,7 @@ function DashboardPage() {
   // Données trafic TomTom (calculées sur les axes Firestore)
   const { mesures, kpis, loading, lastUpdate, refresh } = useTrafficData(axes)
   const { predictions } = usePredictions()
+  const isMobile = useIsMobile()
   const [mapMode, setMapMode]         = useState('live')
   const [iaText,  setIaText]          = useState('')
   const [iaLoading, setIaLoading]     = useState(false)
@@ -224,57 +226,80 @@ function DashboardPage() {
   }, [loading])
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', padding: '1.1rem', gap: '1rem' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height: isMobile ? 'auto' : '100vh',
+      overflow: isMobile ? 'visible' : 'hidden',
+      padding: isMobile ? '0.85rem' : '1.1rem',
+      gap: '0.85rem',
+    }}>
 
       {/* ── Header ────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Dashboard</h1>
-          <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
+          <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>Dashboard</h1>
+          <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
             {lastUpdate ? `Mis à jour à ${lastUpdate.toLocaleTimeString('fr-FR')}` : 'Chargement...'}
             {mesures.axe1?.simulated && ' · données simulées'}
           </p>
         </div>
-        <button className="fp-btn fp-btn-primary" onClick={async () => { await refresh(); loadIA() }} disabled={loading}>
-          <RefreshCw size={14} className={loading ? 'fp-spin' : ''} />
-          Actualiser
+        <button className="fp-btn fp-btn-primary" style={{ fontSize: 12, padding: '0.4rem 0.8rem' }}
+          onClick={async () => { await refresh(); loadIA() }} disabled={loading}>
+          <RefreshCw size={13} className={loading ? 'fp-spin' : ''} />
+          {!isMobile && 'Actualiser'}
         </button>
       </div>
 
-      {/* ── 5 KPI Cards ───────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '0.8rem', flexShrink: 0 }}>
+      {/* ── KPI Cards — 2 colonnes sur mobile, 5 en ligne sur desktop ── */}
+      <div style={{
+        display: isMobile ? 'grid' : 'flex',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : undefined,
+        gap: '0.75rem',
+        flexShrink: 0,
+      }}>
         <KPICard icon={Clock} iconColor={C.primary}
-          title="Temps moyen global"
+          title="Temps moyen"
           value={kpis?.tempsGlobal} unit="min" />
 
         <KPICard icon={AlertTriangle} iconColor={C.danger}
           title="Tronçon critique"
           value={kpis?.tronconCritique?.nom ?? '—'}
-          badge={kpis?.tronconCritique ? `Niveau ${kpis.tronconCritique.niveau} — ${levelLabel(kpis.tronconCritique.niveau)}` : null} />
+          badge={kpis?.tronconCritique ? `N${kpis.tronconCritique.niveau} — ${levelLabel(kpis.tronconCritique.niveau)}` : null} />
 
         <KPICard icon={Clock} iconColor={C.warning}
           title="Retard moyen"
           value={kpis?.retardMoyen} unit="min" />
 
         <KPICard icon={BarChart2} iconColor="#8E44AD"
-          title="Axes dégradés (N≥3)"
+          title="Axes dégradés"
           value={kpis?.pctCong} unit="%" />
 
         <KPICard icon={Gauge} iconColor={C.success}
-          title="Vitesse moyenne"
+          title="Vitesse moy."
           value={kpis?.vitesseMoyenne} unit="km/h" />
       </div>
 
       {/* ── Map + Panneau droit ────────────────────────────── */}
-      <div style={{ flex: 1, display: 'flex', gap: '0.8rem', minHeight: 0 }}>
+      <div style={{
+        flex: isMobile ? 'none' : 1,
+        display: 'flex',
+        flexDirection: isMobile ? 'column' : 'row',
+        gap: '0.8rem',
+        minHeight: 0,
+      }}>
 
         {/* Carte */}
-        <div style={{ flex: '1 1 65%', position: 'relative', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
+        <div style={{
+          flex: isMobile ? 'none' : '1 1 65%',
+          height: isMobile ? 260 : undefined,
+          position: 'relative', borderRadius: '10px', overflow: 'hidden',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+        }}>
           <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} />
 
           {/* Boutons superposés */}
           <div style={{
-            position: 'absolute', top: '12px', left: '50%', transform: 'translateX(-50%)',
+            position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)',
             zIndex: 1000, display: 'flex', background: '#fff',
             borderRadius: '8px', overflow: 'hidden',
             boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
@@ -282,18 +307,23 @@ function DashboardPage() {
           }}>
             {[['live','Temps réel'],['prevision','Prévisions ML']].map(([mode, label]) => (
               <button key={mode} onClick={() => setMapMode(mode)} style={{
-                padding: '6px 16px', border: 'none', cursor: 'pointer',
+                padding: isMobile ? '5px 10px' : '6px 16px',
+                border: 'none', cursor: 'pointer',
                 background: mapMode === mode ? C.primary : 'transparent',
                 color: mapMode === mode ? '#fff' : C.text,
-                fontWeight: 600, fontSize: 12, fontFamily: "'Inter', sans-serif",
-                transition: 'all 0.15s',
+                fontWeight: 600, fontSize: isMobile ? 11 : 12,
+                fontFamily: "'Inter', sans-serif", transition: 'all 0.15s',
               }}>{label}</button>
             ))}
           </div>
         </div>
 
         {/* Panneau droit */}
-        <div style={{ flex: '0 0 310px', display: 'flex', flexDirection: 'column', gap: '0.75rem', overflowY: 'auto' }}>
+        <div style={{
+          flex: isMobile ? 'none' : '0 0 310px',
+          display: 'flex', flexDirection: 'column', gap: '0.75rem',
+          overflowY: isMobile ? 'visible' : 'auto',
+        }}>
 
           {/* Alertes actives */}
           <div className="fp-card" style={{ padding: '1rem' }}>

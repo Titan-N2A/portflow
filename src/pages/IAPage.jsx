@@ -3,6 +3,7 @@ import { Send, Bot, User, RefreshCw, Zap } from 'lucide-react'
 import { C } from '../styles/tokens'
 import { askGemini, buildChatPrompt, buildTrafficPrompt } from '../services/gemini'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
+import { useIsMobile } from '../hooks/useIsMobile'
 
 const SUGGESTIONS = [
   'Quels sont les axes les plus congestionnés en ce moment ?',
@@ -52,6 +53,7 @@ function Bubble({ msg }) {
 }
 
 function IAPage() {
+  const isMobile = useIsMobile()
   const { mesures, loading } = useTrafficData()
   const [messages,   setMessages]   = useState([{
     role: 'ai',
@@ -92,7 +94,13 @@ function IAPage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden', padding: '1.25rem', gap: '1rem' }}>
+    <div style={{
+      display: 'flex', flexDirection: 'column',
+      height: isMobile ? '100%' : '100vh',
+      overflow: 'hidden',
+      padding: isMobile ? '0.85rem' : '1.25rem',
+      gap: '0.85rem',
+    }}>
 
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text }}>IA FlowPort</h1>
@@ -163,12 +171,12 @@ function IAPage() {
         />
         <button
           className="fp-btn fp-btn-primary"
-          style={{ flexShrink: 0, padding: '0.55rem 1.1rem' }}
+          style={{ flexShrink: 0, padding: isMobile ? '0.55rem 0.85rem' : '0.55rem 1.1rem' }}
           onClick={() => sendMessage(input)}
           disabled={sending || !input.trim()}
         >
           <Send size={15} />
-          Envoyer
+          {!isMobile && 'Envoyer'}
         </button>
       </div>
     </div>

@@ -1,18 +1,22 @@
 import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Activity, Lock } from 'lucide-react'
 import { C } from '../../styles/tokens'
 
+// Grand public : Dashboard + IA uniquement
 const NAV_PUBLIC = [
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'   },
+  { id: 'ia',        icon: Bot,             label: 'IA FlowPort' },
+]
+
+// Utilisateurs connectés : + Graphiques, Rapports, Export
+const NAV_USER = [
   { id: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard'   },
   { id: 'graphiques', icon: BarChart2,        label: 'Graphiques'  },
+  { id: 'rapports',   icon: FileText,         label: 'Rapports'    },
+  { id: 'export',     icon: Download,         label: 'Export'      },
   { id: 'ia',         icon: Bot,              label: 'IA FlowPort' },
 ]
 
-const NAV_USER = [
-  ...NAV_PUBLIC,
-  { id: 'rapports', icon: FileText, label: 'Rapports' },
-  { id: 'export',   icon: Download, label: 'Export'   },
-]
-
+// Administrateurs : + Administration
 const NAV_ADMIN = [
   ...NAV_USER,
   { id: 'admin', icon: Settings, label: 'Administration' },
