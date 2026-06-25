@@ -3,7 +3,7 @@ import { Download, FileSpreadsheet, Database, Calendar, RefreshCw } from 'lucide
 import { C, levelLabel } from '../styles/tokens'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
-import { collection, query, orderBy, where, getDocs, limit } from 'firebase/firestore'
+import { collection, query, orderBy, getDocs, limit } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { AXES_OFFICIELS, useTrafficData } from '../hooks/useTrafficData'
 import { useHistoricalData } from '../hooks/useHistoricalData'
@@ -119,6 +119,7 @@ function downloadRows(rows, format, fname) {
 }
 
 // ── Chargement données collecte_auto depuis Firestore ────────
+// Filtrage client-side pour éviter les index composites Firestore
 function useCollecteData(axeFilter, periodeId, enabled) {
   const [data,    setData]    = useState([])
   const [loading, setLoading] = useState(false)
@@ -129,14 +130,23 @@ function useCollecteData(axeFilter, periodeId, enabled) {
     setLoading(true)
     const { start } = getPeriodBounds(periodeId)
 
-    async function fetch() {
+    async function load() {
       try {
-        const col = collection(db, 'collecte_auto')
-        const q   = axeFilter === 'tous'
-          ? query(col, where('timestamp', '>=', start), orderBy('timestamp', 'desc'), limit(5000))
-          : query(col, where('axeId', '==', axeFilter), where('timestamp', '>=', start), orderBy('timestamp', 'desc'), limit(5000))
+        const col  = collection(db, 'collecte_auto')
+        // Requête simple : tri par timestamp desc, pas de where (pas d'index composite requis)
+        const q    = query(col, orderBy('timestamp', 'desc'), limit(5000))
         const snap = await getDocs(q)
-        const rows = snap.docs.map(d => d.data())
+
+        const rows = snap.docs
+          .map(d => d.data())
+          .filter(d => {
+            // timestamp peut être un Timestamp Firestore (avec toDate()) ou une string ISO
+            const ts = d.timestamp?.toDate?.() ?? new Date(d.timestamp ?? 0)
+            if (ts < start) return false
+            if (axeFilter !== 'tous' && d.axeId !== axeFilter) return false
+            return true
+          })
+
         setData(rows)
         setCount(rows.length)
       } catch (err) {
@@ -147,7 +157,7 @@ function useCollecteData(axeFilter, periodeId, enabled) {
         setLoading(false)
       }
     }
-    fetch()
+    load()
   }, [axeFilter, periodeId, enabled])
 
   return { data, loading, count }

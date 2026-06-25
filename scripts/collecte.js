@@ -35,7 +35,11 @@ function fromField(field) {
 }
 
 function toField(value) {
-  if (typeof value === 'string')  return { stringValue: value }
+  if (typeof value === 'string') {
+    // ISO datetime strings (contiennent 'T') → timestampValue Firestore
+    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(value)) return { timestampValue: value }
+    return { stringValue: value }
+  }
   if (typeof value === 'boolean') return { booleanValue: value }
   if (Number.isInteger(value))    return { integerValue: String(value) }
   if (typeof value === 'number')  return { doubleValue: value }
