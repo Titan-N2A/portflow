@@ -1,0 +1,23 @@
+name: Collecte Auto Trafic PAA
+
+on:
+  schedule:
+    # Toutes les 30 min, lundi-vendredi, 6h-20h UTC (Abidjan = UTC+0)
+    - cron: '0,30 6-20 * * 1-5'
+  workflow_dispatch: # déclenchement manuel depuis GitHub
+
+jobs:
+  collecte:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Exécuter la collecte trafic
+        env:
+          TOMTOM_KEY: ${{ secrets.TOMTOM_KEY }}
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+        run: node scripts/collecte.js
