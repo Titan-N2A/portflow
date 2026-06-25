@@ -49,9 +49,10 @@ body { background: #F4F4F4; color: #2C3E50; }
 .leaflet-control-attribution { font-size: 10px !important; background: rgba(255,255,255,0.7) !important; }
 
 /* ── Animations ─────────────────────────────────────────── */
-@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-@keyframes pulse  { 0%,100% { opacity:1; } 50% { opacity:.5; } }
-@keyframes spin   { to { transform: rotate(360deg); } }
+@keyframes fadeIn   { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse    { 0%,100% { opacity:1; } 50% { opacity:.5; } }
+@keyframes fp-pulse { 0%,100% { opacity:.3; transform: scale(0.85); } 50% { opacity:1; transform: scale(1); } }
+@keyframes spin     { to { transform: rotate(360deg); } }
 
 .fp-fade-in  { animation: fadeIn 0.3s ease both; }
 .fp-pulse    { animation: pulse 2s ease-in-out infinite; }
