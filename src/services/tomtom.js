@@ -62,9 +62,10 @@ export async function fetchRouteAlternatives(fromCoord, toCoord, maxAlternatives
   }))
 }
 
-// Route multi-stops à travers tous les waypoints → géométrie complète longeant les rues
-// Utilisé lors de la sauvegarde d'un axe dans l'admin
-export async function computeRouteGeometry(coordsArray) {
+// Route multi-stops à travers tous les waypoints → géométrie + résumé.
+// Contrairement à fetchRouteAlternatives (origine→destination uniquement),
+// cette route passe par TOUS les points intermédiaires fournis.
+export async function computeMultiStopRoute(coordsArray) {
   // Accepte [[lat,lng],...] ou [{lat,lng},...]
   const pts = coordsArray
     .map(p => Array.isArray(p) ? p : [p.lat, p.lng])
@@ -83,8 +84,18 @@ export async function computeRouteGeometry(coordsArray) {
   if (!route) throw new Error('No route')
 
   // Fusionne tous les legs en une seule liste de points
-  const allPts = route.legs?.flatMap(l => l.points) ?? []
-  return allPts.map(p => [p.latitude, p.longitude])
+  const geometry = (route.legs?.flatMap(l => l.points) ?? []).map(p => [p.latitude, p.longitude])
+  return {
+    geometry,
+    distance: Math.round(route.summary.lengthInMeters / 100) / 10, // km
+    duration: Math.round(route.summary.travelTimeInSeconds / 60),  // min
+  }
+}
+
+// Géométrie multi-stops seule — utilisé à la sauvegarde d'un axe dans l'admin
+export async function computeRouteGeometry(coordsArray) {
+  const route = await computeMultiStopRoute(coordsArray)
+  return route?.geometry ?? null
 }
 
 function simulateAxe(axe) {

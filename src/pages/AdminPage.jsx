@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, useMap, Popup } from 'react-leaflet'
-import { fetchRouteAlternatives } from '../services/tomtom'
+import { fetchRouteAlternatives, computeMultiStopRoute } from '../services/tomtom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
@@ -411,13 +411,28 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
     setComputing(true); setAltError(''); setAlternatives([]); setSelectedIdx(null)
     onRouteSelected?.(null)
     try {
-      const from = positions[0]
-      const to   = positions[positions.length - 1]
-      const alts = await fetchRouteAlternatives(from, to, 3)
-      setAlternatives(alts)
-      if (alts.length === 1) {
+      if (positions.length > 2) {
+        // Points intermédiaires → un seul itinéraire passant par TOUS les points
+        const route = await computeMultiStopRoute(positions)
+        if (!route) throw new Error('Itinéraire introuvable')
+        const alt = {
+          index: 0,
+          label: `Itinéraire via ${positions.length} points`,
+          distance: route.distance,
+          duration: route.duration,
+          geometry: route.geometry,
+        }
+        setAlternatives([alt])
         setSelectedIdx(0)
-        onRouteSelected?.(alts[0])
+        onRouteSelected?.(alt)
+      } else {
+        // Départ → arrivée directs → propose les alternatives TomTom
+        const alts = await fetchRouteAlternatives(positions[0], positions[positions.length - 1], 3)
+        setAlternatives(alts)
+        if (alts.length === 1) {
+          setSelectedIdx(0)
+          onRouteSelected?.(alts[0])
+        }
       }
     } catch (err) {
       setAltError('Erreur TomTom : ' + err.message)
@@ -680,11 +695,12 @@ function SectionSep({ label }) {
 function ModalAxe({ axe, axes, onSave, onClose }) {
   const isEdit   = !!axe
   const [form, setForm] = useState({
-    nom:      axe?.nom      ?? '',
-    shortNom: axe?.shortNom ?? '',
-    distance: axe?.distance ?? '',
-    tRef:     axe?.tRef     ?? '',
-    ordre:    axe?.ordre    ?? (axes.length + 1),
+    nom:            axe?.nom      ?? '',
+    shortNom:       axe?.shortNom ?? '',
+    distance:       axe?.distance ?? '',
+    tRef:           axe?.tRef     ?? '',
+    ordre:          axe?.ordre    ?? (axes.length + 1),
+    bidirectionnel: axe?.bidirectionnel ?? false,
   })
   // Priorité waypoints (avec noms) sur coordinates (sans noms)
   const [coords,           setCoords]          = useState(coordsToForm(axe?.waypoints?.length ? axe.waypoints : axe?.coordinates ?? []))
@@ -725,8 +741,13 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
       start:          savedCoords[0] ?? axe?.start ?? [5.29, -4.02],
       actif:          axe?.actif ?? true,
       num:            axe?.num ?? (axes.length + 1),
-      bidirectionnel: axe?.bidirectionnel ?? false,
+      bidirectionnel: form.bidirectionnel,
       ...(selectedGeometry ? { geometryRoute: selectedGeometry } : {}),
+      // Tracé retour = aller inversé (fallback ; la géométrie réelle est calculée
+      // en live par TomTom). Retiré si l'axe n'est plus bidirectionnel.
+      ...(form.bidirectionnel && savedCoords.length >= 2
+        ? { coordinatesRetour: [...savedCoords].reverse() }
+        : {}),
     }
     onSave(newAxe)
     onClose()
@@ -792,6 +813,28 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
           </Field>
         </div>
       </div>
+
+      {/* ── Sens de circulation ───────────────────────── */}
+      <label style={{
+        display: 'flex', alignItems: 'center', gap: '10px', marginTop: '0.75rem',
+        padding: '0.7rem 0.9rem', borderRadius: '8px', cursor: 'pointer',
+        border: `1px solid ${form.bidirectionnel ? '#A7E3C3' : '#e2e8f0'}`,
+        background: form.bidirectionnel ? '#EBF8F1' : '#fafafa',
+        fontFamily: "'Inter',sans-serif", transition: 'all 0.15s',
+      }}>
+        <input
+          type="checkbox"
+          checked={form.bidirectionnel}
+          onChange={e => setForm(f => ({ ...f, bidirectionnel: e.target.checked }))}
+          style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#27AE60' }}
+        />
+        <div>
+          <span style={{ fontSize: 13, fontWeight: 600, color: C.text }}>Axe bidirectionnel (aller + retour)</span>
+          <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+            Le trajet retour sera tracé sur la carte (le temps retour est calculé en direct via TomTom).
+          </p>
+        </div>
+      </label>
 
       {/* ── Coordonnées GPS ───────────────────────────── */}
       <SectionSep label="Tracé GPS — points du tracé routier" />
@@ -1105,6 +1148,7 @@ function AdminPage() {
   const [modal,       setModal]       = useState(null)
   const [seuilsSaved, setSeuilsSaved] = useState({})
   const [saving,      setSaving]      = useState(false)
+  const [localSeuils, setLocalSeuils] = useState([])  // copie editable des seuils Firestore
 
   // ── Données Firestore temps réel ───────────────────────
   const {
@@ -1117,6 +1161,9 @@ function AdminPage() {
     deleteTroncon: fsDeleteTroncon,
     saveSeuil:    fsSaveSeuil,
   } = useAxesFirestore()
+
+  // Synchronise la copie editable locale a chaque mise a jour Firestore
+  useEffect(() => { setLocalSeuils(seuils) }, [seuils])
 
   function showToast(msg, type = 'success') { setToast({ msg, type }) }
 
@@ -1185,7 +1232,7 @@ function AdminPage() {
 
   // Seuils
   async function saveSeuil(axeId) {
-    const seuil = seuils.find(s => s.axeId === axeId)
+    const seuil = localSeuils.find(s => s.axeId === axeId)
     if (!seuil) return
     try {
       await fsSaveSeuil(seuil)
@@ -1410,7 +1457,7 @@ function AdminPage() {
             Définissez les seuils d'alerte (en minutes) pour chaque axe. Orange = alerte modérée, Rouge = alerte critique.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {seuils.map((s, i) => (
+            {localSeuils.map((s, i) => (
               <div key={s.axeId} className="fp-card">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
                   <div style={{ width: 10, height: 10, borderRadius: '50%', background: DEFAULT_AXE_COLORS[s.axeId] ?? C.primary, flexShrink: 0 }} />
@@ -1429,12 +1476,12 @@ function AdminPage() {
                   <div>
                     <label className="fp-label" style={{ color: '#E67E22' }}>🟠 Seuil Orange (min)</label>
                     <input className="fp-input" style={{ width: 130, borderColor: '#E67E22' }} type="number" min={s.tRef} value={s.seuilOrange}
-                      onChange={e => setSeuils(prev => prev.map((x, j) => j === i ? { ...x, seuilOrange: +e.target.value } : x))} />
+                      onChange={e => setLocalSeuils(prev => prev.map((x, j) => j === i ? { ...x, seuilOrange: +e.target.value } : x))} />
                   </div>
                   <div>
                     <label className="fp-label" style={{ color: '#C0392B' }}>🔴 Seuil Rouge (min)</label>
                     <input className="fp-input" style={{ width: 130, borderColor: '#C0392B' }} type="number" min={s.seuilOrange} value={s.seuilRouge}
-                      onChange={e => setSeuils(prev => prev.map((x, j) => j === i ? { ...x, seuilRouge: +e.target.value } : x))} />
+                      onChange={e => setLocalSeuils(prev => prev.map((x, j) => j === i ? { ...x, seuilRouge: +e.target.value } : x))} />
                   </div>
                   <button className="fp-btn fp-btn-primary" onClick={() => saveSeuil(s.axeId)} disabled={seuilsSaved[s.axeId]}>
                     <Save size={13} /> Enregistrer

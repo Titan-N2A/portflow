@@ -146,25 +146,23 @@ function DashboardMap({ axes, mesures, mapMode, predictions }) {
         )
       })}
 
-      {/* Retour axe 1 — tracé en pointillés */}
-      {(() => {
-        // Retour axe1 (bidirectionnel) depuis axes Firestore
-        const axe1Fs = axes.find(a => a.id === 'axe1')
-        const m1     = mesures['axe1']
-        if (!axe1Fs?.bidirectionnel) return null
-        const retourPos = (m1?.geometryRetour?.length > 5) ? m1.geometryRetour : (axe1Fs.coordinatesRetour ?? [])
+      {/* Trajets retour — tous les axes bidirectionnels, tracé en pointillés */}
+      {axes.filter(a => a.bidirectionnel).map((axe, idx) => {
+        const m         = mesures[axe.id]
+        const retourPos = (m?.geometryRetour?.length > 5) ? m.geometryRetour : (axe.coordinatesRetour ?? [])
         if (retourPos.length < 2) return null
-        const niveau = m1?.niveau ?? 0
-        const color  = niveau > 0 ? levelColor(niveau) : (AXE_COLORS.axe1 ?? '#1B4F8A')
+        const niveau    = m?.niveau ?? 0
+        const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
+        const color     = niveau > 0 ? levelColor(niveau) : (AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length])
         return (
-          <Polyline key="axe1_retour" positions={retourPos} color={color} weight={4} opacity={0.6} dashArray="8 6">
+          <Polyline key={axe.id + '_retour'} positions={retourPos} color={color} weight={4} opacity={0.6} dashArray="8 6">
             <Popup>
-              <strong style={{ color }}>CARENA ← Palm Beach (retour)</strong><br />
-              {m1?.tempsRetour ? `Temps retour : ${m1.tempsRetour} min` : 'Données retour indisponibles'}
+              <strong style={{ color }}>{axe.shortNom ?? axe.nom} (retour)</strong><br />
+              {m?.tempsRetour ? `Temps retour : ${m.tempsRetour} min` : 'Données retour indisponibles'}
             </Popup>
           </Polyline>
         )
-      })()}
+      })}
 
       {/* Marqueurs numérotés — depuis Firestore */}
       {axes.map((axe, idx) => {
