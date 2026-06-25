@@ -5,7 +5,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react'
-import { watchAuthState, getUserRole, logOut } from '../services/auth'
+import { watchAuthState, getUserRole, logOut, ensureUserDoc } from '../services/auth'
 
 export function useAuth() {
   const [user,    setUser]    = useState(null)
@@ -18,7 +18,11 @@ export function useAuth() {
 
       if (firebaseUser) {
         try {
-          const { role: r, actif } = await getUserRole(firebaseUser.uid)
+          let { role: r, actif, seedNeeded } = await getUserRole(firebaseUser.uid)
+          if (seedNeeded) {
+            r = await ensureUserDoc(firebaseUser)
+            actif = true
+          }
           if (!actif) {
             await logOut()
             return

@@ -1584,6 +1584,18 @@ function AdminPage() {
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+            {usersLoading && (
+              <p style={{ fontSize: 13, color: C.textMuted, padding: '1rem', fontFamily: "'Inter',sans-serif" }}>
+                Chargement des comptes...
+              </p>
+            )}
+            {!usersLoading && users.length === 0 && (
+              <div style={{ textAlign: 'center', padding: '2.5rem', background: '#f8fafc', borderRadius: '8px', border: '1px dashed #e2e8f0' }}>
+                <Users size={32} color={C.textLight} style={{ margin: '0 auto 8px', display: 'block' }} />
+                <p style={{ fontSize: 13, color: C.textMuted, fontWeight: 500, fontFamily: "'Inter',sans-serif" }}>Aucun compte utilisateur</p>
+                <p style={{ fontSize: 12, color: C.textLight, marginTop: 4, fontFamily: "'Inter',sans-serif" }}>Utilisez le bouton "Créer un compte" pour ajouter le premier utilisateur.</p>
+              </div>
+            )}
             {users.map(u => (
               <div key={u.uid} className="fp-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: u.actif !== false ? 1 : 0.65 }}>
                 <div style={{ width: 42, height: 42, borderRadius: '50%', background: u.role === 'admin' ? C.sidebarActive : '#7F8C8D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: "'Inter',sans-serif" }}>

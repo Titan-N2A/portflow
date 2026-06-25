@@ -10,39 +10,39 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
 } from 'firebase/auth'
-import { doc, getDoc } from 'firebase/firestore'
+import { doc, getDoc, setDoc, getDocs, collection } from 'firebase/firestore'
 import { auth, db } from './firebase'
 
-/**
- * Connecte un utilisateur avec email + mot de passe
- */
 export async function signIn(email, password) {
   const { user } = await signInWithEmailAndPassword(auth, email, password)
   return user
 }
 
-/**
- * Déconnecte l'utilisateur courant
- */
 export function logOut() {
   return firebaseSignOut(auth)
 }
 
-/**
- * Récupère le rôle d'un utilisateur depuis Firestore
- * @param {string} uid
- * @returns {string} 'admin' | 'public'
- */
 export async function getUserRole(uid) {
   const snap = await getDoc(doc(db, 'users', uid))
-  if (!snap.exists()) return { role: 'public', actif: true }
+  if (!snap.exists()) return { role: 'public', actif: true, seedNeeded: true }
   const d = snap.data()
-  return { role: d.role ?? 'public', actif: d.actif !== false }
+  return { role: d.role ?? 'public', actif: d.actif !== false, seedNeeded: false }
 }
 
-/**
- * S'abonne aux changements d'état de connexion Firebase
- */
+// Crée le doc Firestore au premier login — si la collection est vide, l'utilisateur devient admin
+export async function ensureUserDoc(firebaseUser) {
+  const usersSnap = await getDocs(collection(db, 'users'))
+  const role = usersSnap.empty ? 'admin' : 'public'
+  await setDoc(doc(db, 'users', firebaseUser.uid), {
+    nom:       firebaseUser.displayName || firebaseUser.email?.split('@')[0] || 'Utilisateur',
+    email:     firebaseUser.email,
+    role,
+    actif:     true,
+    createdAt: new Date().toISOString(),
+  })
+  return role
+}
+
 export function watchAuthState(callback) {
   return onAuthStateChanged(auth, callback)
 }
