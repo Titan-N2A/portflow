@@ -1,26 +1,101 @@
 import { useState } from 'react'
-import { FileText, Download, Trash2, FilePlus } from 'lucide-react'
+import { FileText, Download, Trash2, FilePlus, Database } from 'lucide-react'
 import { C, levelLabel } from '../styles/tokens'
 import jsPDF from 'jspdf'
 import * as XLSX from 'xlsx'
-import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel, AlignmentType } from 'docx'
+import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, HeadingLevel } from 'docx'
+import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore'
+import { db } from '../services/firebase'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 
-const AXE_TREF = { axe1: 27.4, axe2: 16.9, axe3: 17.8 }
+// ── Calcul des bornes de période ──────────────────────────────
 
-function buildAxeRows(mesures) {
-  return AXES_OFFICIELS.map(axe => {
-    const m = mesures[axe.id]
+function getPeriodeBounds(type, periode) {
+  const ref = new Date(periode)
+  if (type === 'journalier') {
     return {
-      axe:   axe.shortNom,
-      tRef:  axe.tRef,
-      tLive: m?.tempsLive ?? axe.tRef,
-      retard: m?.retard ?? 0,
-      niveau: m?.niveau ?? 1,
-      vitesse: m?.vitesse ?? 0,
+      start: periode,
+      end:   periode,
+      label: ref.toLocaleDateString('fr-FR'),
+    }
+  }
+  if (type === 'hebdomadaire') {
+    const d = new Date(ref)
+    d.setDate(d.getDate() - 6)
+    const start = d.toISOString().slice(0, 10)
+    return {
+      start,
+      end:   periode,
+      label: `${new Date(start).toLocaleDateString('fr-FR')} – ${ref.toLocaleDateString('fr-FR')}`,
+    }
+  }
+  // mensuel
+  const start = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}-01`
+  const last  = new Date(ref.getFullYear(), ref.getMonth() + 1, 0)
+  const end   = last.toISOString().slice(0, 10)
+  return {
+    start,
+    end,
+    label: ref.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' }),
+  }
+}
+
+// ── Requête Firestore collecte_auto ──────────────────────────
+
+async function fetchPeriodData(type, periode) {
+  const { start, end } = getPeriodeBounds(type, periode)
+  const q = query(
+    collection(db, 'collecte_auto'),
+    where('date', '>=', start),
+    where('date', '<=', end),
+    orderBy('date', 'desc'),
+    limit(5000)
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => d.data())
+}
+
+// ── Agrégation par axe ────────────────────────────────────────
+
+function aggregerParAxe(records, mesuresLive) {
+  return AXES_OFFICIELS.map(axe => {
+    const rows = records.filter(r => r.axeId === axe.id && r.sens === 'aller')
+    if (rows.length === 0) {
+      // Fallback sur données live si pas d'historique
+      const m = mesuresLive[axe.id]
+      return {
+        axe:       axe.shortNom,
+        tRef:      axe.tRef,
+        tMin:      m?.tempsLive ?? axe.tRef,
+        tMoyen:    m?.tempsLive ?? axe.tRef,
+        tMax:      m?.tempsLive ?? axe.tRef,
+        retard:    m?.retard ?? 0,
+        niveau:    m?.niveau ?? 1,
+        vitesse:   m?.vitesse ?? 0,
+        nbMesures: 0,
+        source:    'live',
+      }
+    }
+    const temps  = rows.map(r => r.temps_min).filter(Boolean)
+    const tMin   = Math.round(Math.min(...temps) * 10) / 10
+    const tMax   = Math.round(Math.max(...temps) * 10) / 10
+    const tMoyen = Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10
+    const retard = Math.round((tMoyen - axe.tRef) * 10) / 10
+    const vitesse = Math.round((axe.dist / tMoyen) * 60 * 10) / 10
+    const niveaux = rows.map(r => r.niveau).filter(Boolean)
+    const niveau  = niveaux.length ? Math.round(niveaux.reduce((a, b) => a + b, 0) / niveaux.length) : 1
+    return {
+      axe:       axe.shortNom,
+      tRef:      axe.tRef,
+      tMin, tMoyen, tMax,
+      retard, niveau, vitesse,
+      nbMesures: rows.length,
+      source:    'historique',
     }
   })
 }
+
+// ── Génération PDF ────────────────────────────────────────────
 
 function telechargerPDF(rapport, rows) {
   const doc = new jsPDF()
@@ -29,120 +104,128 @@ function telechargerPDF(rapport, rows) {
   doc.setFillColor(27, 79, 138)
   doc.rect(0, 0, 210, 30, 'F')
   doc.setTextColor(255, 255, 255)
-  doc.setFontSize(16)
-  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(16); doc.setFont('helvetica', 'bold')
   doc.text('FlowPort — Rapport Trafic PAA', 14, 13)
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'normal')
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal')
   doc.text('Port Autonome d\'Abidjan · Direction des Études et de l\'Exploitation', 14, 21)
 
   doc.setTextColor(60, 60, 60)
-  doc.setFontSize(11)
-  doc.setFont('helvetica', 'bold')
+  doc.setFontSize(11); doc.setFont('helvetica', 'bold')
   doc.text('Informations du rapport', 14, 40)
-  doc.setFont('helvetica', 'normal')
-  doc.setFontSize(10)
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10)
   doc.text(`Type        : ${rapport.type.charAt(0).toUpperCase() + rapport.type.slice(1)}`, 14, 49)
-  doc.text(`Période     : ${rapport.periode}`, 14, 57)
+  doc.text(`Période     : ${rapport.periodeLabel}`, 14, 57)
   doc.text(`Généré le   : ${now}`, 14, 65)
-  doc.text(`Format      : DEESP-RF-01`, 14, 73)
+  doc.text(`Mesures     : ${rapport.nbMesuresTotal} relevés collectés`, 14, 73)
 
-  doc.setFont('helvetica', 'bold')
-  doc.setFontSize(11)
-  doc.text('État des axes routiers', 14, 88)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11)
+  doc.text('Statistiques par axe routier', 14, 88)
 
-  const cols = ['Axe', 'T. Réf (min)', 'T. Live (min)', 'Retard (min)', 'Niveau', 'Vitesse (km/h)']
-  const colWidths = [45, 30, 30, 30, 25, 32]
+  const cols      = ['Axe', 'T. Réf', 'T. Min', 'T. Moyen', 'T. Max', 'Retard moy.', 'Mesures']
+  const colWidths = [38, 22, 22, 24, 22, 28, 20]
   let x = 14, y = 96
 
-  // Header
   doc.setFillColor(27, 79, 138)
   doc.rect(x, y, colWidths.reduce((a, b) => a + b, 0), 8, 'F')
-  doc.setTextColor(255, 255, 255)
-  doc.setFontSize(9)
-  doc.setFont('helvetica', 'bold')
-  cols.forEach((col, i) => {
-    doc.text(col, x + 2, y + 5.5)
-    x += colWidths[i]
-  })
+  doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.setFont('helvetica', 'bold')
+  cols.forEach((col, i) => { doc.text(col, x + 2, y + 5.5); x += colWidths[i] })
 
   doc.setFont('helvetica', 'normal')
   rows.forEach((row, ri) => {
-    y += 8
-    x = 14
+    y += 8; x = 14
     doc.setFillColor(ri % 2 === 0 ? 245 : 255, ri % 2 === 0 ? 247 : 255, ri % 2 === 0 ? 250 : 255)
     doc.rect(14, y, colWidths.reduce((a, b) => a + b, 0), 8, 'F')
     doc.setTextColor(60, 60, 60)
-    const vals = [row.axe, row.tRef, row.tLive, row.retard > 0 ? `+${row.retard}` : row.retard, `N${row.niveau} — ${levelLabel(row.niveau)}`, row.vitesse]
-    vals.forEach((val, i) => {
-      doc.text(String(val), x + 2, y + 5.5)
-      x += colWidths[i]
-    })
+    const vals = [
+      row.axe,
+      `${row.tRef} min`,
+      `${row.tMin} min`,
+      `${row.tMoyen} min`,
+      `${row.tMax} min`,
+      row.retard >= 0 ? `+${row.retard} min` : `${row.retard} min`,
+      row.nbMesures > 0 ? `${row.nbMesures}` : 'live',
+    ]
+    vals.forEach((val, i) => { doc.text(String(val), x + 2, y + 5.5); x += colWidths[i] })
   })
 
-  doc.setTextColor(150, 150, 150)
-  doc.setFontSize(8)
-  doc.text('FlowPort v2 · Données TomTom Traffic API · PAA Abidjan', 14, 285)
-
+  doc.setTextColor(150, 150, 150); doc.setFontSize(8)
+  doc.text('FlowPort v2 · Google Distance Matrix / TomTom · PAA Abidjan', 14, 285)
   doc.save(`${rapport.nom}.pdf`)
 }
+
+// ── Génération Excel ──────────────────────────────────────────
 
 function telechargerExcel(rapport, rows) {
   const ws = XLSX.utils.aoa_to_sheet([
     [`FlowPort — Rapport Trafic PAA — ${rapport.type}`],
-    [`Période : ${rapport.periode}`, '', `Généré le : ${rapport.date.toLocaleString('fr-FR')}`],
+    [`Période : ${rapport.periodeLabel}`, '', `Généré le : ${rapport.date.toLocaleString('fr-FR')}`],
+    [`Mesures collectées : ${rapport.nbMesuresTotal} relevés`],
     [],
-    ['Axe', 'T. Réf (min)', 'T. Live (min)', 'Retard (min)', 'Niveau', 'Label niveau', 'Vitesse (km/h)'],
-    ...rows.map(r => [r.axe, r.tRef, r.tLive, r.retard, r.niveau, levelLabel(r.niveau), r.vitesse]),
+    ['Axe', 'T. Réf (min)', 'T. Min (min)', 'T. Moyen (min)', 'T. Max (min)', 'Retard moy. (min)', 'Niveau moy.', 'Vitesse moy. (km/h)', 'Nb mesures'],
+    ...rows.map(r => [r.axe, r.tRef, r.tMin, r.tMoyen, r.tMax, r.retard, r.niveau, r.vitesse, r.nbMesures || 'live']),
   ])
   const wb = XLSX.utils.book_new()
   XLSX.utils.book_append_sheet(wb, ws, 'Rapport')
   XLSX.writeFile(wb, `${rapport.nom}.xlsx`)
 }
 
+// ── Génération Word ───────────────────────────────────────────
+
 async function telechargerWord(rapport, rows) {
+  const headers = ['Axe', 'T. Réf', 'T. Min', 'T. Moyen', 'T. Max', 'Retard moy.', 'Mesures']
   const tableRows = [
     new TableRow({
-      children: ['Axe', 'T. Réf (min)', 'T. Live (min)', 'Retard (min)', 'Niveau'].map(h =>
+      children: headers.map(h =>
         new TableCell({
           children: [new Paragraph({ children: [new TextRun({ text: h, bold: true })] })],
-          width: { size: 20, type: WidthType.PERCENTAGE },
+          width: { size: Math.floor(100 / headers.length), type: WidthType.PERCENTAGE },
         })
       ),
     }),
     ...rows.map(r =>
       new TableRow({
-        children: [r.axe, String(r.tRef), String(r.tLive), r.retard > 0 ? `+${r.retard}` : String(r.retard), `N${r.niveau} — ${levelLabel(r.niveau)}`].map(val =>
+        children: [
+          r.axe,
+          `${r.tRef} min`,
+          `${r.tMin} min`,
+          `${r.tMoyen} min`,
+          `${r.tMax} min`,
+          r.retard >= 0 ? `+${r.retard} min` : `${r.retard} min`,
+          r.nbMesures > 0 ? String(r.nbMesures) : 'live',
+        ].map(val =>
           new TableCell({
             children: [new Paragraph({ children: [new TextRun(val)] })],
-            width: { size: 20, type: WidthType.PERCENTAGE },
+            width: { size: Math.floor(100 / headers.length), type: WidthType.PERCENTAGE },
           })
         ),
       })
     ),
   ]
 
-  const doc = new Document({
+  const docx = new Document({
     sections: [{
       children: [
         new Paragraph({ text: 'FlowPort — Rapport Trafic PAA', heading: HeadingLevel.HEADING_1 }),
-        new Paragraph({ children: [new TextRun({ text: `Type : ${rapport.type}  |  Période : ${rapport.periode}`, color: '555555' })] }),
+        new Paragraph({ children: [new TextRun({ text: `Type : ${rapport.type}  |  Période : ${rapport.periodeLabel}`, color: '555555' })] }),
         new Paragraph({ children: [new TextRun({ text: `Généré le : ${rapport.date.toLocaleString('fr-FR')}`, color: '888888', size: 18 })] }),
+        new Paragraph({ children: [new TextRun({ text: `Mesures collectées : ${rapport.nbMesuresTotal} relevés`, color: '888888', size: 18 })] }),
         new Paragraph({ text: '' }),
-        new Paragraph({ text: 'État des axes routiers', heading: HeadingLevel.HEADING_2 }),
+        new Paragraph({ text: 'Statistiques par axe routier', heading: HeadingLevel.HEADING_2 }),
         new Table({ rows: tableRows, width: { size: 100, type: WidthType.PERCENTAGE } }),
         new Paragraph({ text: '' }),
-        new Paragraph({ children: [new TextRun({ text: 'Données : TomTom Traffic API · PAA Abidjan · FlowPort v2', color: 'AAAAAA', size: 16 })] }),
+        new Paragraph({ children: [new TextRun({ text: 'Données : Google Distance Matrix / TomTom · PAA Abidjan · FlowPort v2', color: 'AAAAAA', size: 16 })] }),
       ],
     }],
   })
 
-  const blob = await Packer.toBlob(doc)
-  const url = URL.createObjectURL(blob)
-  const a   = document.createElement('a')
+  const blob = await Packer.toBlob(docx)
+  const url  = URL.createObjectURL(blob)
+  const a    = document.createElement('a')
   a.href = url; a.download = `${rapport.nom}.docx`; a.click()
   URL.revokeObjectURL(url)
 }
+
+// ── Page principale ───────────────────────────────────────────
 
 function RapportsPage() {
   const { mesures } = useTrafficData()
@@ -152,18 +235,40 @@ function RapportsPage() {
   const [rapports, setRapports] = useState([])
   const [loading,  setLoading]  = useState(false)
 
-  function genererRapport() {
+  async function genererRapport() {
     setLoading(true)
-    setTimeout(() => {
-      const nom = `PAA-${type.charAt(0).toUpperCase() + type.slice(1)}-${periode}`
-      setRapports(prev => [{ id: Date.now(), nom, type, periode, format, date: new Date(), mesures: { ...mesures } }, ...prev])
+    try {
+      const records      = await fetchPeriodData(type, periode)
+      const rows         = aggregerParAxe(records, mesures)
+      const { label }    = getPeriodeBounds(type, periode)
+      const nbMesuresTotal = records.length
+      const nom          = `PAA-${type.charAt(0).toUpperCase() + type.slice(1)}-${periode}`
+
+      setRapports(prev => [{
+        id: Date.now(), nom, type, periode,
+        periodeLabel:  label,
+        format, date:  new Date(),
+        rows, nbMesuresTotal,
+      }, ...prev])
+    } catch (err) {
+      console.error('Erreur génération rapport :', err)
+      // Fallback live si Firestore inaccessible
+      const rows = aggregerParAxe([], mesures)
+      const nom  = `PAA-${type.charAt(0).toUpperCase() + type.slice(1)}-${periode}`
+      setRapports(prev => [{
+        id: Date.now(), nom, type, periode,
+        periodeLabel:  periode,
+        format, date:  new Date(),
+        rows, nbMesuresTotal: 0,
+      }, ...prev])
+    } finally {
       setLoading(false)
-    }, 600)
+    }
   }
 
   async function telecharger(rapport, fmt) {
-    const rows = buildAxeRows(rapport.mesures ?? {})
-    if (fmt === 'pdf')   telechargerPDF(rapport, rows)
+    const rows = rapport.rows ?? []
+    if (fmt === 'pdf')        telechargerPDF(rapport, rows)
     else if (fmt === 'excel') telechargerExcel(rapport, rows)
     else if (fmt === 'word')  await telechargerWord(rapport, rows)
   }
@@ -215,7 +320,7 @@ function RapportsPage() {
               disabled={loading}
             >
               <FileText size={15} />
-              {loading ? 'Génération...' : 'Générer le rapport'}
+              {loading ? 'Chargement données...' : 'Générer le rapport'}
             </button>
           </div>
         </div>
@@ -248,7 +353,17 @@ function RapportsPage() {
                     </div>
                     <div>
                       <p style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.nom}</p>
-                      <p style={{ fontSize: 11, color: C.textMuted }}>{r.type} · {r.date.toLocaleString('fr-FR')}</p>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: 2 }}>
+                        <p style={{ fontSize: 11, color: C.textMuted }}>{r.type} · {r.periodeLabel}</p>
+                        {r.nbMesuresTotal > 0 && (
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#27AE60', fontWeight: 600 }}>
+                            <Database size={9} /> {r.nbMesuresTotal} mesures
+                          </span>
+                        )}
+                        {r.nbMesuresTotal === 0 && (
+                          <span style={{ fontSize: 10, color: '#E67E22', fontWeight: 600 }}>données live uniquement</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div style={{ display: 'flex', gap: '6px' }}>
