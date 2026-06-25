@@ -1,4 +1,4 @@
-import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Activity } from 'lucide-react'
+import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Activity, Lock } from 'lucide-react'
 import { C } from '../../styles/tokens'
 
 const NAV_PUBLIC = [
@@ -45,7 +45,7 @@ function NavItem({ item, active, onClick }) {
   )
 }
 
-function Sidebar({ currentPage, onNavigate, onLogout, isAdmin = false, user = null }) {
+function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, user = null }) {
   const NAV = isAdmin ? NAV_ADMIN : NAV_PUBLIC
   return (
     <aside style={{
@@ -114,52 +114,84 @@ function Sidebar({ currentPage, onNavigate, onLogout, isAdmin = false, user = nu
         padding:   '0.9rem 1rem',
         borderTop: `1px solid ${C.sidebarBorder}`,
       }}>
-        {/* Avatar utilisateur */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '0.75rem' }}>
-          <div style={{
-            width: 34, height: 34, borderRadius: '50%',
-            background: C.sidebarActive,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-            color: '#fff', fontWeight: 700, fontSize: '13px',
-            fontFamily: "'Inter', sans-serif",
-          }}>
-            {(user?.email?.[0] ?? 'U').toUpperCase()}
-          </div>
-          <div style={{ minWidth: 0 }}>
-            <div style={{
-              color: '#fff', fontSize: '11px', fontWeight: 600,
-              fontFamily: "'Inter', sans-serif",
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-            }}>
-              {user?.email ?? 'Utilisateur'}
+        {user ? (
+          <>
+            {/* Avatar utilisateur connecté */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '0.75rem' }}>
+              <div style={{
+                width: 34, height: 34, borderRadius: '50%',
+                background: C.sidebarActive,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+                color: '#fff', fontWeight: 700, fontSize: '13px',
+                fontFamily: "'Inter', sans-serif",
+              }}>
+                {(user.email?.[0] ?? 'U').toUpperCase()}
+              </div>
+              <div style={{ minWidth: 0 }}>
+                <div style={{
+                  color: '#fff', fontSize: '11px', fontWeight: 600,
+                  fontFamily: "'Inter', sans-serif",
+                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                }}>
+                  {user.email}
+                </div>
+                <div style={{ color: C.sidebarMuted, fontSize: '10px', fontFamily: "'Inter', sans-serif" }}>
+                  {isAdmin ? 'Administrateur' : 'Opérateur'}
+                </div>
+              </div>
             </div>
-            <div style={{ color: C.sidebarMuted, fontSize: '10px', fontFamily: "'Inter', sans-serif" }}>
-              {isAdmin ? 'Administrateur' : 'Opérateur'}
-            </div>
-          </div>
-        </div>
 
-        <button
-          onClick={onLogout}
-          style={{
-            display:    'flex', alignItems: 'center', gap: '7px',
-            width:      '100%', padding:    '0.45rem 0.75rem',
-            background: 'rgba(192,57,43,0.2)',
-            border:     '1px solid rgba(192,57,43,0.35)',
-            borderRadius: '7px',
-            color:      '#e57373',
-            fontSize:   '12px', fontWeight: 500,
-            fontFamily: "'Inter', sans-serif",
-            cursor:     'pointer',
-            transition: 'all 0.15s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(192,57,43,0.3)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(192,57,43,0.2)'}
-        >
-          <LogOut size={13} />
-          Déconnexion
-        </button>
+            <button
+              onClick={onLogout}
+              style={{
+                display:    'flex', alignItems: 'center', gap: '7px',
+                width:      '100%', padding:    '0.45rem 0.75rem',
+                background: 'rgba(192,57,43,0.2)',
+                border:     '1px solid rgba(192,57,43,0.35)',
+                borderRadius: '7px',
+                color:      '#e57373',
+                fontSize:   '12px', fontWeight: 500,
+                fontFamily: "'Inter', sans-serif",
+                cursor:     'pointer',
+                transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => e.currentTarget.style.background = 'rgba(192,57,43,0.3)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'rgba(192,57,43,0.2)'}
+            >
+              <LogOut size={13} />
+              Déconnexion
+            </button>
+          </>
+        ) : (
+          /* Bouton connexion pour les visiteurs */
+          <button
+            onClick={onLogin}
+            style={{
+              display:    'flex', alignItems: 'center', gap: '7px',
+              width:      '100%', padding:    '0.45rem 0.75rem',
+              background: 'rgba(255,255,255,0.07)',
+              border:     '1px solid rgba(255,255,255,0.15)',
+              borderRadius: '7px',
+              color:      C.sidebarMuted,
+              fontSize:   '12px', fontWeight: 500,
+              fontFamily: "'Inter', sans-serif",
+              cursor:     'pointer',
+              transition: 'all 0.15s',
+            }}
+            onMouseEnter={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.12)'
+              e.currentTarget.style.color = '#fff'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.background = 'rgba(255,255,255,0.07)'
+              e.currentTarget.style.color = C.sidebarMuted
+            }}
+          >
+            <Lock size={13} />
+            Connexion admin
+          </button>
+        )}
       </div>
     </aside>
   )
