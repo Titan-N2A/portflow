@@ -1,10 +1,13 @@
-import { useState, useEffect, useRef } from 'react'
-import { collection, onSnapshot } from 'firebase/firestore'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { DEFAULT_AXES, AXE_COLORS } from '../data/defaultData'
+import { fetchAllAxes } from '../services/tomtom'
 
 export const AXES_OFFICIELS = DEFAULT_AXES
 export { AXE_COLORS }
+
+const REFRESH_MS = 2 * 60 * 1000 // 2 minutes
 
 function computeNiveau(ratio) {
   if (!ratio) return 0
@@ -57,7 +60,6 @@ function computeKPIs(mesures, axes) {
   }
 }
 
-// Transforme un snapshot Firestore mesures_live en objet mesures[axeId]
 function buildMesures(snapshot, axes) {
   const data = {}
   snapshot.forEach(doc => {
@@ -95,11 +97,53 @@ export function useTrafficData(axes = DEFAULT_AXES) {
   const [loading,    setLoading]    = useState(true)
   const [lastUpdate, setLastUpdate] = useState(null)
 
-  // Ref pour accéder aux axes dans le callback onSnapshot sans re-souscrire
   const axesRef = useRef(axes)
   useEffect(() => { axesRef.current = axes }, [axes])
 
+  // Appel TomTom direct → écrit dans mesures_live → onSnapshot met à jour le dashboard
+  const refresh = useCallback(async () => {
+    try {
+      const results = await fetchAllAxes(axesRef.current)
+      const now = new Date().toISOString()
+      await Promise.all(
+        Object.entries(results).map(async ([axeId, m]) => {
+          const axe = axesRef.current.find(a => a.id === axeId)
+          if (!axe || m.simulated) return
+          const base = {
+            axeId, sens: 'aller',
+            nom:      `${axe.shortNom} (aller)`,
+            temps_min: m.tempsLive,
+            dist_km:   axe.dist,
+            niveau:    m.niveau,
+            vitesse:   m.vitesse,
+            retard:    m.retard,
+            timestamp: now,
+            source:    'tomtom_live',
+          }
+          await setDoc(doc(db, 'mesures_live', `${axeId}_aller`), base)
+          if (m.tempsRetour != null) {
+            const r2 = m.tempsRetour / axe.tRef
+            await setDoc(doc(db, 'mesures_live', `${axeId}_retour`), {
+              axeId, sens: 'retour',
+              nom:      `${axe.shortNom} (retour)`,
+              temps_min: m.tempsRetour,
+              dist_km:   axe.dist,
+              niveau:    computeNiveau(r2),
+              vitesse:   Math.round((axe.dist / m.tempsRetour) * 60 * 10) / 10,
+              retard:    Math.round((m.tempsRetour - axe.tRef) * 10) / 10,
+              timestamp: now,
+              source:    'tomtom_live',
+            })
+          }
+        })
+      )
+    } catch (err) {
+      console.error('TomTom refresh:', err)
+    }
+  }, [])
+
   useEffect(() => {
+    // Lecture temps réel Firestore
     const unsubscribe = onSnapshot(
       collection(db, 'mesures_live'),
       (snapshot) => {
@@ -111,7 +155,6 @@ export function useTrafficData(axes = DEFAULT_AXES) {
       },
       (err) => {
         console.error('mesures_live erreur:', err)
-        // Simulation complète si Firestore inaccessible
         const sim = {}
         axesRef.current.forEach(axe => { sim[axe.id] = simulateAxe(axe) })
         setMesures(sim)
@@ -119,8 +162,16 @@ export function useTrafficData(axes = DEFAULT_AXES) {
         setLoading(false)
       }
     )
-    return () => unsubscribe()
-  }, []) // souscription unique — axesRef.current toujours à jour
 
-  return { mesures, kpis, loading, lastUpdate, refresh: () => {} }
+    // Collecte TomTom immédiate au chargement + toutes les 2 min
+    refresh()
+    const interval = setInterval(refresh, REFRESH_MS)
+
+    return () => {
+      unsubscribe()
+      clearInterval(interval)
+    }
+  }, [refresh])
+
+  return { mesures, kpis, loading, lastUpdate, refresh }
 }
