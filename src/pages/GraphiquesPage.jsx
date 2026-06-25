@@ -5,7 +5,7 @@ import {
 } from 'chart.js'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
 import { C } from '../styles/tokens'
-import { useHistoricalData } from '../hooks/useHistoricalData'
+import { useCollecteAuto } from '../hooks/useCollecteAuto'
 import { computeCourbe24h, computeRepartitionNiveaux } from '../services/aggregations'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler)
@@ -64,14 +64,14 @@ function Spinner() {
           borderTopColor: C.primary,
           margin: '0 auto 12px',
         }} />
-        <p style={{ color: C.textMuted, fontSize: 13 }}>Chargement des données historiques…</p>
+        <p style={{ color: C.textMuted, fontSize: 13 }}>Chargement des données collectées…</p>
       </div>
     </div>
   )
 }
 
 function GraphiquesPage() {
-  const { data, loading } = useHistoricalData()
+  const { data, loading } = useCollecteAuto(5000)
   const [axeFilter, setAxeFilter] = useState('tous')
   const [periode,   setPeriode]   = useState('tous')
 
@@ -131,7 +131,7 @@ function GraphiquesPage() {
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Graphiques</h1>
         <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
-          Analyse historique · <strong>{data.length}</strong> mesures réelles (fév. 2025)
+          Données collectées automatiquement · <strong>{data.length}</strong> mesures réelles (GitHub Actions)
         </p>
       </div>
 
