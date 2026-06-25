@@ -4,8 +4,10 @@
 // Écrit dans : mesures_live (dashboard) + mesures + collecte_auto
 // ============================================================
 
-const TOMTOM_KEY   = process.env.TOMTOM_KEY   || 'zReyA5uWwhZ7fdKNlnoYi5tfi6v3GKLC'
+const TOMTOM_KEY   = process.env.TOMTOM_KEY
 const FIREBASE_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyAnjGSgFXIB1cSvslFbUdiTjB6zrUmHhwc'
+
+if (!TOMTOM_KEY) { console.error('❌ TOMTOM_KEY manquant'); process.exit(1) }
 const GOOGLE_KEY   = process.env.GOOGLE_MATRIX_API_KEY
 const PROJECT_ID   = 'portflow-46738'
 const FS           = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`

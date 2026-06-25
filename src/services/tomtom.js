@@ -1,4 +1,4 @@
-const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY ?? 'zReyA5uWwhZ7fdKNlnoYi5tfi6v3GKLC'
+const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY ?? ''
 
 // Routes PAA par défaut (fallback si Firestore indisponible)
 const CARENA    = { lat: 5.330980, lng: -4.029706 }
