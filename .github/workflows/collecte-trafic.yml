@@ -1,9 +1,7 @@
 name: Collecte trafic PortFlow
 
 on:
-  schedule:
-    - cron: '*/15 * * * *'   # toutes les 15 minutes, 24h/24
-  workflow_dispatch:          # permet de lancer manuellement depuis l'onglet "Actions"
+  workflow_dispatch: # désactivé — remplacé par collecte_auto.yml (Google Matrix + TomTom fallback)
 
 jobs:
   collecte:

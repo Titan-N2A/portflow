@@ -1,25 +1,23 @@
 // ============================================================
-// collecte.js — Collecte automatique trafic PAA
-// Appelé par GitHub Actions toutes les 30 min (6h-20h, lun-ven)
-// Lit les axes depuis Firestore, appelle TomTom, écrit les résultats.
-// Node 20 — aucune dépendance externe (fetch natif)
+// collecte.js — Collecte trafic PAA (GitHub Actions)
+// Stratégie : Google Distance Matrix (1 appel) → fallback TomTom
+// Écrit dans : mesures_live (dashboard) + mesures + collecte_auto
 // ============================================================
 
 const TOMTOM_KEY   = process.env.TOMTOM_KEY   || 'zReyA5uWwhZ7fdKNlnoYi5tfi6v3GKLC'
 const FIREBASE_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyAnjGSgFXIB1cSvslFbUdiTjB6zrUmHhwc'
+const GOOGLE_KEY   = process.env.GOOGLE_MATRIX_API_KEY
 const PROJECT_ID   = 'portflow-46738'
 const FS           = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 
-// ── Axes PAA par défaut (fallback si Firestore vide) ─────────
 const DEFAULT_AXES = [
   { id: 'axe1', shortNom: 'CARENA',      from: { lat: 5.330980, lng: -4.029706 }, to: { lat: 5.258715, lng: -3.982088 }, dist: 12.4, tRef: 27.4, bidirectionnel: true  },
   { id: 'axe2', shortNom: 'Toyota CFAO', from: { lat: 5.296002, lng: -4.005151 }, to: { lat: 5.258715, lng: -3.982088 }, dist:  7.0, tRef: 16.9, bidirectionnel: false },
   { id: 'axe3', shortNom: 'SODECI',      from: { lat: 5.313880, lng: -4.010854 }, to: { lat: 5.258715, lng: -3.982088 }, dist: 10.9, tRef: 17.8, bidirectionnel: false },
 ]
 
-// ── Utilitaires Firestore REST ────────────────────────────────
+// ── Firestore REST helpers ────────────────────────────────────
 
-// Extrait une valeur depuis un champ Firestore REST
 function fromField(field) {
   if (!field) return null
   if ('stringValue'    in field) return field.stringValue
@@ -36,7 +34,6 @@ function fromField(field) {
   return null
 }
 
-// Convertit une valeur JS en champ Firestore REST
 function toField(value) {
   if (typeof value === 'string')  return { stringValue: value }
   if (typeof value === 'boolean') return { booleanValue: value }
@@ -45,18 +42,26 @@ function toField(value) {
   return { stringValue: String(value) }
 }
 
-// Écrit un document (POST → ID auto-généré)
-async function fsAdd(collection, fields) {
+// Crée un document avec ID auto-généré
+async function fsAdd(col, fields) {
   const body = { fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, toField(v)])) }
-  const res = await fetch(`${FS}/${collection}?key=${FIREBASE_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
+  const res  = await fetch(`${FS}/${col}?key=${FIREBASE_KEY}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   })
-  if (!res.ok) throw new Error(`Firestore ${collection} ${res.status}: ${await res.text()}`)
+  if (!res.ok) throw new Error(`Firestore ADD ${col} ${res.status}: ${await res.text()}`)
 }
 
-// ── Lecture des axes Firestore ────────────────────────────────
+// Crée/remplace un document avec ID fixe (pour mesures_live)
+async function fsSet(col, docId, fields) {
+  const body = { fields: Object.fromEntries(Object.entries(fields).map(([k, v]) => [k, toField(v)])) }
+  const res  = await fetch(`${FS}/${col}/${docId}?key=${FIREBASE_KEY}`, {
+    method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`Firestore SET ${col}/${docId} ${res.status}: ${await res.text()}`)
+}
+
+// ── Chargement des axes depuis Firestore ─────────────────────
+
 async function readAxes() {
   const res = await fetch(`${FS}/flowport_axes?key=${FIREBASE_KEY}`)
   if (!res.ok) return null
@@ -64,30 +69,61 @@ async function readAxes() {
   if (!data.documents?.length) return null
 
   return data.documents.map(doc => {
-    const f = doc.fields || {}
-    const id = doc.name.split('/').pop()
-
-    // coordinates → [{lat,lng},...] stockés en Firestore comme array de maps
+    const f    = doc.fields || {}
+    const id   = doc.name.split('/').pop()
     const coordsRaw = fromField(f.coordinates) ?? []
-    const coords = coordsRaw.filter(p => p && typeof p === 'object' && 'lat' in p)
+    const coords    = coordsRaw.filter(p => p && typeof p === 'object' && 'lat' in p)
     if (coords.length < 2) return null
-
-    const from = { lat: coords[0].lat,               lng: coords[0].lng }
-    const to   = { lat: coords[coords.length-1].lat, lng: coords[coords.length-1].lng }
+    const from    = { lat: coords[0].lat, lng: coords[0].lng }
+    const to      = { lat: coords[coords.length - 1].lat, lng: coords[coords.length - 1].lng }
     const distRaw = fromField(f.dist) ?? fromField(f.distance) ?? 10
-    const dist    = isNaN(Number(distRaw)) ? 10 : Number(distRaw)
-
     return {
       id,
       shortNom:       fromField(f.shortNom) ?? fromField(f.nom) ?? id,
-      from, to, dist,
-      tRef:           Number(fromField(f.tRef)  ?? 20),
+      from, to,
+      dist:           isNaN(Number(distRaw)) ? 10 : Number(distRaw),
+      tRef:           Number(fromField(f.tRef) ?? 20),
       bidirectionnel: Boolean(fromField(f.bidirectionnel)),
     }
   }).filter(Boolean)
 }
 
-// ── Appel TomTom ──────────────────────────────────────────────
+// ── Google Distance Matrix (1 appel pour toutes les routes) ──
+
+async function fetchAllRoutesMatrix(routeList) {
+  if (!GOOGLE_KEY) throw new Error('GOOGLE_MATRIX_API_KEY non défini')
+  const origins      = routeList.map(r => `${r.from.lat},${r.from.lng}`).join('|')
+  const destinations = routeList.map(r => `${r.to.lat},${r.to.lng}`).join('|')
+  const url = 'https://maps.googleapis.com/maps/api/distancematrix/json'
+    + `?origins=${encodeURIComponent(origins)}`
+    + `&destinations=${encodeURIComponent(destinations)}`
+    + '&mode=driving&departure_time=now&traffic_model=best_guess'
+    + `&key=${GOOGLE_KEY}`
+  const res  = await fetch(url)
+  const data = await res.json()
+  if (data.status !== 'OK') throw new Error(`Matrix API: ${data.status} — ${data.error_message ?? ''}`)
+  return routeList.map((_, i) => {
+    const el = data.rows[i]?.elements[i]
+    if (!el || el.status !== 'OK') throw new Error(`Route ${i} sans résultat (${el?.status})`)
+    const seconds = el.duration_in_traffic?.value ?? el.duration.value
+    return Math.round(seconds / 60 * 10) / 10
+  })
+}
+
+// ── TomTom (fallback route par route) ────────────────────────
+
+async function fetchTomTom(from, to) {
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/`
+    + `${from.lat},${from.lng}:${to.lat},${to.lng}/json`
+    + `?key=${TOMTOM_KEY}&traffic=true&travelMode=car`
+  const res  = await fetch(url)
+  if (!res.ok) throw new Error(`TomTom ${res.status}`)
+  const data = await res.json()
+  const secs = data?.routes?.[0]?.summary?.travelTimeInSeconds
+  if (!secs) throw new Error('Pas de données TomTom')
+  return Math.round(secs / 60 * 10) / 10
+}
+
 function computeNiveau(ratio) {
   if (!ratio || ratio <= 1.10) return 1
   if (ratio <= 1.25) return 2
@@ -96,19 +132,8 @@ function computeNiveau(ratio) {
   return 5
 }
 
-async function fetchTemps(from, to) {
-  const url = `https://api.tomtom.com/routing/1/calculateRoute/` +
-    `${from.lat},${from.lng}:${to.lat},${to.lng}/json` +
-    `?key=${TOMTOM_KEY}&traffic=true&travelMode=car`
-  const res   = await fetch(url)
-  if (!res.ok) throw new Error(`TomTom ${res.status}`)
-  const data  = await res.json()
-  const secs  = data?.routes?.[0]?.summary?.travelTimeInSeconds
-  if (!secs) throw new Error('Pas de données de route')
-  return Math.round(secs / 60 * 10) / 10
-}
-
 // ── Point d'entrée ────────────────────────────────────────────
+
 async function main() {
   const now       = new Date()
   const date      = now.toISOString().split('T')[0]
@@ -117,7 +142,7 @@ async function main() {
 
   console.log(`\n🚦 Collecte PAA — ${timestamp}`)
 
-  // Chargement des axes
+  // Chargement des axes (Firestore ou défaut)
   let axes = DEFAULT_AXES
   try {
     const fromFirestore = await readAxes()
@@ -125,42 +150,89 @@ async function main() {
       axes = fromFirestore
       console.log(`📍 ${axes.length} axes chargés depuis Firestore`)
     } else {
-      console.log('📍 Axes par défaut utilisés (Firestore vide)')
+      console.log('📍 Axes par défaut utilisés')
     }
   } catch (err) {
-    console.log(`⚠  Lecture Firestore impossible (${err.message}) → axes par défaut`)
+    console.log(`⚠  Firestore inaccessible (${err.message}) → axes par défaut`)
+  }
+
+  // Construction de la liste de routes (aller + retour si bidirectionnel)
+  const routeList = []
+  for (const axe of axes) {
+    for (const sens of (axe.bidirectionnel ? ['aller', 'retour'] : ['aller'])) {
+      routeList.push({
+        docId:    `${axe.id}_${sens}`,
+        axeId:    axe.id,
+        shortNom: axe.shortNom,
+        sens,
+        from: sens === 'aller' ? axe.from : axe.to,
+        to:   sens === 'aller' ? axe.to   : axe.from,
+        dist: axe.dist,
+        tRef: axe.tRef,
+      })
+    }
+  }
+
+  // Tentative Google Distance Matrix (1 appel)
+  const tempsMap = {}
+  let sourceGlobale = 'tomtom'
+
+  if (GOOGLE_KEY) {
+    try {
+      const resultats = await fetchAllRoutesMatrix(routeList)
+      routeList.forEach((r, i) => { tempsMap[r.docId] = resultats[i] })
+      sourceGlobale = 'google_matrix'
+      console.log(`📡 Google Distance Matrix — ${routeList.length} routes en 1 appel`)
+    } catch (err) {
+      console.warn(`⚠  Google Matrix échoué (${err.message}) → fallback TomTom`)
+    }
   }
 
   let ok = 0, erreurs = 0
 
-  for (const axe of axes) {
-    for (const sens of axe.bidirectionnel ? ['aller', 'retour'] : ['aller']) {
-      const from = sens === 'aller' ? axe.from : axe.to
-      const to   = sens === 'aller' ? axe.to   : axe.from
-      try {
-        const tempsMin = await fetchTemps(from, to)
-        const ratio    = tempsMin / axe.tRef
-        const niveau   = computeNiveau(ratio)
-        const vitesse  = Math.round((axe.dist / tempsMin) * 60 * 10) / 10
-        const retard   = Math.round((tempsMin - axe.tRef) * 10) / 10
+  for (const route of routeList) {
+    try {
+      let tempsMin = tempsMap[route.docId]
+      let source   = sourceGlobale
 
-        // Historique long terme (utilisé par les graphiques)
-        await fsAdd('mesures', { axeId: axe.id, sens, date, heure, temps_min: tempsMin })
-
-        // Données récentes (utilisé par useCollecteAuto)
-        await fsAdd('collecte_auto', { timestamp, axeId: axe.id, sens, date, heure, temps_min: tempsMin, niveau, vitesse, retard })
-
-        console.log(`  ✓ ${axe.shortNom} ${sens}: ${tempsMin} min (N${niveau}, +${retard} min)`)
-        ok++
-      } catch (err) {
-        console.error(`  ✗ ${axe.shortNom} ${sens}: ${err.message}`)
-        erreurs++
+      if (!tempsMin) {
+        tempsMin = await fetchTomTom(route.from, route.to)
+        source   = 'tomtom'
       }
+
+      const ratio   = tempsMin / route.tRef
+      const niveau  = computeNiveau(ratio)
+      const vitesse = Math.round((route.dist / tempsMin) * 60 * 10) / 10
+      const retard  = Math.round((tempsMin - route.tRef) * 10) / 10
+
+      // 1. Snapshot live → lu par le dashboard en temps réel
+      await fsSet('mesures_live', route.docId, {
+        axeId: route.axeId, sens: route.sens, nom: `${route.shortNom} (${route.sens})`,
+        temps_min: tempsMin, dist_km: route.dist, heure,
+        niveau, vitesse, retard, timestamp, source,
+      })
+
+      // 2. Historique graphiques
+      await fsAdd('mesures', {
+        axeId: route.axeId, sens: route.sens, date, heure, temps_min: tempsMin,
+      })
+
+      // 3. Archive collecte (export, ML)
+      await fsAdd('collecte_auto', {
+        timestamp, axeId: route.axeId, sens: route.sens, date, heure,
+        temps_min: tempsMin, niveau, vitesse, retard, source,
+      })
+
+      console.log(`  ✓ ${route.shortNom} ${route.sens} : ${tempsMin} min (N${niveau}, +${retard} min) [${source}]`)
+      ok++
+    } catch (err) {
+      console.error(`  ✗ ${route.shortNom} ${route.sens} : ${err.message}`)
+      erreurs++
     }
   }
 
-  console.log(`\n✅ Terminé — ${ok * 2} docs Firestore écrits, ${erreurs} erreurs\n`)
-  if (erreurs > 0 && ok === 0) process.exit(1)
+  console.log(`\n✅ Terminé — ${ok} routes collectées, ${erreurs} erreur(s)\n`)
+  if (ok === 0) process.exit(1)
 }
 
 main().catch(err => {
