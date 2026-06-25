@@ -140,7 +140,14 @@ function App() {
 
   if (loading) return <Spinner />
 
-  const page = currentPage === 'admin' && !isAdmin ? 'dashboard' : currentPage
+  // Pages réservées aux utilisateurs connectés
+  const RESTRICTED = ['rapports', 'export']
+  const ADMIN_ONLY  = ['admin']
+
+  let page = currentPage
+  if (ADMIN_ONLY.includes(page) && !isAdmin)           page = 'dashboard'
+  if (RESTRICTED.includes(page) && !user)              page = 'dashboard'
+
   const Page = PAGES[page] ?? DashboardPage
 
   return (

@@ -2,15 +2,19 @@ import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, 
 import { C } from '../../styles/tokens'
 
 const NAV_PUBLIC = [
-  { id: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard'  },
-  { id: 'graphiques', icon: BarChart2,        label: 'Graphiques' },
-  { id: 'rapports',   icon: FileText,         label: 'Rapports'   },
+  { id: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard'   },
+  { id: 'graphiques', icon: BarChart2,        label: 'Graphiques'  },
   { id: 'ia',         icon: Bot,              label: 'IA FlowPort' },
-  { id: 'export',     icon: Download,         label: 'Export'     },
+]
+
+const NAV_USER = [
+  ...NAV_PUBLIC,
+  { id: 'rapports', icon: FileText, label: 'Rapports' },
+  { id: 'export',   icon: Download, label: 'Export'   },
 ]
 
 const NAV_ADMIN = [
-  ...NAV_PUBLIC,
+  ...NAV_USER,
   { id: 'admin', icon: Settings, label: 'Administration' },
 ]
 
@@ -46,7 +50,7 @@ function NavItem({ item, active, onClick }) {
 }
 
 function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, user = null }) {
-  const NAV = isAdmin ? NAV_ADMIN : NAV_PUBLIC
+  const NAV = isAdmin ? NAV_ADMIN : user ? NAV_USER : NAV_PUBLIC
   return (
     <aside style={{
       width:         '200px',
