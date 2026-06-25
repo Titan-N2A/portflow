@@ -5,7 +5,7 @@
 // ============================================================
 
 import { useState, useEffect } from 'react'
-import { watchAuthState, getUserRole } from '../services/auth'
+import { watchAuthState, getUserRole, logOut } from '../services/auth'
 
 export function useAuth() {
   const [user,    setUser]    = useState(null)
@@ -18,12 +18,13 @@ export function useAuth() {
 
       if (firebaseUser) {
         try {
-          const r = await getUserRole(firebaseUser.uid)
-          console.log('🔑 Rôle détecté :', r) // debug temporaire
+          const { role: r, actif } = await getUserRole(firebaseUser.uid)
+          if (!actif) {
+            await logOut()
+            return
+          }
           setRole(r)
         } catch (err) {
-          // Si la lecture échoue (permission Firestore, doc absent...),
-          // on logge l'erreur au lieu de bloquer silencieusement.
           console.error('❌ Erreur lecture rôle Firestore :', err)
           setRole('public')
         }

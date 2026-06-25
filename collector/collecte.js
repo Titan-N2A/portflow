@@ -32,8 +32,33 @@ function computeNiveau(ratio) {
 }
 
 const TOMTOM_KEY = process.env.TOMTOM_API_KEY
+const GOOGLE_KEY = process.env.GOOGLE_MATRIX_API_KEY
 
-async function fetchRoute(route) {
+// ── Google Distance Matrix : 1 appel pour toutes les routes ──
+async function fetchAllRoutesMatrix(routes) {
+  const origins      = routes.map(r => `${r.from.lat},${r.from.lng}`).join('|')
+  const destinations = routes.map(r => `${r.to.lat},${r.to.lng}`).join('|')
+  const url = `https://maps.googleapis.com/maps/api/distancematrix/json`
+    + `?origins=${encodeURIComponent(origins)}`
+    + `&destinations=${encodeURIComponent(destinations)}`
+    + `&mode=driving&departure_time=now&traffic_model=best_guess`
+    + `&key=${GOOGLE_KEY}`
+
+  const res  = await fetch(url)
+  const data = await res.json()
+  if (data.status !== 'OK') throw new Error(`Matrix API : ${data.status} — ${data.error_message ?? ''}`)
+
+  return routes.map((route, i) => {
+    const el = data.rows[i]?.elements[i]
+    if (!el || el.status !== 'OK') throw new Error(`Pas de résultat pour ${route.nom} (${el?.status})`)
+    // duration_in_traffic disponible avec departure_time=now
+    const seconds = el.duration_in_traffic?.value ?? el.duration.value
+    return Math.round(seconds / 60)
+  })
+}
+
+// ── TomTom : fallback route par route ────────────────────────
+async function fetchRouteTomTom(route) {
   const { from, to } = route
   const url = `https://api.tomtom.com/routing/1/calculateRoute/${from.lat},${from.lng}:${to.lat},${to.lng}/json?key=${TOMTOM_KEY}&traffic=true&travelMode=car`
   const res  = await fetch(url)
@@ -46,12 +71,39 @@ async function main() {
   const now = new Date()
   console.log(`🚀 Collecte automatique — ${now.toISOString()}`)
 
+  // ── Tentative Google Matrix (1 seul appel) ────────────────
+  let tempsParRoute = {}
+  let sourceGlobale = 'tomtom_auto'
+
+  if (GOOGLE_KEY) {
+    try {
+      const resultats = await fetchAllRoutesMatrix(ROUTES)
+      ROUTES.forEach((r, i) => { tempsParRoute[r.id] = resultats[i] })
+      sourceGlobale = 'google_matrix'
+      console.log('📡 Source : Google Distance Matrix (1 appel pour toutes les routes)')
+    } catch (err) {
+      console.warn(`⚠ Google Matrix échoué (${err.message}) → fallback TomTom route par route`)
+    }
+  }
+
+  // ── Traitement route par route ────────────────────────────
   for (const route of ROUTES) {
     try {
-      const temps_min = await fetchRoute(route)
-      const ref       = REFERENCES[`${route.axeId}_${route.sens}`]
-      const ratio      = ref ? temps_min / ref : null
-      const niveau     = computeNiveau(ratio)
+      let temps_min = tempsParRoute[route.id]
+      let source    = sourceGlobale
+
+      // Fallback TomTom si Google n'a pas fourni ce résultat
+      if (!temps_min && TOMTOM_KEY) {
+        temps_min = await fetchRouteTomTom(route)
+        source    = 'tomtom_auto'
+        console.log(`   ↳ ${route.nom} : fallback TomTom`)
+      }
+
+      if (!temps_min) throw new Error('Aucune source de données disponible')
+
+      const ref    = REFERENCES[`${route.axeId}_${route.sens}`]
+      const ratio  = ref ? temps_min / ref : null
+      const niveau = computeNiveau(ratio)
 
       const indicateurs = {
         I1: temps_min,
@@ -62,15 +114,13 @@ async function main() {
         I7: niveau,
       }
 
-      // ── 1. Met à jour le snapshot live (comme avant) ──────
       await db.collection('mesures_live').doc(route.id).set({
         axeId: route.axeId, sens: route.sens, nom: route.nom,
         temps_min, dist_km: route.dist, heure: now.getHours(),
         ...indicateurs,
-        source: 'tomtom_auto', updatedAt: now.toISOString(),
+        source, updatedAt: now.toISOString(),
       }, { merge: true })
 
-      // ── 2. Archive dans l'historique (jamais écrasé) ──────
       await db.collection('collecte_auto').add({
         axeId: route.axeId, sens: route.sens, nom: route.nom,
         temps_min, dist_km: route.dist, heure: now.getHours(),
@@ -78,10 +128,10 @@ async function main() {
         jour_semaine: now.getDay(),
         ...indicateurs,
         timestamp: now.toISOString(),
-        source: 'tomtom_auto',
+        source,
       })
 
-      console.log(`✅ ${route.nom} : ${temps_min} min (niveau ${niveau})`)
+      console.log(`✅ ${route.nom} : ${temps_min} min (niveau ${niveau}) [${source}]`)
     } catch (err) {
       console.error(`❌ Erreur ${route.nom} :`, err.message)
     }

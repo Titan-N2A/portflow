@@ -35,7 +35,9 @@ export function logOut() {
  */
 export async function getUserRole(uid) {
   const snap = await getDoc(doc(db, 'users', uid))
-  return snap.exists() ? snap.data().role : 'public'
+  if (!snap.exists()) return { role: 'public', actif: true }
+  const d = snap.data()
+  return { role: d.role ?? 'public', actif: d.actif !== false }
 }
 
 /**

@@ -14,10 +14,7 @@ import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { syncDefaultAxes } from '../services/axesService'
 import { AXE_COLORS as DEFAULT_AXE_COLORS } from '../data/defaultData'
 
-const INIT_USERS = [
-  { id: 'u1', nom: 'Administrateur PAA', email: 'admin@portabidjan.ci',     role: 'admin',     actif: true },
-  { id: 'u2', nom: 'Opérateur Trafic',   email: 'operateur@portabidjan.ci', role: 'operateur', actif: true },
-]
+import { listUsers, createUser, updateUser, deleteUserDoc, sendResetEmail } from '../services/userManagement'
 
 // ── Helpers coordonnées ────────────────────────────────────
 
@@ -1043,23 +1040,22 @@ function ModalUser({ user, users, onSave, onClose }) {
     confirm:  '',
     actif:    user?.actif ?? true,
   })
-  const [errors,   setErrors]   = useState({})
-  const [showPwd,  setShowPwd]  = useState(false)
-  const [showConf, setShowConf] = useState(false)
+  const [errors,    setErrors]    = useState({})
+  const [showPwd,   setShowPwd]   = useState(false)
+  const [showConf,  setShowConf]  = useState(false)
+  const [resetMsg,  setResetMsg]  = useState('')
+  const [resetting, setResetting] = useState(false)
 
   function validate() {
     const e = {}
-    if (!form.nom.trim())   e.nom   = 'Nom complet requis'
-    if (!form.email.trim()) e.email = 'Email requis'
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Email invalide'
-    const dup = users.find(u => u.email === form.email.trim() && u.id !== user?.id)
-    if (dup) e.email = 'Cet email est déjà utilisé'
+    if (!form.nom.trim()) e.nom = 'Nom complet requis'
     if (!isEdit) {
-      if (!form.password)              e.password = 'Mot de passe requis'
+      if (!form.email.trim()) e.email = 'Email requis'
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) e.email = 'Email invalide'
+      const dup = users.find(u => u.email === form.email.trim() && u.uid !== user?.uid)
+      if (dup) e.email = 'Cet email est déjà utilisé'
+      if (!form.password)                e.password = 'Mot de passe requis'
       else if (form.password.length < 6) e.password = 'Minimum 6 caractères'
-      if (form.password !== form.confirm) e.confirm = 'Les mots de passe ne correspondent pas'
-    } else if (form.password) {
-      if (form.password.length < 6)      e.password = 'Minimum 6 caractères'
       if (form.password !== form.confirm) e.confirm  = 'Les mots de passe ne correspondent pas'
     }
     setErrors(e)
@@ -1068,14 +1064,24 @@ function ModalUser({ user, users, onSave, onClose }) {
 
   function handleSubmit() {
     if (!validate()) return
-    onSave({
-      id:    user?.id ?? `u_${Date.now()}`,
-      nom:   form.nom.trim(),
-      email: form.email.trim().toLowerCase(),
-      role:  form.role,
-      actif: form.actif,
-    })
+    onSave(
+      { uid: user?.uid ?? null, nom: form.nom.trim(), email: form.email.trim().toLowerCase(), role: form.role, actif: form.actif },
+      isEdit ? null : form.password
+    )
     onClose()
+  }
+
+  async function handleResetPwd() {
+    setResetting(true)
+    setResetMsg('')
+    try {
+      await sendResetEmail(user.email)
+      setResetMsg('Email envoyé à ' + user.email)
+    } catch (err) {
+      setResetMsg('Erreur : ' + err.message)
+    } finally {
+      setResetting(false)
+    }
   }
 
   const inp = (field) => ({
@@ -1091,10 +1097,19 @@ function ModalUser({ user, users, onSave, onClose }) {
         <input {...inp('nom')} placeholder="ex: Jean-Paul Kouakou" />
         {errors.nom && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.nom}</p>}
       </Field>
-      <Field label="Adresse email *">
-        <input {...inp('email')} type="email" placeholder="ex: jkouakou@portabidjan.ci" />
-        {errors.email && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.email}</p>}
-      </Field>
+
+      {isEdit ? (
+        <Field label="Adresse email">
+          <input className="fp-input" value={form.email} disabled style={{ opacity: 0.6, cursor: 'not-allowed' }} />
+          <p style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>L'email ne peut pas être modifié ici.</p>
+        </Field>
+      ) : (
+        <Field label="Adresse email *">
+          <input {...inp('email')} type="email" placeholder="ex: jkouakou@portabidjan.ci" />
+          {errors.email && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.email}</p>}
+        </Field>
+      )}
+
       <Field label="Rôle *">
         <select className="fp-select" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
           <option value="admin">Administrateur</option>
@@ -1102,26 +1117,42 @@ function ModalUser({ user, users, onSave, onClose }) {
           <option value="lecteur">Lecteur (lecture seule)</option>
         </select>
       </Field>
-      <Field label={isEdit ? 'Nouveau mot de passe (vide = inchangé)' : 'Mot de passe *'}>
-        <div style={{ position: 'relative' }}>
-          <input {...inp('password')} type={showPwd ? 'text' : 'password'} placeholder={isEdit ? 'Nouveau mot de passe...' : 'Minimum 6 caractères'} style={{ ...((errors.password ? { borderColor: '#C0392B' } : {})), paddingRight: '2.5rem' }} />
-          <button type="button" onClick={() => setShowPwd(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted }}>
-            {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
-          </button>
-        </div>
-        {errors.password && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.password}</p>}
-      </Field>
-      {(!isEdit || form.password) && (
-        <Field label="Confirmer le mot de passe *">
-          <div style={{ position: 'relative' }}>
-            <input {...inp('confirm')} type={showConf ? 'text' : 'password'} placeholder="Répétez le mot de passe" style={{ ...((errors.confirm ? { borderColor: '#C0392B' } : {})), paddingRight: '2.5rem' }} />
-            <button type="button" onClick={() => setShowConf(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted }}>
-              {showConf ? <EyeOff size={15} /> : <Eye size={15} />}
-            </button>
-          </div>
-          {errors.confirm && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.confirm}</p>}
-        </Field>
+
+      {!isEdit && (
+        <>
+          <Field label="Mot de passe *">
+            <div style={{ position: 'relative' }}>
+              <input {...inp('password')} type={showPwd ? 'text' : 'password'} placeholder="Minimum 6 caractères" style={{ ...(errors.password ? { borderColor: '#C0392B' } : {}), paddingRight: '2.5rem' }} />
+              <button type="button" onClick={() => setShowPwd(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted }}>
+                {showPwd ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            {errors.password && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.password}</p>}
+          </Field>
+          <Field label="Confirmer le mot de passe *">
+            <div style={{ position: 'relative' }}>
+              <input {...inp('confirm')} type={showConf ? 'text' : 'password'} placeholder="Répétez le mot de passe" style={{ ...(errors.confirm ? { borderColor: '#C0392B' } : {}), paddingRight: '2.5rem' }} />
+              <button type="button" onClick={() => setShowConf(v => !v)} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted }}>
+                {showConf ? <EyeOff size={15} /> : <Eye size={15} />}
+              </button>
+            </div>
+            {errors.confirm && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.confirm}</p>}
+          </Field>
+        </>
       )}
+
+      {isEdit && (
+        <div style={{ padding: '0.65rem 1rem', background: '#f0f7ff', borderRadius: '8px', border: '1px solid #CDDFF5', marginBottom: '0.75rem' }}>
+          <p style={{ fontSize: 12, color: C.textMuted, marginBottom: '6px', fontFamily: "'Inter',sans-serif" }}>
+            Mot de passe — envoyez un lien de réinitialisation par email.
+          </p>
+          <button type="button" className="fp-btn fp-btn-ghost" style={{ fontSize: 12 }} onClick={handleResetPwd} disabled={resetting}>
+            {resetting ? 'Envoi...' : 'Envoyer email de réinitialisation'}
+          </button>
+          {resetMsg && <p style={{ fontSize: 11, color: resetMsg.startsWith('Erreur') ? '#C0392B' : '#27AE60', marginTop: 5, fontFamily: "'Inter',sans-serif" }}>{resetMsg}</p>}
+        </div>
+      )}
+
       <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', marginBottom: '1rem' }}>
         <input type="checkbox" id="actif" checked={form.actif} onChange={e => setForm(f => ({ ...f, actif: e.target.checked }))} style={{ width: 15, height: 15, cursor: 'pointer', accentColor: C.primary }} />
         <label htmlFor="actif" style={{ fontSize: 13, color: C.text, cursor: 'pointer', fontFamily: "'Inter',sans-serif" }}>
@@ -1143,7 +1174,8 @@ function ModalUser({ user, users, onSave, onClose }) {
 // ══════════════════════════════════════════════════════════
 function AdminPage() {
   const [tab,         setTab]         = useState('axes')
-  const [users,       setUsers]       = useState(INIT_USERS)
+  const [users,        setUsers]        = useState([])
+  const [usersLoading, setUsersLoading] = useState(false)
   const [toast,       setToast]       = useState(null)
   const [modal,       setModal]       = useState(null)
   const [seuilsSaved, setSeuilsSaved] = useState({})
@@ -1164,6 +1196,15 @@ function AdminPage() {
 
   // Synchronise la copie editable locale a chaque mise a jour Firestore
   useEffect(() => { setLocalSeuils(seuils) }, [seuils])
+
+  // Chargement des utilisateurs depuis Firestore
+  useEffect(() => {
+    setUsersLoading(true)
+    listUsers()
+      .then(setUsers)
+      .catch(err => showToast('Erreur chargement utilisateurs : ' + err.message, 'error'))
+      .finally(() => setUsersLoading(false))
+  }, [])
 
   function showToast(msg, type = 'success') { setToast({ msg, type }) }
 
@@ -1245,17 +1286,52 @@ function AdminPage() {
   }
 
   // Utilisateurs
-  function saveUser(u) {
-    setUsers(prev => prev.find(x => x.id === u.id)
-      ? prev.map(x => x.id === u.id ? u : x)
-      : [...prev, u])
-    showToast(u.id.startsWith('u_') ? 'Compte créé avec succès' : 'Utilisateur modifié')
+  async function saveUser(u, password) {
+    setSaving(true)
+    try {
+      if (!u.uid) {
+        const uid = await createUser({ nom: u.nom, email: u.email, password, role: u.role })
+        setUsers(prev => [...prev, { uid, nom: u.nom, email: u.email, role: u.role, actif: true }])
+        showToast('Compte créé avec succès')
+      } else {
+        await updateUser(u.uid, { nom: u.nom, role: u.role, actif: u.actif })
+        setUsers(prev => prev.map(x => x.uid === u.uid ? { ...x, nom: u.nom, role: u.role, actif: u.actif } : x))
+        showToast('Utilisateur modifié')
+      }
+    } catch (err) {
+      showToast('Erreur : ' + err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
   }
-  function deleteUser(id) { setUsers(prev => prev.filter(u => u.id !== id)); showToast('Compte supprimé') }
-  function toggleUser(id) {
-    const u = users.find(x => x.id === id)
-    setUsers(prev => prev.map(x => x.id === id ? { ...x, actif: !x.actif } : x))
-    showToast(u?.actif ? 'Compte désactivé' : 'Compte activé')
+
+  async function deleteUser(uid) {
+    setSaving(true)
+    try {
+      await deleteUserDoc(uid)
+      setUsers(prev => prev.filter(u => u.uid !== uid))
+      showToast('Compte supprimé')
+    } catch (err) {
+      showToast('Erreur : ' + err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function toggleUser(uid) {
+    const u = users.find(x => x.uid === uid)
+    if (!u) return
+    const newActif = !u.actif
+    setSaving(true)
+    try {
+      await updateUser(uid, { actif: newActif })
+      setUsers(prev => prev.map(x => x.uid === uid ? { ...x, actif: newActif } : x))
+      showToast(newActif ? 'Compte activé' : 'Compte désactivé')
+    } catch (err) {
+      showToast('Erreur : ' + err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const TABS = [
@@ -1500,32 +1576,34 @@ function AdminPage() {
       {tab === 'users' && (
         <div>
           <div className="fp-section-header">
-            <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{users.length} compte(s) · {users.filter(u => u.actif).length} actif(s)</span>
+            <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>
+              {usersLoading ? 'Chargement...' : `${users.length} compte(s) · ${users.filter(u => u.actif !== false).length} actif(s)`}
+            </span>
             <button className="fp-btn fp-btn-primary" onClick={() => setModal({ type: 'user', data: null })}>
               <Plus size={14} /> Créer un compte
             </button>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
             {users.map(u => (
-              <div key={u.id} className="fp-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: u.actif ? 1 : 0.65 }}>
+              <div key={u.uid} className="fp-card" style={{ display: 'flex', alignItems: 'center', gap: '1rem', opacity: u.actif !== false ? 1 : 0.65 }}>
                 <div style={{ width: 42, height: 42, borderRadius: '50%', background: u.role === 'admin' ? C.sidebarActive : '#7F8C8D', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: '#fff', fontWeight: 700, fontSize: 16, fontFamily: "'Inter',sans-serif" }}>
-                  {u.nom.charAt(0).toUpperCase()}
+                  {(u.nom ?? u.email ?? '?').charAt(0).toUpperCase()}
                 </div>
                 <div style={{ flex: 1 }}>
-                  <p style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{u.nom}</p>
-                  <p style={{ fontSize: 12, color: C.textMuted }}>{u.email}</p>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: C.text }}>{u.nom ?? '—'}</p>
+                  <p style={{ fontSize: 12, color: C.textMuted }}>{u.email ?? u.uid}</p>
                 </div>
                 <span className={`fp-badge ${u.role === 'admin' ? 'fp-badge-blue' : u.role === 'operateur' ? 'fp-badge-orange' : 'fp-badge-gray'}`}>
                   {u.role === 'admin' ? 'Administrateur' : u.role === 'operateur' ? 'Opérateur' : 'Lecteur'}
                 </span>
-                <span className={`fp-badge ${u.actif ? 'fp-badge-green' : 'fp-badge-red'}`}>{u.actif ? 'Actif' : 'Inactif'}</span>
+                <span className={`fp-badge ${u.actif !== false ? 'fp-badge-green' : 'fp-badge-red'}`}>{u.actif !== false ? 'Actif' : 'Inactif'}</span>
                 <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
                   <button className="fp-btn fp-btn-ghost" style={{ padding: '0.35rem 0.75rem', fontSize: 12 }}
                     onClick={() => setModal({ type: 'user', data: u })}><Pencil size={12} /> Modifier</button>
                   <button className="fp-btn fp-btn-warning" style={{ padding: '0.35rem 0.75rem', fontSize: 12 }}
-                    onClick={() => toggleUser(u.id)}><Ban size={12} /> {u.actif ? 'Désactiver' : 'Activer'}</button>
+                    onClick={() => toggleUser(u.uid)}><Ban size={12} /> {u.actif !== false ? 'Désactiver' : 'Activer'}</button>
                   <button className="fp-btn fp-btn-danger" style={{ padding: '0.35rem 0.6rem' }}
-                    onClick={() => setModal({ type: 'confirm', msg: `Supprimer le compte de "${u.nom}" ?`, onConfirm: () => deleteUser(u.id) })}>
+                    onClick={() => setModal({ type: 'confirm', msg: `Supprimer le compte de "${u.nom ?? u.email}" ?`, onConfirm: () => deleteUser(u.uid) })}>
                     <Trash2 size={12} />
                   </button>
                 </div>

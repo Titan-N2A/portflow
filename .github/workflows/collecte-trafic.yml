@@ -24,4 +24,5 @@ jobs:
         env:
           TOMTOM_API_KEY: ${{ secrets.TOMTOM_API_KEY }}
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          GOOGLE_MATRIX_API_KEY: ${{ secrets.GOOGLE_MATRIX_API_KEY }}
         run: npm run collecte
