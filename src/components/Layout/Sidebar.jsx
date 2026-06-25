@@ -45,7 +45,7 @@ function NavItem({ item, active, onClick }) {
   )
 }
 
-function Sidebar({ currentPage, onNavigate, onLogout, isAdmin = false }) {
+function Sidebar({ currentPage, onNavigate, onLogout, isAdmin = false, user = null }) {
   const NAV = isAdmin ? NAV_ADMIN : NAV_PUBLIC
   return (
     <aside style={{
@@ -114,7 +114,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, isAdmin = false }) {
         padding:   '0.9rem 1rem',
         borderTop: `1px solid ${C.sidebarBorder}`,
       }}>
-        {/* Avatar admin */}
+        {/* Avatar utilisateur */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '9px', marginBottom: '0.75rem' }}>
           <div style={{
             width: 34, height: 34, borderRadius: '50%',
@@ -124,14 +124,18 @@ function Sidebar({ currentPage, onNavigate, onLogout, isAdmin = false }) {
             color: '#fff', fontWeight: 700, fontSize: '13px',
             fontFamily: "'Inter', sans-serif",
           }}>
-            A
+            {(user?.email?.[0] ?? 'U').toUpperCase()}
           </div>
-          <div>
-            <div style={{ color: '#fff', fontSize: '12px', fontWeight: 600, fontFamily: "'Inter', sans-serif" }}>
-              Admin
+          <div style={{ minWidth: 0 }}>
+            <div style={{
+              color: '#fff', fontSize: '11px', fontWeight: 600,
+              fontFamily: "'Inter', sans-serif",
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {user?.email ?? 'Utilisateur'}
             </div>
-            <div style={{ color: C.sidebarMuted, fontSize: '11px', fontFamily: "'Inter', sans-serif" }}>
-              Administrateur
+            <div style={{ color: C.sidebarMuted, fontSize: '10px', fontFamily: "'Inter', sans-serif" }}>
+              {isAdmin ? 'Administrateur' : 'Opérateur'}
             </div>
           </div>
         </div>
