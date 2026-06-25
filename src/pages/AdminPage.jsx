@@ -432,7 +432,7 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
         }
       }
     } catch (err) {
-      setAltError('Erreur TomTom : ' + err.message)
+      setAltError('Erreur calcul itinéraire : ' + err.message)
     } finally {
       setComputing(false)
     }

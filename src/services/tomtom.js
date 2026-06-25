@@ -39,60 +39,46 @@ async function fetchAxeRoute(axe) {
   return { tempsMin: Math.round(secs / 60 * 10) / 10, geometry }
 }
 
-// Retourne tous les itinéraires alternatifs entre le premier et le dernier point
-// Permet à l'admin de choisir le bon tracé
-export async function fetchRouteAlternatives(fromCoord, toCoord, maxAlternatives = 3) {
-  const from = Array.isArray(fromCoord) ? fromCoord : [fromCoord.lat, fromCoord.lng]
-  const to   = Array.isArray(toCoord)   ? toCoord   : [toCoord.lat,   toCoord.lng]
-
-  const url = `https://api.tomtom.com/routing/1/calculateRoute/` +
-    `${from[0]},${from[1]}:${to[0]},${to[1]}/json` +
-    `?key=${TOMTOM_KEY}&traffic=false&travelMode=car&maxAlternatives=${maxAlternatives}`
-
+// ── OSRM — routage libre sans clé API (OpenStreetMap) ────────
+// Utilisé pour la sélection d'itinéraire dans l'admin.
+// OSRM utilise lng,lat (inverse de Leaflet) — on convertit à la sortie.
+async function fetchOSRM(waypoints, alternatives = false) {
+  // waypoints : [[lat,lng], ...]
+  const coords = waypoints.map(([lat, lng]) => `${lng},${lat}`).join(';')
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}` +
+    `?overview=full&geometries=geojson${alternatives ? '&alternatives=3' : ''}`
   const res  = await fetch(url)
-  if (!res.ok) throw new Error(`TomTom ${res.status}`)
+  if (!res.ok) throw new Error(`OSRM ${res.status}`)
   const data = await res.json()
-
-  return (data.routes ?? []).map((route, i) => ({
+  if (data.code !== 'Ok' || !data.routes?.length) throw new Error('Aucun itinéraire disponible')
+  return data.routes.map((r, i) => ({
     index:    i,
     label:    `Itinéraire ${i + 1}`,
-    distance: Math.round(route.summary.lengthInMeters / 100) / 10,
-    duration: Math.round(route.summary.travelTimeInSeconds / 60),
-    geometry: route.legs.flatMap(l => l.points).map(p => [p.latitude, p.longitude]),
+    distance: Math.round(r.distance / 100) / 10,          // m → km
+    duration: Math.round(r.duration / 60),                 // s → min
+    geometry: r.geometry.coordinates.map(([lng, lat]) => [lat, lng]), // lng,lat → lat,lng
   }))
 }
 
-// Route multi-stops à travers tous les waypoints → géométrie + résumé.
-// Contrairement à fetchRouteAlternatives (origine→destination uniquement),
-// cette route passe par TOUS les points intermédiaires fournis.
+// Alternatives d'itinéraire départ→arrivée (choix du tracé dans l'admin)
+export async function fetchRouteAlternatives(fromCoord, toCoord) {
+  const from = Array.isArray(fromCoord) ? fromCoord : [fromCoord.lat, fromCoord.lng]
+  const to   = Array.isArray(toCoord)   ? toCoord   : [toCoord.lat,   toCoord.lng]
+  return fetchOSRM([from, to], true)
+}
+
+// Route passant par TOUS les waypoints (points intermédiaires)
 export async function computeMultiStopRoute(coordsArray) {
-  // Accepte [[lat,lng],...] ou [{lat,lng},...]
   const pts = coordsArray
     .map(p => Array.isArray(p) ? p : [p.lat, p.lng])
     .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng))
-
   if (pts.length < 2) return null
-
-  const stops = pts.map(([lat, lng]) => `${lat},${lng}`).join(':')
-  const url   = `https://api.tomtom.com/routing/1/calculateRoute/${stops}/json` +
-    `?key=${TOMTOM_KEY}&traffic=false&travelMode=car`
-
-  const res  = await fetch(url)
-  if (!res.ok) throw new Error(`TomTom geometry ${res.status}`)
-  const data  = await res.json()
-  const route = data?.routes?.[0]
-  if (!route) throw new Error('No route')
-
-  // Fusionne tous les legs en une seule liste de points
-  const geometry = (route.legs?.flatMap(l => l.points) ?? []).map(p => [p.latitude, p.longitude])
-  return {
-    geometry,
-    distance: Math.round(route.summary.lengthInMeters / 100) / 10, // km
-    duration: Math.round(route.summary.travelTimeInSeconds / 60),  // min
-  }
+  const routes = await fetchOSRM(pts, false)
+  if (!routes.length) return null
+  return { geometry: routes[0].geometry, distance: routes[0].distance, duration: routes[0].duration }
 }
 
-// Géométrie multi-stops seule — utilisé à la sauvegarde d'un axe dans l'admin
+// Géométrie seule — utilisé à la sauvegarde d'un axe dans l'admin
 export async function computeRouteGeometry(coordsArray) {
   const route = await computeMultiStopRoute(coordsArray)
   return route?.geometry ?? null
