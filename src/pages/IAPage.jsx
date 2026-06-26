@@ -83,7 +83,7 @@ function IAPage() {
     setRecoLoad(true)
     const prompt = buildTrafficPrompt(mesures, axes, kpis)
     const resp   = await askGemini(prompt)
-    setAutoReco(resp ?? 'Service IA indisponible.')
+    setAutoReco(resp ?? 'Erreur : réponse vide.')
     setRecoLoad(false)
   }
 
@@ -106,7 +106,7 @@ function IAPage() {
 
     setHistory(prev => [...prev, {
       role: 'model',
-      parts: [{ text: resp ?? 'Je n\'ai pas pu obtenir de réponse. Veuillez réessayer.' }],
+      parts: [{ text: resp ?? 'Erreur : réponse vide.' }],
     }])
     setSending(false)
   }

@@ -1,5 +1,5 @@
 const GEMINI_KEY   = import.meta.env.VITE_GEMINI_API_KEY ?? ''
-const GEMINI_MODEL = 'gemini-2.5-flash'
+const GEMINI_MODEL = 'gemini-2.5-flash-lite'
 const GEMINI_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`
 
 // ── Instruction système — contexte PAA complet ────────────
@@ -59,7 +59,7 @@ export async function askGemini(contents, { temperature = 0.85, maxTokens = 1000
     return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? 'Aucune réponse générée.'
   } catch (err) {
     console.error('Gemini error:', err)
-    return null
+    return `Erreur IA : ${err.message}`
   }
 }
 
