@@ -130,8 +130,8 @@ function IAPage() {
 
       {/* ── Recommandations automatiques ─────────────────── */}
       {(autoReco || recoLoad) && (
-        <div className="fp-card" style={{ flexShrink: 0, padding: '0.9rem 1rem', borderLeft: `3px solid ${C.primary}` }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.5rem' }}>
+        <div className="fp-card" style={{ flexShrink: 1, minHeight: 0, maxHeight: isMobile ? '28vh' : '32vh', display: 'flex', flexDirection: 'column', padding: '0.9rem 1rem', borderLeft: `3px solid ${C.primary}` }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '0.5rem', flexShrink: 0 }}>
             <Zap size={13} color={C.primary} />
             <span style={{ fontSize: 12, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Analyse & recommandations automatiques
@@ -141,7 +141,7 @@ function IAPage() {
               <RefreshCw size={12} className={recoLoad ? 'fp-spin' : ''} />
             </button>
           </div>
-          <p style={{ fontSize: 12, color: C.text, lineHeight: 1.75, whiteSpace: 'pre-line' }}>
+          <p style={{ fontSize: 12, color: C.text, lineHeight: 1.75, whiteSpace: 'pre-line', overflow: 'auto', margin: 0 }}>
             {recoLoad ? 'Analyse des données trafic en cours...' : autoReco}
           </p>
         </div>
