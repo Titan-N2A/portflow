@@ -101,7 +101,8 @@ function IAPage() {
     setSending(true)
 
     // Construit les contents avec historique + données trafic actuelles
-    const contents = buildChatContents([...history, userMsg], q, mesures, axes, kpis)
+    // NB: on passe `history` sans userMsg — buildChatContents l'ajoute lui-même avec le contexte trafic
+    const contents = buildChatContents(history, q, mesures, axes, kpis)
     const resp = await askGemini(contents)
 
     setHistory(prev => [...prev, {

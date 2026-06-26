@@ -54,7 +54,10 @@ export async function askGemini(contents, { temperature = 0.85, maxTokens = 1000
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     })
-    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}))
+      throw new Error(`HTTP ${res.status} — ${errBody?.error?.message?.slice(0, 120) ?? ''}`)
+    }
     const data = await res.json()
     return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? 'Aucune réponse générée.'
   } catch (err) {
