@@ -123,7 +123,7 @@ function IAPage() {
       <div style={{ flexShrink: 0 }}>
         <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>IA FlowPort</h1>
         <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
-          Assistant trafic PAA · Gemini 2.5 Flash · données temps réel
+          Assistant trafic PAA · Gemini 1.5 Flash · données temps réel
         </p>
       </div>
 
