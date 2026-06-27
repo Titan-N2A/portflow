@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, useMap, Popup } from 'react-leaflet'
-import { fetchRouteAlternatives, computeMultiStopRoute } from '../services/tomtom'
+import { fetchRouteAlternatives, computeMultiStopRoute, nearestRoad } from '../services/tomtom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
@@ -400,19 +400,38 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
     setGmOpen(true); setGmInput(''); setGmError(''); setGmSuccess(false)
   }
 
-  function addFromGm() {
+  async function addFromGm() {
     const parsed = parseGoogleMapsCoords(gmInput)
     if (!parsed) { setGmError('Format invalide. Exemple : 5.3040, -4.0236'); return }
+    setGmError('Vérification de la route...')
+    const road = await nearestRoad(parseFloat(parsed.lat), parseFloat(parsed.lng))
+    if (road && road.distanceM > 200) {
+      setGmError(`⚠ Ce point est à ${road.distanceM} m de la route la plus proche — vérifiez les coordonnées`)
+      return
+    }
     onAddPoint?.(parsed.lat, parsed.lng)
     setGmInput(''); setGmError('')
     setGmSuccess(true)
-    setTimeout(() => setGmSuccess(false), 1500)
+    const roadMsg = road?.roadName ? ` (${road.roadName})` : ''
+    setTimeout(() => setGmSuccess(false), 2000)
+    if (road?.roadName) setGmError('')
   }
 
   async function computeAlts() {
     setComputing(true); setAltError(''); setAlternatives([]); setSelectedIdx(null)
     onRouteSelected?.(null)
     try {
+      // Validation : chaque point doit être sur une route (OSRM nearest ≤ 200 m)
+      const checks = await Promise.all(positions.map(([lat, lng]) => nearestRoad(lat, lng)))
+      const hors = checks
+        .map((r, i) => ({ i: i + 1, dist: r?.distanceM ?? 0 }))
+        .filter(x => x.dist > 200)
+      if (hors.length > 0) {
+        setAltError(`Point(s) ${hors.map(x => x.i).join(', ')} non situé(s) sur une route (>${hors[0].dist} m). Corrigez les coordonnées avant de calculer l'itinéraire.`)
+        setComputing(false)
+        return
+      }
+
       if (positions.length > 2) {
         // Points intermédiaires → un seul itinéraire passant par TOUS les points
         const route = await computeMultiStopRoute(positions)
@@ -722,6 +741,7 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
   const [coords,           setCoords]          = useState(coordsToForm(axe?.waypoints?.length ? axe.waypoints : axe?.coordinates ?? []))
   const [selectedGeometry, setSelectedGeometry] = useState(axe?.geometryRoute ?? null)
   const [distAutoFilled,   setDistAutoFilled]   = useState(false)
+  const [tRefAutoFilled,   setTRefAutoFilled]   = useState(false)
   const [errors,           setErrors]           = useState({})
 
   function validate() {
@@ -817,8 +837,21 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
           </Field>
         </div>
         <div style={{ flex: 1 }}>
-          <Field label="Temps de référence PAA (min) *">
-            <input {...inp('tRef')} type="number" step="0.1" min="0" placeholder="ex: 27.4" />
+          <Field label={tRefAutoFilled ? 'Durée de référence (calculée OSRM)' : 'Temps de référence PAA (min) *'}>
+            <div style={{ position: 'relative' }}>
+              <input
+                {...inp('tRef')}
+                type="number" step="0.1" min="0"
+                placeholder="ex: 27.4"
+                readOnly={tRefAutoFilled}
+                style={{ ...(inp('tRef').style ?? {}), paddingRight: tRefAutoFilled ? 32 : 8, background: tRefAutoFilled ? '#EBF8F1' : '#fff', borderColor: tRefAutoFilled ? '#A7E3C3' : undefined }}
+              />
+              {tRefAutoFilled && (
+                <button type="button" onClick={() => { setTRefAutoFilled(false); setForm(f => ({ ...f, tRef: '' })) }}
+                  title="Saisir manuellement"
+                  style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, fontSize: 14 }}>✕</button>
+              )}
+            </div>
             {errors.tRef && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.tRef}</p>}
           </Field>
         </div>
@@ -862,11 +895,12 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
           color={axeColor}
           onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { name: '', lat, lng }]); setSelectedGeometry(null) }}
           onRouteSelected={route => {
-            if (!route) { setSelectedGeometry(null); setDistAutoFilled(false); return }
+            if (!route) { setSelectedGeometry(null); setDistAutoFilled(false); setTRefAutoFilled(false); return }
             setSelectedGeometry(route.geometry)
-            setForm(f => ({ ...f, distance: `${route.distance} km` }))
+            setForm(f => ({ ...f, distance: `${route.distance} km`, tRef: String(route.duration) }))
             setDistAutoFilled(true)
-            setErrors(e => ({ ...e, distance: '' }))
+            setTRefAutoFilled(true)
+            setErrors(e => ({ ...e, distance: '', tRef: '' }))
           }}
         />
         {selectedGeometry && (
@@ -906,8 +940,10 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
     dist:  troncon?.dist  ?? '',
     ordre: troncon?.ordre ?? 1,
   })
-  const [coords,  setCoords]  = useState(coordsToForm(troncon?.coordinates ?? []))
-  const [errors,  setErrors]  = useState({})
+  const [coords,           setCoords]          = useState(coordsToForm(troncon?.coordinates ?? []))
+  const [selectedGeometry, setSelectedGeometry] = useState(null)
+  const [distAutoFilled,   setDistAutoFilled]   = useState(false)
+  const [errors,           setErrors]           = useState({})
 
   function suggestCode(axeId) {
     const existing = troncons.filter(t => t.axeId === axeId)
@@ -961,7 +997,7 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
       nom:         form.nom.trim(),
       dist:        form.dist.trim(),
       ordre:       parseInt(form.ordre),
-      coordinates: formToCoords(coords),
+      coordinates: selectedGeometry ?? formToCoords(coords),
     })
     onClose()
   }
@@ -1013,8 +1049,20 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
-          <Field label="Distance *">
-            <input {...inp('dist')} placeholder="ex: 2.8 km" />
+          <Field label={distAutoFilled ? 'Distance (calculée OSRM)' : 'Distance *'}>
+            <div style={{ position: 'relative' }}>
+              <input
+                {...inp('dist')}
+                placeholder="ex: 2.8 km"
+                readOnly={distAutoFilled}
+                style={{ ...(inp('dist').style ?? {}), paddingRight: distAutoFilled ? 32 : 8, background: distAutoFilled ? '#EBF8F1' : '#fff', borderColor: distAutoFilled ? '#A7E3C3' : undefined }}
+              />
+              {distAutoFilled && (
+                <button type="button" onClick={() => { setDistAutoFilled(false); setForm(f => ({ ...f, dist: '' })) }}
+                  title="Saisir manuellement"
+                  style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, fontSize: 14 }}>✕</button>
+              )}
+            </div>
             {errors.dist && <p style={{ color: '#C0392B', fontSize: 11, marginTop: 3 }}>{errors.dist}</p>}
           </Field>
         </div>
@@ -1034,8 +1082,20 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
           points={coords}
           color={axeColor}
           backgroundAxe={parentGeometry}
-          onAddPoint={(lat, lng) => setCoords(prev => [...prev, { lat, lng }])}
+          onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { lat, lng }]); setSelectedGeometry(null) }}
+          onRouteSelected={route => {
+            if (!route) { setSelectedGeometry(null); setDistAutoFilled(false); return }
+            setSelectedGeometry(route.geometry)
+            setForm(f => ({ ...f, dist: `${route.distance} km` }))
+            setDistAutoFilled(true)
+            setErrors(e => ({ ...e, dist: '' }))
+          }}
         />
+        {selectedGeometry && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.75rem', background: '#EBF8F1', border: '1px solid #A7E3C3', borderRadius: '7px', fontSize: 12, color: '#27AE60', fontFamily: "'Inter',sans-serif" }}>
+            <CheckCircle size={13} /> Tracé sélectionné — {selectedGeometry.length} points GPS — distance auto-remplie
+          </div>
+        )}
         <CoordinatesEditor points={coords} onChange={setCoords} minPoints={0} />
         {errors.coords && (
           <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>

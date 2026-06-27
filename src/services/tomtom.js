@@ -60,6 +60,23 @@ async function fetchOSRM(waypoints, alternatives = false) {
   }))
 }
 
+// Vérifie si un point GPS est sur une route (OSRM nearest)
+// Retourne { distanceM, roadName } ou null si erreur réseau
+export async function nearestRoad(lat, lng) {
+  try {
+    const res  = await fetch(`https://router.project-osrm.org/nearest/v1/driving/${lng},${lat}?number=1`)
+    if (!res.ok) return null
+    const data = await res.json()
+    if (data.code !== 'Ok' || !data.waypoints?.length) return null
+    return {
+      distanceM: Math.round(data.waypoints[0].distance),
+      roadName:  data.waypoints[0].name || null,
+    }
+  } catch {
+    return null
+  }
+}
+
 // Alternatives d'itinéraire départ→arrivée (choix du tracé dans l'admin)
 export async function fetchRouteAlternatives(fromCoord, toCoord) {
   const from = Array.isArray(fromCoord) ? fromCoord : [fromCoord.lat, fromCoord.lng]
