@@ -1006,16 +1006,30 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
   }
 
   function handleAxeChange(axeId) {
+    const nextOrdre = troncons.filter(t => t.axeId === axeId).length + 1
     setForm(f => ({
       ...f,
       axeId,
       code:  isEdit ? f.code : suggestCode(axeId),
-      ordre: isEdit ? f.ordre : troncons.filter(t => t.axeId === axeId).length + 1,
+      ordre: isEdit ? f.ordre : nextOrdre,
     }))
-    // Pré-remplir avec les extrémités de l'axe parent si aucun point saisi
-    if (!isEdit && coords.length === 0) {
-      const parentAxe = axes.find(a => a.id === axeId)
-      if (parentAxe?.coordinates?.length >= 2) {
+    if (!isEdit) {
+      // Chaînage automatique : départ = fin du dernier tronçon de l'axe
+      const axisTroncons = troncons
+        .filter(t => t.axeId === axeId)
+        .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
+      const lastTroncon = axisTroncons[axisTroncons.length - 1]
+      const parentAxe   = axes.find(a => a.id === axeId)
+
+      if (lastTroncon?.coordinates?.length >= 2) {
+        // Départ = dernier point du tronçon précédent (chaînage parfait)
+        const chainStart = lastTroncon.coordinates[lastTroncon.coordinates.length - 1]
+        const axeEnd     = parentAxe?.coordinates?.[parentAxe.coordinates.length - 1]
+        const pts = [{ lat: String(chainStart[0]), lng: String(chainStart[1]) }]
+        if (axeEnd) pts.push({ lat: String(axeEnd[0]), lng: String(axeEnd[1]) })
+        setCoords(pts)
+      } else if (parentAxe?.coordinates?.length >= 2) {
+        // Premier tronçon : départ = début de l'axe parent
         const first = parentAxe.coordinates[0]
         const last  = parentAxe.coordinates[parentAxe.coordinates.length - 1]
         setCoords([

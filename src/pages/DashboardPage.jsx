@@ -161,102 +161,123 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
         )
       })}
 
-      {/* Tronçons — colorés selon le niveau de trafic + popup synthèse indicateurs */}
-      {(troncons ?? []).flatMap(t => {
+      {/* Tronçons — coloration individuelle par niveau propre + popup cadrant */}
+      {[...(troncons ?? [])].sort((a, b) => {
+        if (a.axeId !== b.axeId) return 0
+        return (a.ordre ?? 0) - (b.ordre ?? 0)
+      }).flatMap(t => {
         const positions = t.coordinates ?? []
         if (positions.length < 2) return []
 
         const m      = mesures[t.axeId]
         const axe    = axes.find(a => a.id === t.axeId)
-        const niveau = mapMode === 'prevision'
-          ? (getPredForAxe(predictions, t.axeId)?.niveau_prevu ?? 0)
-          : (m?.niveau ?? 0)
+        const axeIdx = axes.findIndex(a => a.id === t.axeId)
 
-        const axeIdx    = axes.findIndex(a => a.id === t.axeId)
-        const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
-        const baseColor = AXE_COLORS[t.axeId] ?? axeColors[Math.max(axeIdx, 0) % axeColors.length]
-        const color     = niveau > 0 ? levelColor(niveau) : baseColor
-
-        // ── Calculs indicateurs tronçon ──────────────────────
-        const distKm    = parseFloat(t.dist) || 0
-        const vitesse   = m?.vitesse ?? 0
-        const axeDist   = (axe?.dist ?? distKm) || 1
-        const tempsEst  = vitesse > 0
+        // ── Indicateurs propres au tronçon (proportionnels à sa distance) ──
+        const distKm     = parseFloat(t.dist) || 0
+        const vitesse    = m?.vitesse ?? 0
+        const axeDist    = parseFloat(String(axe?.dist ?? '')) || distKm || 1
+        const tempsEst   = vitesse > 0
           ? Math.round((distKm / vitesse) * 60 * 10) / 10
           : null
-        const tRefProp  = axe?.tRef && axeDist > 0
+        const tRefProp   = axe?.tRef && axeDist > 0
           ? Math.round((distKm / axeDist) * axe.tRef * 10) / 10
           : null
         const retardProp = m?.retard != null && axeDist > 0
           ? Math.round((distKm / axeDist) * m.retard * 10) / 10
           : null
-        const ratio      = tRefProp && tempsEst ? (tempsEst / tRefProp).toFixed(2) : null
+        const ratioVal   = tRefProp && tempsEst ? tempsEst / tRefProp : null
+        const ratio      = ratioVal ? ratioVal.toFixed(2) : null
 
-        const KPI = ({ label, value, unit, valueColor }) => (
-          <div style={{ textAlign: 'center', flex: 1 }}>
-            <div style={{ fontSize: 9, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{label}</div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: valueColor ?? '#1a2a3a', lineHeight: 1 }}>{value ?? '—'}</div>
-            {unit && <div style={{ fontSize: 9, color: '#aaa', marginTop: 1 }}>{unit}</div>}
-          </div>
-        )
+        // ── Niveau individuel du tronçon (calculé depuis son ratio, pas l'axe parent) ──
+        const predNiveau = mapMode === 'prevision'
+          ? (getPredForAxe(predictions, t.axeId)?.niveau_prevu ?? null)
+          : null
+        const tronconNiveau = predNiveau !== null ? predNiveau
+          : ratioVal !== null ? (
+              ratioVal <= 1.10 ? 1 :
+              ratioVal <= 1.25 ? 2 :
+              ratioVal <= 1.50 ? 3 :
+              ratioVal <= 2.00 ? 4 : 5
+            )
+          : (m?.niveau ?? 0)
 
+        const fallbackColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
+        const baseColor = AXE_COLORS[t.axeId] ?? fallbackColors[Math.max(axeIdx, 0) % fallbackColors.length]
+        const color     = tronconNiveau > 0 ? levelColor(tronconNiveau) : baseColor
+
+        // ── Popup cadrant ────────────────────────────────────────────────
         const popup = (
-          <Popup maxWidth={230} minWidth={210}>
+          <Popup maxWidth={245} minWidth={225}>
             <div style={{ fontFamily: "'Inter',sans-serif", padding: '2px 0' }}>
 
               {/* En-tête */}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #eee' }}>
-                <div style={{ width: 6, height: 28, borderRadius: 3, background: color, flexShrink: 0 }} />
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8, paddingBottom: 8, borderBottom: '1px solid #eee' }}>
+                <div style={{ width: 8, height: 36, borderRadius: 4, background: color, flexShrink: 0 }} />
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#1a2a3a' }}>{t.nom}</div>
-                  <div style={{ fontSize: 10, color: '#888' }}>{t.code} · {t.dist}</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1a2a3a', lineHeight: 1.2 }}>{t.nom}</div>
+                  <div style={{ fontSize: 10, color: '#888', marginTop: 2 }}>
+                    {t.code} · {t.dist}
+                    {axe && <span style={{ color: baseColor, fontWeight: 600 }}> · {axe.shortNom}</span>}
+                  </div>
                 </div>
               </div>
 
-              {/* Badge niveau */}
-              {niveau > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
-                  <span style={{
-                    padding: '3px 12px', borderRadius: 999, fontSize: 11, fontWeight: 700,
-                    background: levelBg(niveau), color: levelColor(niveau),
-                    border: `1px solid ${levelColor(niveau)}40`,
-                  }}>
-                    N{niveau} — {levelLabel(niveau)}
-                  </span>
-                </div>
-              )}
-
-              {/* Grille indicateurs */}
-              <div style={{ display: 'flex', gap: 4, marginBottom: 8, padding: '8px 4px', background: '#f8fafc', borderRadius: 6 }}>
-                <KPI label="Vitesse" value={vitesse > 0 ? vitesse : '—'} unit="km/h" valueColor={color} />
-                <div style={{ width: 1, background: '#e2e8f0' }} />
-                <KPI label="Temps est." value={tempsEst} unit="min" />
-                <div style={{ width: 1, background: '#e2e8f0' }} />
-                <KPI
-                  label="Retard"
-                  value={retardProp != null ? (retardProp >= 0 ? `+${retardProp}` : retardProp) : '—'}
-                  unit="min"
-                  valueColor={retardProp > 0 ? '#C0392B' : '#27AE60'}
-                />
+              {/* Badge niveau individuel */}
+              <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
+                <span style={{
+                  padding: '4px 16px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                  background: levelBg(tronconNiveau || 1),
+                  color: levelColor(tronconNiveau || 1),
+                  border: `1px solid ${levelColor(tronconNiveau || 1)}40`,
+                }}>
+                  {tronconNiveau > 0
+                    ? `N${tronconNiveau} — ${levelLabel(tronconNiveau)}`
+                    : 'Données en attente'}
+                </span>
               </div>
 
-              {/* Pied : T_ref + ratio */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#888' }}>
-                <span>T_ref tronçon : <strong style={{ color: '#1a2a3a' }}>{tRefProp ?? '—'} min</strong></span>
-                {ratio && <span>Ratio : <strong style={{ color }}>{ratio}</strong></span>}
+              {/* Grille 2×2 indicateurs */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5, marginBottom: 8 }}>
+                {[
+                  { label: 'Vitesse',    value: vitesse > 0 ? vitesse : '—', unit: 'km/h', c: color },
+                  { label: 'Temps est.', value: tempsEst ?? '—',             unit: 'min',  c: '#1a2a3a' },
+                  {
+                    label: 'Retard',
+                    value: retardProp != null
+                      ? (retardProp >= 0 ? `+${retardProp}` : String(retardProp))
+                      : '—',
+                    unit: 'min',
+                    c: retardProp != null && retardProp > 0 ? '#C0392B' : '#27AE60',
+                  },
+                  { label: 'Ratio ×',   value: ratio ?? '—',                 unit: '',     c: color },
+                ].map(({ label, value, unit, c }) => (
+                  <div key={label} style={{ background: '#f8fafc', borderRadius: 7, padding: '7px 8px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 9, color: '#999', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
+                      {label}
+                    </div>
+                    <div style={{ fontSize: 17, fontWeight: 800, color: c, lineHeight: 1 }}>{value}</div>
+                    {unit && <div style={{ fontSize: 9, color: '#bbb', marginTop: 2 }}>{unit}</div>}
+                  </div>
+                ))}
+              </div>
+
+              {/* Pied : T_réf */}
+              <div style={{ fontSize: 10, color: '#999', paddingTop: 6, borderTop: '1px solid #f0f0f0', textAlign: 'center' }}>
+                Temps de référence tronçon : <strong style={{ color: '#1a2a3a' }}>{tRefProp ?? '—'} min</strong>
               </div>
             </div>
           </Popup>
         )
 
         return [
-          <Polyline key={t.id + '_l'} positions={positions} color={color} weight={4} opacity={0.88} dashArray="5 3">
+          <Polyline key={t.id + '_l'} positions={positions} color={color} weight={5} opacity={0.93}>
             {popup}
           </Polyline>,
-          <Marker key={t.id + '_s'} position={positions[0]} icon={makeTronconEndIcon(t.code + '▶', color)}>
+          <Marker key={t.id + '_s'} position={positions[0]} icon={makeTronconEndIcon(t.code + ' ▶', color)}>
             {popup}
           </Marker>,
-          <Marker key={t.id + '_e'} position={positions[positions.length - 1]} icon={makeTronconEndIcon('◀' + t.code, color)}>
+          <Marker key={t.id + '_e'} position={positions[positions.length - 1]} icon={makeTronconEndIcon('◀ ' + t.code, color)}>
             {popup}
           </Marker>,
         ]
