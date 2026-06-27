@@ -6,20 +6,17 @@ import {
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
 import { C } from '../styles/tokens'
 import { useCollecteAuto } from '../hooks/useCollecteAuto'
+import { useAxesFirestore } from '../hooks/useAxesFirestore'
+import { AXES_OFFICIELS, AXE_COLORS } from '../hooks/useTrafficData'
 import { computeCourbe24h, computeRepartitionNiveaux } from '../services/aggregations'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler)
 
 const HEURES_LABELS = ['7h','8h','9h','10h','11h','12h','13h','14h','15h','16h','17h','18h']
+const PALETTE = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
 
-const AXE_DEFS = [
-  { id: 'axe1', label: 'CARENA',        color: '#1B4F8A', dist: 14.8, tRef: 27.4 },
-  { id: 'axe2', label: 'Toyota CFAO',   color: '#E67E22', dist:  9.6, tRef: 16.9 },
-  { id: 'axe3', label: 'Agence SODECI', color: '#27AE60', dist:  8.4, tRef: 17.8 },
-]
-
-function computeMinMaxParAxe(data) {
-  return AXE_DEFS.map(axe => {
+function computeMinMaxParAxe(data, axeDefs) {
+  return axeDefs.map(axe => {
     const vals = data
       .filter(d => d.axeId === axe.id && d.sens === 'aller')
       .map(d => d.temps_min)
@@ -72,11 +69,21 @@ function Spinner() {
 
 function GraphiquesPage() {
   const { data, loading } = useCollecteAuto(5000)
+  const { axes: firestoreAxes } = useAxesFirestore()
+  const baseAxes = firestoreAxes.length > 0 ? firestoreAxes : AXES_OFFICIELS
+  const axeDefs = baseAxes.map((axe, idx) => ({
+    id:    axe.id,
+    label: axe.shortNom,
+    color: AXE_COLORS[axe.id] ?? PALETTE[idx % PALETTE.length],
+    dist:  parseFloat(String(axe.dist)) || 10,
+    tRef:  axe.tRef ?? 20,
+  }))
+
   const [axeFilter, setAxeFilter] = useState('tous')
   const [periode,   setPeriode]   = useState('tous')
 
   // Courbes 24h par axe (données réelles Firestore)
-  const lineDatasets = useMemo(() => AXE_DEFS.map(axe => {
+  const lineDatasets = useMemo(() => axeDefs.map(axe => {
     const courbe = computeCourbe24h(data, axe.id, 'aller')
     return {
       label:                axe.label,
@@ -99,9 +106,9 @@ function GraphiquesPage() {
 
   // Min / Moyen / Max par axe (données réelles)
   const minMaxData = useMemo(() => {
-    const stats = computeMinMaxParAxe(data)
+    const stats = computeMinMaxParAxe(data, axeDefs)
     return {
-      labels: AXE_DEFS.map(a => a.label),
+      labels: axeDefs.map(a => a.label),
       datasets: [
         { label: 'Min',   data: stats.map(s => s.min), backgroundColor: 'rgba(27,79,138,0.75)',  borderRadius: 5, borderSkipped: false },
         { label: 'Moyen', data: stats.map(s => s.moy), backgroundColor: 'rgba(230,126,34,0.85)', borderRadius: 5, borderSkipped: false },
@@ -131,7 +138,7 @@ function GraphiquesPage() {
       <div>
         <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Graphiques</h1>
         <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
-          Données collectées automatiquement · <strong>{data.length}</strong> mesures réelles (GitHub Actions)
+          Données collectées automatiquement · <strong>{data.length}</strong> mesures · {axeDefs.length} axes surveillés
         </p>
       </div>
 
@@ -141,9 +148,9 @@ function GraphiquesPage() {
           <span className="fp-section-title">Temps de traversée moyen par heure</span>
           <select className="fp-select" style={{ width: 'auto' }} value={axeFilter} onChange={e => setAxeFilter(e.target.value)}>
             <option value="tous">Tous les axes</option>
-            <option value="0">CARENA</option>
-            <option value="1">Toyota CFAO</option>
-            <option value="2">Agence SODECI</option>
+            {axeDefs.map((axe, i) => (
+              <option key={axe.id} value={String(i)}>{axe.label}</option>
+            ))}
           </select>
         </div>
         <div style={{ height: '240px' }}>

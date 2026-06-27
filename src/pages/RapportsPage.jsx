@@ -7,6 +7,7 @@ import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Width
 import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
+import { useAxesFirestore } from '../hooks/useAxesFirestore'
 
 // ── Calcul des bornes de période ──────────────────────────────
 
@@ -57,8 +58,8 @@ async function fetchPeriodData(type, periode) {
 
 // ── Agrégation par axe ────────────────────────────────────────
 
-function aggregerParAxe(records, mesuresLive) {
-  return AXES_OFFICIELS.map(axe => {
+function aggregerParAxe(records, mesuresLive, axes = AXES_OFFICIELS) {
+  return axes.map(axe => {
     const rows = records.filter(r => r.axeId === axe.id && r.sens === 'aller')
     if (rows.length === 0) {
       // Fallback sur données live si pas d'historique
@@ -80,8 +81,9 @@ function aggregerParAxe(records, mesuresLive) {
     const tMin   = Math.round(Math.min(...temps) * 10) / 10
     const tMax   = Math.round(Math.max(...temps) * 10) / 10
     const tMoyen = Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10
-    const retard = Math.round((tMoyen - axe.tRef) * 10) / 10
-    const vitesse = Math.round((axe.dist / tMoyen) * 60 * 10) / 10
+    const retard  = Math.round((tMoyen - axe.tRef) * 10) / 10
+    const distNum = parseFloat(String(axe.dist)) || (axe.tRef ?? 20)
+    const vitesse = Math.round((distNum / tMoyen) * 60 * 10) / 10
     const niveaux = rows.map(r => r.niveau).filter(Boolean)
     const niveau  = niveaux.length ? Math.round(niveaux.reduce((a, b) => a + b, 0) / niveaux.length) : 1
     return {
@@ -228,7 +230,9 @@ async function telechargerWord(rapport, rows) {
 // ── Page principale ───────────────────────────────────────────
 
 function RapportsPage() {
-  const { mesures } = useTrafficData()
+  const { axes: firestoreAxes } = useAxesFirestore()
+  const axes = firestoreAxes.length > 0 ? firestoreAxes : AXES_OFFICIELS
+  const { mesures } = useTrafficData(axes)
   const [type,     setType]     = useState('journalier')
   const [periode,  setPeriode]  = useState(new Date().toISOString().slice(0, 10))
   const [format,   setFormat]   = useState('pdf')
@@ -239,7 +243,7 @@ function RapportsPage() {
     setLoading(true)
     try {
       const records      = await fetchPeriodData(type, periode)
-      const rows         = aggregerParAxe(records, mesures)
+      const rows         = aggregerParAxe(records, mesures, axes)
       const { label }    = getPeriodeBounds(type, periode)
       const nbMesuresTotal = records.length
       const nom          = `PAA-${type.charAt(0).toUpperCase() + type.slice(1)}-${periode}`
@@ -253,7 +257,7 @@ function RapportsPage() {
     } catch (err) {
       console.error('Erreur génération rapport :', err)
       // Fallback live si Firestore inaccessible
-      const rows = aggregerParAxe([], mesures)
+      const rows = aggregerParAxe([], mesures, axes)
       const nom  = `PAA-${type.charAt(0).toUpperCase() + type.slice(1)}-${periode}`
       setRapports(prev => [{
         id: Date.now(), nom, type, periode,

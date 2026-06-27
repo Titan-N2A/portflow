@@ -328,11 +328,17 @@ function DashboardPage() {
   const [iaText,  setIaText]          = useState('')
   const [iaLoading, setIaLoading]     = useState(false)
 
-  async function loadIA(currentMesures) {
+  async function loadIA(currentMesures, force = false) {
+    if (!force) {
+      const cached = sessionStorage.getItem('fp_ia_dashboard')
+      if (cached) { setIaText(cached); return }
+    }
     setIaLoading(true)
-    const prompt = buildTrafficPrompt(currentMesures ?? mesures, AXES_OFFICIELS)
+    const prompt = buildTrafficPrompt(currentMesures ?? mesures, axes)
     const resp   = await askGemini(prompt)
-    setIaText(resp ?? 'Service IA temporairement indisponible.')
+    const text   = resp ?? 'Service IA temporairement indisponible.'
+    setIaText(text)
+    sessionStorage.setItem('fp_ia_dashboard', text)
     setIaLoading(false)
   }
 
@@ -360,7 +366,7 @@ function DashboardPage() {
           </p>
         </div>
         <button className="fp-btn fp-btn-primary" style={{ fontSize: 12, padding: '0.4rem 0.8rem' }}
-          onClick={async () => { await refresh(); loadIA() }} disabled={loading}>
+          onClick={async () => { sessionStorage.removeItem('fp_ia_dashboard'); await refresh(); loadIA(null, true) }} disabled={loading}>
           <RefreshCw size={13} className={loading ? 'fp-spin' : ''} />
           {!isMobile && 'Actualiser'}
         </button>
@@ -477,7 +483,7 @@ function DashboardPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
               <Zap size={15} color={C.primary} />
               <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>IA FlowPort</span>
-              <button onClick={loadIA} disabled={iaLoading}
+              <button onClick={() => { sessionStorage.removeItem('fp_ia_dashboard'); loadIA(null, true) }} disabled={iaLoading}
                 style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, padding: 2 }}>
                 <RefreshCw size={13} className={iaLoading ? 'fp-spin' : ''} />
               </button>
@@ -494,19 +500,24 @@ function DashboardPage() {
           {/* État des axes */}
           <div className="fp-card" style={{ padding: '1rem' }}>
             <p style={{ fontWeight: 700, fontSize: 14, color: C.text, marginBottom: '0.75rem' }}>État des axes</p>
-            {AXES_OFFICIELS.map(axe => {
+            {axes.map((axe, idx) => {
               const m = mesures[axe.id]
               const niveau = m?.niveau ?? 0
+              const fallbackColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
+              const barColor = AXE_COLORS[axe.id] ?? fallbackColors[idx % fallbackColors.length]
               return (
                 <div key={axe.id} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',
                   padding: '0.5rem 0', borderBottom: `1px solid ${C.borderLight}`,
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: 3, height: 28, borderRadius: 2, background: AXE_COLORS[axe.id], flexShrink: 0 }} />
+                    <div style={{ width: 3, height: 28, borderRadius: 2, background: barColor, flexShrink: 0 }} />
                     <div>
                       <p style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{axe.shortNom}</p>
-                      <p style={{ fontSize: 11, color: C.textMuted }}>{m ? `${m.tempsLive} min` : '—'}</p>
+                      <p style={{ fontSize: 11, color: C.textMuted }}>
+                        {m ? `aller ${m.tempsLive} min` : '—'}
+                        {axe.bidirectionnel && m?.tempsRetour ? ` · retour ${m.tempsRetour} min` : ''}
+                      </p>
                     </div>
                   </div>
                   <div style={{

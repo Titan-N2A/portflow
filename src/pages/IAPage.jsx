@@ -6,10 +6,13 @@ import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { useIsMobile } from '../hooks/useIsMobile'
 
-// Message d'accueil — en dehors de Gemini, pas dans l'historique envoyé
-const WELCOME = {
-  role: 'model',
-  parts: [{ text: 'Bonjour ! Je suis FlowPort IA, votre assistant de surveillance du trafic au Port Autonome d\'Abidjan.\n\nJe dispose des données trafic en temps réel sur les 3 axes d\'accès au port (CARENA, Toyota CFAO, SODECI). Posez-moi vos questions — état actuel, recommandations opérationnelles, prévisions ou analyse d\'un axe spécifique.' }],
+function makeWelcome(axes) {
+  const names = axes.length > 0 ? axes.map(a => a.shortNom).join(', ') : 'CARENA, Toyota CFAO, SODECI'
+  const count = axes.length > 0 ? axes.length : 3
+  return {
+    role: 'model',
+    parts: [{ text: `Bonjour ! Je suis FlowPort IA, votre assistant de surveillance du trafic au Port Autonome d'Abidjan.\n\nJe dispose des données trafic en temps réel sur les ${count} axes d'accès au port (${names}). Posez-moi vos questions — état actuel, recommandations opérationnelles, prévisions ou analyse d'un axe spécifique.` }],
+  }
 }
 
 const SUGGESTIONS = [
@@ -64,26 +67,51 @@ function Bubble({ msg }) {
 function IAPage() {
   const isMobile = useIsMobile()
   const { axes: firestoreAxes } = useAxesFirestore()
+
   const axes = firestoreAxes.length > 0 ? firestoreAxes : AXES_OFFICIELS
   const { mesures, kpis, loading } = useTrafficData(axes)
 
-  // Historique au format Gemini : [{role:'model'|'user', parts:[{text}]}]
-  const [history,   setHistory]   = useState([WELCOME])
-  const [input,     setInput]     = useState('')
-  const [sending,   setSending]   = useState(false)
-  const [autoReco,  setAutoReco]  = useState('')
-  const [recoLoad,  setRecoLoad]  = useState(false)
+  // Historique persisté en sessionStorage entre navigations
+  const [history, setHistory] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('fp_ia_history')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    return [makeWelcome(AXES_OFFICIELS)]
+  })
+  const [input,    setInput]   = useState('')
+  const [sending,  setSending] = useState(false)
+  const [autoReco, setAutoReco] = useState('')
+  const [recoLoad, setRecoLoad] = useState(false)
   const bottomRef = useRef(null)
+
+  // Mise à jour du message d'accueil quand les axes Firestore sont chargés
+  useEffect(() => {
+    if (firestoreAxes.length > 0) {
+      setHistory(prev => [makeWelcome(firestoreAxes), ...prev.slice(1)])
+    }
+  }, [firestoreAxes.length])
+
+  // Persiste l'historique à chaque changement
+  useEffect(() => {
+    try { sessionStorage.setItem('fp_ia_history', JSON.stringify(history)) } catch {}
+  }, [history])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [history, sending])
 
-  async function loadAutoReco() {
+  async function loadAutoReco(force = false) {
+    if (!force) {
+      const cached = sessionStorage.getItem('fp_autoreco')
+      if (cached) { setAutoReco(cached); return }
+    }
     setRecoLoad(true)
     const prompt = buildTrafficPrompt(mesures, axes, kpis)
     const resp   = await askGemini(prompt)
-    setAutoReco(resp ?? 'Erreur : réponse vide.')
+    const text   = resp ?? 'Erreur : réponse vide.'
+    setAutoReco(text)
+    try { sessionStorage.setItem('fp_autoreco', text) } catch {}
     setRecoLoad(false)
   }
 
@@ -136,7 +164,7 @@ function IAPage() {
             <span style={{ fontSize: 12, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Analyse & recommandations automatiques
             </span>
-            <button onClick={loadAutoReco} disabled={recoLoad}
+            <button onClick={() => { sessionStorage.removeItem('fp_autoreco'); loadAutoReco(true) }} disabled={recoLoad}
               style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted }}>
               <RefreshCw size={12} className={recoLoad ? 'fp-spin' : ''} />
             </button>
