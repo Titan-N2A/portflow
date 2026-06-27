@@ -103,6 +103,15 @@ function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, 
         }}>
           PAA · Trafic Routier
         </p>
+        <p style={{
+          color:       C.sidebarMuted,
+          fontSize:    '9px',
+          fontFamily:  "'Inter', sans-serif",
+          paddingLeft: '40px',
+          opacity:     0.5,
+        }}>
+          v1.0.0
+        </p>
       </div>
 
       {/* ── Navigation ───────────────────────────────────── */}
