@@ -32,10 +32,10 @@ jobs:
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
           VITE_GOOGLE_MATRIX_API_KEY: ${{ secrets.VITE_GOOGLE_MATRIX_API_KEY }}
 
+      - name: Installer Firebase CLI
+        run: npm install -g firebase-tools
+
       - name: Déployer sur Firebase Hosting
-        uses: FirebaseExtended/action-hosting-deploy@v0
-        with:
-          repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          channelId: live
-          projectId: portflow-46738
+        run: firebase deploy --only hosting --project portflow-46738 --non-interactive
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
