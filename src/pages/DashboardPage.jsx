@@ -161,37 +161,94 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
         )
       })}
 
-      {/* Tronçons — colorés selon le niveau de trafic de l'axe parent */}
+      {/* Tronçons — colorés selon le niveau de trafic + popup synthèse indicateurs */}
       {(troncons ?? []).flatMap(t => {
         const positions = t.coordinates ?? []
         if (positions.length < 2) return []
-        const m         = mesures[t.axeId]
-        const niveau    = mapMode === 'prevision'
+
+        const m      = mesures[t.axeId]
+        const axe    = axes.find(a => a.id === t.axeId)
+        const niveau = mapMode === 'prevision'
           ? (getPredForAxe(predictions, t.axeId)?.niveau_prevu ?? 0)
           : (m?.niveau ?? 0)
+
         const axeIdx    = axes.findIndex(a => a.id === t.axeId)
         const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
         const baseColor = AXE_COLORS[t.axeId] ?? axeColors[Math.max(axeIdx, 0) % axeColors.length]
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
-        const popup     = (
-          <Popup>
-            <strong style={{ color }}>{t.nom}</strong><br />
-            <span style={{ fontSize: 11, color: '#666' }}>Tronçon {t.code} · {t.dist}</span>
-            {niveau > 0 && (
-              <>
-                <br />
-                <span style={{
-                  display: 'inline-block', marginTop: 4,
-                  padding: '2px 8px', borderRadius: 999,
-                  background: levelBg(niveau), color: levelColor(niveau),
-                  fontWeight: 600, fontSize: 11,
-                }}>
-                  N{niveau} — {levelLabel(niveau)}
-                </span>
-              </>
-            )}
+
+        // ── Calculs indicateurs tronçon ──────────────────────
+        const distKm    = parseFloat(t.dist) || 0
+        const vitesse   = m?.vitesse ?? 0
+        const axeDist   = axe?.dist  ?? distKm || 1
+        const tempsEst  = vitesse > 0
+          ? Math.round((distKm / vitesse) * 60 * 10) / 10
+          : null
+        const tRefProp  = axe?.tRef && axeDist > 0
+          ? Math.round((distKm / axeDist) * axe.tRef * 10) / 10
+          : null
+        const retardProp = m?.retard != null && axeDist > 0
+          ? Math.round((distKm / axeDist) * m.retard * 10) / 10
+          : null
+        const ratio      = tRefProp && tempsEst ? (tempsEst / tRefProp).toFixed(2) : null
+
+        const KPI = ({ label, value, unit, valueColor }) => (
+          <div style={{ textAlign: 'center', flex: 1 }}>
+            <div style={{ fontSize: 9, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 2 }}>{label}</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: valueColor ?? '#1a2a3a', lineHeight: 1 }}>{value ?? '—'}</div>
+            {unit && <div style={{ fontSize: 9, color: '#aaa', marginTop: 1 }}>{unit}</div>}
+          </div>
+        )
+
+        const popup = (
+          <Popup maxWidth={230} minWidth={210}>
+            <div style={{ fontFamily: "'Inter',sans-serif", padding: '2px 0' }}>
+
+              {/* En-tête */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6, paddingBottom: 6, borderBottom: '1px solid #eee' }}>
+                <div style={{ width: 6, height: 28, borderRadius: 3, background: color, flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 800, color: '#1a2a3a' }}>{t.nom}</div>
+                  <div style={{ fontSize: 10, color: '#888' }}>{t.code} · {t.dist}</div>
+                </div>
+              </div>
+
+              {/* Badge niveau */}
+              {niveau > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+                  <span style={{
+                    padding: '3px 12px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+                    background: levelBg(niveau), color: levelColor(niveau),
+                    border: `1px solid ${levelColor(niveau)}40`,
+                  }}>
+                    N{niveau} — {levelLabel(niveau)}
+                  </span>
+                </div>
+              )}
+
+              {/* Grille indicateurs */}
+              <div style={{ display: 'flex', gap: 4, marginBottom: 8, padding: '8px 4px', background: '#f8fafc', borderRadius: 6 }}>
+                <KPI label="Vitesse" value={vitesse > 0 ? vitesse : '—'} unit="km/h" valueColor={color} />
+                <div style={{ width: 1, background: '#e2e8f0' }} />
+                <KPI label="Temps est." value={tempsEst} unit="min" />
+                <div style={{ width: 1, background: '#e2e8f0' }} />
+                <KPI
+                  label="Retard"
+                  value={retardProp != null ? (retardProp >= 0 ? `+${retardProp}` : retardProp) : '—'}
+                  unit="min"
+                  valueColor={retardProp > 0 ? '#C0392B' : '#27AE60'}
+                />
+              </div>
+
+              {/* Pied : T_ref + ratio */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: '#888' }}>
+                <span>T_ref tronçon : <strong style={{ color: '#1a2a3a' }}>{tRefProp ?? '—'} min</strong></span>
+                {ratio && <span>Ratio : <strong style={{ color }}>{ratio}</strong></span>}
+              </div>
+            </div>
           </Popup>
         )
+
         return [
           <Polyline key={t.id + '_l'} positions={positions} color={color} weight={4} opacity={0.88} dashArray="5 3">
             {popup}
