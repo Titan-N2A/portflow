@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, useMap, useMapEvents, Popup } from 'react-leaflet'
 import { fetchRouteAlternatives, computeMultiStopRoute, nearestRoad } from '../services/tomtom'
 import L from 'leaflet'
@@ -47,6 +47,35 @@ function isValidPoint(p) {
   return !isNaN(lat) && !isNaN(lng)
     && lat >= -90 && lat <= 90
     && lng >= -180 && lng <= 180
+}
+
+// Trouve l'index du point le plus proche dans une géométrie [[lat,lng]]
+function findNearestGeomIdx(geom, [lat, lng]) {
+  if (!geom?.length) return 0
+  let minD = Infinity, minI = 0
+  geom.forEach(([glat, glng], i) => {
+    const d = (glat - lat) ** 2 + (glng - lng) ** 2
+    if (d < minD) { minD = d; minI = i }
+  })
+  return minI
+}
+
+// Calcule la longueur d'une polyligne [[lat,lng]] en km (formule de Haversine)
+function computePolylineLength(coords) {
+  if (!coords || coords.length < 2) return 0
+  const R = 6371
+  let dist = 0
+  for (let i = 1; i < coords.length; i++) {
+    const [lat1, lng1] = coords[i - 1]
+    const [lat2, lng2] = coords[i]
+    const dLat = (lat2 - lat1) * Math.PI / 180
+    const dLng = (lng2 - lng1) * Math.PI / 180
+    const a = Math.sin(dLat / 2) ** 2
+              + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180)
+              * Math.sin(dLng / 2) ** 2
+    dist += R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+  }
+  return Math.round(dist * 100) / 100
 }
 
 // ══════════════════════════════════════════════════════════
@@ -370,6 +399,14 @@ function makeClickIcon(n, bg = '#1B4F8A') {
   })
 }
 
+// Icône marqueur waypoint (utilisé dans WaypointPicker)
+function makeWptIcon(label, color, size = 22) {
+  return L.divIcon({
+    html: `<div style="background:${color};color:#fff;border-radius:50%;width:${size}px;height:${size}px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:${size < 22 ? 9 : 11}px;font-family:Inter,sans-serif;box-shadow:0 2px 6px rgba(0,0,0,0.35);border:2.5px solid #fff;cursor:pointer;">${label}</div>`,
+    className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+  })
+}
+
 // Parseur de coordonnées copiées depuis Google Maps
 // Formats acceptés : "5.1234, -4.5678"  "5.1234,-4.5678"  "5.1234 -4.5678"
 function parseGoogleMapsCoords(raw) {
@@ -676,6 +713,136 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
           Ajoutez au moins un point de départ et un point d'arrivée
         </p>
       )}
+    </div>
+  )
+}
+
+// ══════════════════════════════════════════════════════════
+// COMPOSANT : Sélection de tronçon par waypoints d'axe
+// ══════════════════════════════════════════════════════════
+function WaypointPicker({ axe, startWptIdx, endWptIdx, onSelect, axeColor = '#1B4F8A' }) {
+  const [hoverIdx, setHoverIdx] = useState(null)
+
+  const waypoints = axe?.waypoints ?? []
+  const geom      = axe?.geometryRoute?.length >= 2 ? axe.geometryRoute
+                  : axe?.coordinates?.length >= 2   ? axe.coordinates : []
+
+  const center = geom.length > 0
+    ? geom[Math.floor(geom.length / 2)]
+    : waypoints.length > 0
+      ? [waypoints[Math.floor(waypoints.length / 2)].lat, waypoints[Math.floor(waypoints.length / 2)].lng]
+      : [5.304290, -4.023577]
+
+  function geomSlice(fromIdx, toIdx) {
+    if (!geom.length || fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return []
+    const fw = waypoints[fromIdx], tw = waypoints[toIdx]
+    if (!fw || !tw) return []
+    const fi = findNearestGeomIdx(geom, [fw.lat, fw.lng])
+    const ti = findNearestGeomIdx(geom, [tw.lat, tw.lng])
+    const [s, e] = fi <= ti ? [fi, ti] : [ti, fi]
+    return geom.slice(s, e + 1)
+  }
+
+  const coveredSlice  = startWptIdx > 0 ? geomSlice(0, startWptIdx) : []
+  const selectedSlice = endWptIdx !== null ? geomSlice(startWptIdx, endWptIdx) : []
+  const previewSlice  = hoverIdx !== null && hoverIdx !== endWptIdx
+    ? geomSlice(startWptIdx, hoverIdx) : []
+
+  if (waypoints.length < 2) return null
+
+  return (
+    <div style={{ borderRadius: 8, overflow: 'hidden', border: `2px solid ${axeColor}44` }}>
+      {/* En-tête */}
+      <div style={{
+        background: `${axeColor}0c`, padding: '8px 12px',
+        borderBottom: `1px solid ${axeColor}28`,
+        fontSize: 11, fontFamily: "'Inter',sans-serif",
+        display: 'flex', alignItems: 'center', gap: 6,
+      }}>
+        <MapPin size={12} color={axeColor} />
+        <span style={{ fontWeight: 600, color: axeColor }}>
+          Cliquez sur un point de l'axe pour définir l'arrivée
+        </span>
+        <span style={{ marginLeft: 'auto', color: C.textMuted }}>
+          Départ fixé : <strong style={{ color: '#27AE60' }}>{waypoints[startWptIdx]?.name || `Point ${startWptIdx + 1}`}</strong>
+        </span>
+      </div>
+
+      {/* Carte */}
+      <MapContainer center={center} zoom={14} style={{ width: '100%', height: 360 }} zoomControl attributionControl={false}>
+        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" attribution="" />
+
+        {/* Axe complet en gris clair */}
+        {geom.length >= 2 && <Polyline positions={geom} color="#cbd5e1" weight={4} opacity={0.7} />}
+
+        {/* Portion déjà couverte par des tronçons précédents */}
+        {coveredSlice.length >= 2 && <Polyline positions={coveredSlice} color="#94a3b8" weight={5} opacity={0.85} />}
+
+        {/* Prévisualisation au survol (pointillés) */}
+        {previewSlice.length >= 2 && selectedSlice.length < 2 && (
+          <Polyline positions={previewSlice} color={axeColor} weight={5} opacity={0.6} dashArray="8 5" />
+        )}
+
+        {/* Tronçon sélectionné */}
+        {selectedSlice.length >= 2 && (
+          <Polyline positions={selectedSlice} color="#27AE60" weight={6} opacity={0.95} />
+        )}
+
+        {/* Marqueurs waypoints */}
+        {waypoints.map((wpt, idx) => {
+          const isCovered   = idx < startWptIdx
+          const isStart     = idx === startWptIdx
+          const isEnd       = idx === endWptIdx
+          const isHover     = idx === hoverIdx
+          const isClickable = idx > startWptIdx
+
+          const color = isCovered ? '#94a3b8'
+                      : isStart   ? '#27AE60'
+                      : isEnd     ? '#C0392B'
+                      : isHover   ? axeColor
+                      : '#64748b'
+          const size  = (isStart || isEnd) ? 26 : 20
+
+          return (
+            <Marker key={idx} position={[wpt.lat, wpt.lng]} icon={makeWptIcon(idx + 1, color, size)}
+              eventHandlers={isClickable ? {
+                click:     () => onSelect(idx),
+                mouseover: () => setHoverIdx(idx),
+                mouseout:  () => setHoverIdx(null),
+              } : {}}>
+              <Popup>
+                <div style={{ fontFamily: "'Inter',sans-serif", fontSize: 12, lineHeight: 1.6 }}>
+                  <strong style={{ fontSize: 13 }}>{wpt.name || `Point ${idx + 1}`}</strong>
+                  <div style={{ color: isCovered ? '#94a3b8' : isStart ? '#27AE60' : isEnd ? '#C0392B' : isClickable ? axeColor : C.textMuted, fontSize: 11, marginTop: 2 }}>
+                    {isCovered   ? '✓ Déjà couvert par un tronçon'
+                   : isStart     ? '▶ Départ de ce tronçon (fixé)'
+                   : isEnd       ? '◀ Arrivée sélectionnée'
+                   : isClickable ? '↖ Cliquer pour définir comme arrivée'
+                   : ''}
+                  </div>
+                </div>
+              </Popup>
+            </Marker>
+          )
+        })}
+
+        {geom.length >= 2 && <FitBoundsHelper positions={geom} />}
+      </MapContainer>
+
+      {/* Légende */}
+      <div style={{ display: 'flex', gap: '1rem', padding: '7px 12px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', flexWrap: 'wrap' }}>
+        {[
+          { color: '#94a3b8', label: 'Couvert' },
+          { color: '#27AE60', label: 'Départ (fixé)' },
+          { color: '#64748b', label: 'Disponible' },
+          { color: '#C0392B', label: 'Arrivée choisie' },
+        ].map(({ color, label }) => (
+          <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
+            <div style={{ width: 10, height: 10, borderRadius: '50%', background: color, border: '1.5px solid #fff', boxShadow: `0 0 0 1px ${color}60` }} />
+            {label}
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
@@ -997,6 +1164,7 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
   const [selectedGeometry, setSelectedGeometry] = useState(null)
   const [distAutoFilled,   setDistAutoFilled]   = useState(false)
   const [errors,           setErrors]           = useState({})
+  const [endWptIdx,        setEndWptIdx]        = useState(null)
 
   function suggestCode(axeId) {
     const existing = troncons.filter(t => t.axeId === axeId)
@@ -1007,31 +1175,29 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
 
   function handleAxeChange(axeId) {
     const nextOrdre = troncons.filter(t => t.axeId === axeId).length + 1
-    setForm(f => ({
-      ...f,
-      axeId,
-      code:  isEdit ? f.code : suggestCode(axeId),
-      ordre: isEdit ? f.ordre : nextOrdre,
-    }))
-    if (!isEdit) {
-      // Chaînage automatique : départ = fin du dernier tronçon de l'axe
-      const axisTroncons = troncons
-        .filter(t => t.axeId === axeId)
-        .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
-      const lastTroncon = axisTroncons[axisTroncons.length - 1]
-      const parentAxe   = axes.find(a => a.id === axeId)
+    setForm(f => ({ ...f, axeId, code: isEdit ? f.code : suggestCode(axeId), ordre: isEdit ? f.ordre : nextOrdre }))
+    setEndWptIdx(null)
+    setSelectedGeometry(null)
+    setDistAutoFilled(false)
 
-      if (lastTroncon?.coordinates?.length >= 2) {
-        // Départ = dernier point du tronçon précédent (chaînage parfait)
-        const chainStart = lastTroncon.coordinates[lastTroncon.coordinates.length - 1]
-        const axeEnd     = parentAxe?.coordinates?.[parentAxe.coordinates.length - 1]
+    if (!isEdit) {
+      const newAxe   = axes.find(a => a.id === axeId)
+      const newWpts  = newAxe?.waypoints ?? []
+      const newGeom  = newAxe?.geometryRoute ?? newAxe?.coordinates ?? []
+      // Mode waypoint disponible → on réinitialise seulement
+      if (newWpts.length >= 2 && newGeom.length >= 2) return
+      // Mode manuel : pré-remplir le chaînage depuis le dernier tronçon
+      const axisTronconsNew = troncons.filter(t => t.axeId === axeId).sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
+      const lastT = axisTronconsNew[axisTronconsNew.length - 1]
+      if (lastT?.coordinates?.length >= 2) {
+        const chainStart = lastT.coordinates[lastT.coordinates.length - 1]
+        const axeEnd     = newAxe?.coordinates?.[newAxe.coordinates.length - 1]
         const pts = [{ lat: String(chainStart[0]), lng: String(chainStart[1]) }]
         if (axeEnd) pts.push({ lat: String(axeEnd[0]), lng: String(axeEnd[1]) })
         setCoords(pts)
-      } else if (parentAxe?.coordinates?.length >= 2) {
-        // Premier tronçon : départ = début de l'axe parent
-        const first = parentAxe.coordinates[0]
-        const last  = parentAxe.coordinates[parentAxe.coordinates.length - 1]
+      } else if (newAxe?.coordinates?.length >= 2) {
+        const first = newAxe.coordinates[0]
+        const last  = newAxe.coordinates[newAxe.coordinates.length - 1]
         setCoords([
           { lat: String(first[0]), lng: String(first[1]) },
           { lat: String(last[0]),  lng: String(last[1])  },
@@ -1048,9 +1214,14 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
     if (!form.ordre || isNaN(+form.ordre)) e.ordre = 'Ordre invalide'
     const dup = troncons.find(t => t.code === form.code.trim().toUpperCase() && t.id !== troncon?.id)
     if (dup) e.code = `Code "${form.code.toUpperCase()}" déjà utilisé`
-    const validCoords = coords.filter(isValidPoint)
-    if (coords.length > 0 && validCoords.length < 2)
-      e.coords = 'Fournissez au moins 2 points GPS valides'
+    if (useWaypointMode) {
+      if (endWptIdx === null || !selectedGeometry || selectedGeometry.length < 2)
+        e.coords = 'Sélectionnez le point d\'arrivée sur la carte'
+    } else {
+      const validCoords = coords.filter(isValidPoint)
+      if (coords.length > 0 && validCoords.length < 2)
+        e.coords = 'Fournissez au moins 2 points GPS valides'
+    }
     setErrors(e)
     return Object.keys(e).length === 0
   }
@@ -1084,10 +1255,48 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
     : parentAxe?.coordinates?.length >= 2
       ? parentAxe.coordinates
       : null
+  const axeWaypoints   = parentAxe?.waypoints ?? []
+  const useWaypointMode = !isEdit && axeWaypoints.length >= 2 && (parentGeometry?.length ?? 0) >= 2
+
   // Tronçons déjà enregistrés sur cet axe (excluant le tronçon en cours d'édition)
   const axisTroncons = troncons
     .filter(t => t.axeId === form.axeId && t.id !== troncon?.id)
     .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
+  const lastTroncon = axisTroncons[axisTroncons.length - 1]
+
+  // Index du waypoint de départ : 0 pour T1, index du dernier waypoint couvert sinon
+  const startWptIdx = useMemo(() => {
+    if (!lastTroncon?.coordinates?.length || !axeWaypoints.length) return 0
+    const lastCoord = lastTroncon.coordinates[lastTroncon.coordinates.length - 1]
+    let minD = Infinity, minI = 0
+    axeWaypoints.forEach(({ lat, lng }, i) => {
+      const d = (lat - lastCoord[0]) ** 2 + (lng - lastCoord[1]) ** 2
+      if (d < minD) { minD = d; minI = i }
+    })
+    return minI
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.axeId, lastTroncon?.id, axeWaypoints.length])
+
+  function handleWptSelect(idx) {
+    setEndWptIdx(idx)
+    const fw   = axeWaypoints[startWptIdx]
+    const tw   = axeWaypoints[idx]
+    const geom = parentGeometry ?? []
+    if (!fw || !tw || geom.length < 2) return
+    const fi = findNearestGeomIdx(geom, [fw.lat, fw.lng])
+    const ti = findNearestGeomIdx(geom, [tw.lat, tw.lng])
+    const [s, e] = fi <= ti ? [fi, ti] : [ti, fi]
+    const sliceCoords = geom.slice(s, e + 1)
+    setSelectedGeometry(sliceCoords)
+    const distKm = computePolylineLength(sliceCoords)
+    setDistAutoFilled(true)
+    setForm(f => ({
+      ...f,
+      dist: `${distKm} km`,
+      ...(!f.nom.trim() ? { nom: `${fw.name || `Point ${startWptIdx + 1}`} → ${tw.name || `Point ${idx + 1}`}` } : {}),
+    }))
+    setErrors(er => ({ ...er, dist: '', coords: '' }))
+  }
 
   return (
     <Modal title={isEdit ? 'Modifier le tronçon' : 'Ajouter un tronçon'} onClose={onClose} width={660}>
@@ -1119,7 +1328,7 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
 
       <div style={{ display: 'flex', gap: '1rem' }}>
         <div style={{ flex: 1 }}>
-          <Field label={distAutoFilled ? 'Distance (calculée OSRM)' : 'Distance *'}>
+          <Field label={distAutoFilled ? (useWaypointMode ? 'Distance (calculée)' : 'Distance (calculée OSRM)') : 'Distance *'}>
             <div style={{ position: 'relative' }}>
               <input
                 {...inp('dist')}
@@ -1144,35 +1353,60 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
         </div>
       </div>
 
-      {/* ── Coordonnées GPS ───────────────────────────── */}
-      <SectionSep label="Points GPS du tronçon" />
+      {/* ── Tracé du tronçon ──────────────────────────── */}
+      <SectionSep label={useWaypointMode ? 'Délimitation sur l\'axe' : 'Points GPS du tronçon'} />
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-        <MiniMapPreview
-          points={coords}
-          color={axeColor}
-          backgroundAxe={parentGeometry}
-          existingTroncons={axisTroncons}
-          mapHeight={380}
-          onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { lat, lng }]); setSelectedGeometry(null) }}
-          onRouteSelected={route => {
-            if (!route) { setSelectedGeometry(null); setDistAutoFilled(false); return }
-            setSelectedGeometry(route.geometry)
-            setForm(f => ({ ...f, dist: `${route.distance} km` }))
-            setDistAutoFilled(true)
-            setErrors(e => ({ ...e, dist: '' }))
-          }}
-        />
-        {selectedGeometry && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.75rem', background: '#EBF8F1', border: '1px solid #A7E3C3', borderRadius: '7px', fontSize: 12, color: '#27AE60', fontFamily: "'Inter',sans-serif" }}>
-            <CheckCircle size={13} /> Tracé sélectionné — {selectedGeometry.length} points GPS — distance auto-remplie
-          </div>
-        )}
-        <CoordinatesEditor points={coords} onChange={setCoords} minPoints={0} />
-        {errors.coords && (
-          <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
-            ⚠ {errors.coords}
-          </p>
+        {useWaypointMode ? (
+          <>
+            <WaypointPicker
+              axe={parentAxe}
+              startWptIdx={startWptIdx}
+              endWptIdx={endWptIdx}
+              onSelect={handleWptSelect}
+              axeColor={axeColor}
+            />
+            {endWptIdx !== null && selectedGeometry && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.75rem', background: '#EBF8F1', border: '1px solid #A7E3C3', borderRadius: '7px', fontSize: 12, color: '#27AE60', fontFamily: "'Inter',sans-serif" }}>
+                <CheckCircle size={13} />
+                Tronçon :&nbsp;
+                <strong>{axeWaypoints[startWptIdx]?.name || `Point ${startWptIdx + 1}`}</strong>
+                &nbsp;→&nbsp;
+                <strong>{axeWaypoints[endWptIdx]?.name || `Point ${endWptIdx + 1}`}</strong>
+                &nbsp;— {selectedGeometry.length} points — distance calculée
+              </div>
+            )}
+            {errors.coords && (
+              <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>⚠ {errors.coords}</p>
+            )}
+          </>
+        ) : (
+          <>
+            <MiniMapPreview
+              points={coords}
+              color={axeColor}
+              backgroundAxe={parentGeometry}
+              existingTroncons={axisTroncons}
+              mapHeight={380}
+              onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { lat, lng }]); setSelectedGeometry(null) }}
+              onRouteSelected={route => {
+                if (!route) { setSelectedGeometry(null); setDistAutoFilled(false); return }
+                setSelectedGeometry(route.geometry)
+                setForm(f => ({ ...f, dist: `${route.distance} km` }))
+                setDistAutoFilled(true)
+                setErrors(e => ({ ...e, dist: '' }))
+              }}
+            />
+            {selectedGeometry && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.75rem', background: '#EBF8F1', border: '1px solid #A7E3C3', borderRadius: '7px', fontSize: 12, color: '#27AE60', fontFamily: "'Inter',sans-serif" }}>
+                <CheckCircle size={13} /> Tracé sélectionné — {selectedGeometry.length} points GPS — distance auto-remplie
+              </div>
+            )}
+            <CoordinatesEditor points={coords} onChange={setCoords} minPoints={0} />
+            {errors.coords && (
+              <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>⚠ {errors.coords}</p>
+            )}
+          </>
         )}
       </div>
 
