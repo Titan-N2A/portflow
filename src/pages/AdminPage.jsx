@@ -375,7 +375,7 @@ const GM_BASE_URL = 'https://www.google.com/maps/@5.304290,-4.023577,15z'
 
 const ALT_COLORS = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD']
 
-function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected }) {
+function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected, backgroundAxe }) {
   const [gmOpen,       setGmOpen]       = useState(false)
   const [gmInput,      setGmInput]      = useState('')
   const [gmError,      setGmError]      = useState('')
@@ -387,7 +387,12 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
 
   const valid     = points.filter(isValidPoint)
   const positions = valid.map(p => [parseFloat(p.lat), parseFloat(p.lng)])
-  const center    = positions.length > 0 ? positions[0] : [5.304290, -4.023577]
+  const bgPositions = backgroundAxe ?? []
+  const center    = positions.length > 0
+    ? positions[0]
+    : bgPositions.length > 0
+      ? bgPositions[Math.floor(bgPositions.length / 2)]
+      : [5.304290, -4.023577]
   const canCompute = valid.length >= 2
 
   function openGoogleMaps() {
@@ -515,6 +520,17 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
           style={{ width: '100%', height: '100%' }} zoomControl attributionControl={false}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
+          {/* Axe parent en arrière-plan (quand on édite un tronçon) */}
+          {bgPositions.length >= 2 && (
+            <Polyline
+              positions={bgPositions}
+              color={color}
+              weight={5}
+              opacity={0.25}
+              dashArray="8 5"
+            />
+          )}
+
           {/* Itinéraires alternatifs */}
           {alternatives.length > 0 ? alternatives.map((alt, i) => (
             <Polyline
@@ -551,6 +567,9 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
           })}
           {(alternatives.length > 0 || positions.length >= 2) && (
             <FitBoundsHelper positions={alternatives[0]?.geometry ?? positions} />
+          )}
+          {positions.length < 2 && bgPositions.length >= 2 && (
+            <FitBoundsHelper positions={bgPositions} />
           )}
         </MapContainer>
       </div>
@@ -954,8 +973,15 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
     style: errors[field] ? { borderColor: '#C0392B' } : {},
   })
 
-  const axeNum   = axes.find(a => a.id === form.axeId)?.num ?? 1
-  const axeColor = ['#1B4F8A','#E67E22','#27AE60'][axeNum - 1] ?? '#1B4F8A'
+  const parentAxe = axes.find(a => a.id === form.axeId)
+  const axeNum    = parentAxe?.num ?? 1
+  const axeColor  = ['#1B4F8A','#E67E22','#27AE60'][axeNum - 1] ?? '#1B4F8A'
+  // Géométrie de l'axe parent : priorité géométrie TomTom > coordinates admin
+  const parentGeometry = parentAxe?.geometryRoute?.length >= 2
+    ? parentAxe.geometryRoute
+    : parentAxe?.coordinates?.length >= 2
+      ? parentAxe.coordinates
+      : null
 
   return (
     <Modal title={isEdit ? 'Modifier le tronçon' : 'Ajouter un tronçon'} onClose={onClose} width={660}>
@@ -1007,6 +1033,7 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
         <MiniMapPreview
           points={coords}
           color={axeColor}
+          backgroundAxe={parentGeometry}
           onAddPoint={(lat, lng) => setCoords(prev => [...prev, { lat, lng }])}
         />
         <CoordinatesEditor points={coords} onChange={setCoords} minPoints={0} />

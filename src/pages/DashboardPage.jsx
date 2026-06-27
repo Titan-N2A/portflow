@@ -7,6 +7,7 @@ import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
+import { useTroncons } from '../hooks/useTroncons'
 import { AXE_COLORS, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -84,7 +85,7 @@ function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, sub, b
 }
 
 // ── Dashboard Map ─────────────────────────────────────────
-function DashboardMap({ axes, mesures, mapMode, predictions }) {
+function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
   return (
     <MapContainer center={PAA_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false}>
       <TileLayer
@@ -142,6 +143,25 @@ function DashboardMap({ axes, mesures, mapMode, predictions }) {
                   </span>
                 </>
               ) : 'Chargement...'}
+            </Popup>
+          </Polyline>
+        )
+      })}
+
+      {/* Tronçons — sous-segments des axes, tracé fin en pointillés */}
+      {(troncons ?? []).map(t => {
+        const positions = t.coordinates ?? []
+        if (positions.length < 2) return null
+        const axeIdx  = axes.findIndex(a => a.id === t.axeId)
+        const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
+        const color   = AXE_COLORS[t.axeId] ?? axeColors[Math.max(axeIdx, 0) % axeColors.length]
+        return (
+          <Polyline key={t.id} positions={positions} color={color} weight={3} opacity={0.75} dashArray="5 4">
+            <Popup>
+              <strong style={{ color }}>{t.nom}</strong><br />
+              <span style={{ fontSize: 11, color: '#666' }}>
+                Tronçon {t.code} · {t.dist}
+              </span>
             </Popup>
           </Polyline>
         )
@@ -207,6 +227,7 @@ function DashboardPage() {
   // Données trafic TomTom (calculées sur les axes Firestore)
   const { mesures, kpis, loading, lastUpdate, refresh } = useTrafficData(axes)
   const { predictions } = usePredictions()
+  const { troncons } = useTroncons()
   const isMobile = useIsMobile()
   const [mapMode, setMapMode]         = useState('live')
   const [iaText,  setIaText]          = useState('')
@@ -295,7 +316,7 @@ function DashboardPage() {
           position: 'relative', borderRadius: '10px', overflow: 'hidden',
           boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
         }}>
-          <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} />
+          <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} troncons={troncons} />
 
           {/* Boutons superposés */}
           <div style={{
