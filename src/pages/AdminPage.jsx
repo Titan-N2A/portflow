@@ -1255,7 +1255,14 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
     : parentAxe?.coordinates?.length >= 2
       ? parentAxe.coordinates
       : null
-  const axeWaypoints   = parentAxe?.waypoints ?? []
+  // Priorité aux waypoints nommés ; sinon, coordonnées admin (≤ 30 pts = points de contrôle, pas géométrie)
+  const axeWaypoints = (() => {
+    if (parentAxe?.waypoints?.length >= 2) return parentAxe.waypoints
+    const coords = parentAxe?.coordinates ?? []
+    if (coords.length >= 2 && coords.length <= 30)
+      return coords.map((c, i) => ({ name: `Point ${i + 1}`, lat: c[0], lng: c[1] }))
+    return []
+  })()
   const useWaypointMode = !isEdit && axeWaypoints.length >= 2 && (parentGeometry?.length ?? 0) >= 2
 
   // Tronçons déjà enregistrés sur cet axe (excluant le tronçon en cours d'édition)
