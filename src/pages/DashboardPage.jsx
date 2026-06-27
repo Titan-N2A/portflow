@@ -180,7 +180,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
         // ── Calculs indicateurs tronçon ──────────────────────
         const distKm    = parseFloat(t.dist) || 0
         const vitesse   = m?.vitesse ?? 0
-        const axeDist   = axe?.dist  ?? distKm || 1
+        const axeDist   = (axe?.dist ?? distKm) || 1
         const tempsEst  = vitesse > 0
           ? Math.round((distKm / vitesse) * 60 * 10) / 10
           : null
