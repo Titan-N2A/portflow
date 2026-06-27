@@ -41,6 +41,19 @@ function makeNumIcon(num, color = C.primary) {
   })
 }
 
+// ── Marqueur délimitation tronçon (carré coloré avec code) ──
+function makeTronconEndIcon(code, color) {
+  return L.divIcon({
+    html: `<div style="
+      background:${color};color:#fff;border-radius:3px;
+      padding:1px 5px;font-size:9px;font-weight:700;
+      font-family:Inter,sans-serif;white-space:nowrap;
+      box-shadow:0 1px 5px rgba(0,0,0,0.35);border:1.5px solid #fff;
+    ">${code}</div>`,
+    className: '', iconSize: [null, 16], iconAnchor: [0, 8],
+  })
+}
+
 // ── Marqueur PAA (cercle vert) ────────────────────────────
 const PAA_ICON = L.divIcon({
   html: `<div style="
@@ -148,23 +161,30 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
         )
       })}
 
-      {/* Tronçons — sous-segments des axes, tracé fin en pointillés */}
-      {(troncons ?? []).map(t => {
+      {/* Tronçons — sous-segments des axes avec délimitations */}
+      {(troncons ?? []).flatMap(t => {
         const positions = t.coordinates ?? []
-        if (positions.length < 2) return null
-        const axeIdx  = axes.findIndex(a => a.id === t.axeId)
+        if (positions.length < 2) return []
+        const axeIdx    = axes.findIndex(a => a.id === t.axeId)
         const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
-        const color   = AXE_COLORS[t.axeId] ?? axeColors[Math.max(axeIdx, 0) % axeColors.length]
-        return (
-          <Polyline key={t.id} positions={positions} color={color} weight={3} opacity={0.75} dashArray="5 4">
-            <Popup>
-              <strong style={{ color }}>{t.nom}</strong><br />
-              <span style={{ fontSize: 11, color: '#666' }}>
-                Tronçon {t.code} · {t.dist}
-              </span>
-            </Popup>
-          </Polyline>
+        const color     = AXE_COLORS[t.axeId] ?? axeColors[Math.max(axeIdx, 0) % axeColors.length]
+        const popup     = (
+          <Popup>
+            <strong style={{ color }}>{t.nom}</strong><br />
+            <span style={{ fontSize: 11, color: '#666' }}>Tronçon {t.code} · {t.dist}</span>
+          </Popup>
         )
+        return [
+          <Polyline key={t.id + '_l'} positions={positions} color={color} weight={4} opacity={0.82} dashArray="5 3">
+            {popup}
+          </Polyline>,
+          <Marker key={t.id + '_s'} position={positions[0]} icon={makeTronconEndIcon(t.code + '▶', color)}>
+            {popup}
+          </Marker>,
+          <Marker key={t.id + '_e'} position={positions[positions.length - 1]} icon={makeTronconEndIcon('◀' + t.code, color)}>
+            {popup}
+          </Marker>,
+        ]
       })}
 
       {/* Trajets retour — tous les axes bidirectionnels, tracé en pointillés */}

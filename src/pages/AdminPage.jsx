@@ -387,7 +387,22 @@ const GM_BASE_URL = 'https://www.google.com/maps/@5.304290,-4.023577,15z'
 
 const ALT_COLORS = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD']
 
-function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected, backgroundAxe, mapHeight = 300 }) {
+// Icône étiquette délimitation tronçon (dans le formulaire admin)
+function makeTronconLabel(label, color) {
+  return L.divIcon({
+    html: `<div style="
+      background:${color};color:#fff;border-radius:3px;
+      padding:1px 5px;font-size:9px;font-weight:700;
+      font-family:Inter,sans-serif;white-space:nowrap;
+      box-shadow:0 1px 4px rgba(0,0,0,0.3);border:1.5px solid #fff;
+    ">${label}</div>`,
+    className: '', iconSize: [null, 16], iconAnchor: [0, 8],
+  })
+}
+
+const TRONCON_PALETTE = ['#E67E22', '#8E44AD', '#16A085', '#C0392B', '#2980B9', '#D35400']
+
+function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected, backgroundAxe, mapHeight = 300, existingTroncons = [] }) {
   const [gmOpen,       setGmOpen]       = useState(false)
   const [gmInput,      setGmInput]      = useState('')
   const [gmError,      setGmError]      = useState('')
@@ -557,20 +572,33 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
             ✚ Cliquez sur la carte pour placer un point
           </div>
         )}
-        <MapContainer key={center.join(',') + bgPositions.length} center={center}
+        <MapContainer key={center.join(',') + bgPositions.length + existingTroncons.length} center={center}
           zoom={positions.length > 1 ? 14 : bgPositions.length > 1 ? 13 : 12}
           style={{ width: '100%', height: '100%', cursor: onAddPoint ? 'crosshair' : undefined }} zoomControl attributionControl={false}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
-          {/* Axe parent en arrière-plan (quand on édite un tronçon) */}
+          {/* Axe parent en arrière-plan */}
           {bgPositions.length >= 2 && (
-            <Polyline
-              positions={bgPositions}
-              color={color}
-              weight={7}
-              opacity={0.45}
-            />
+            <Polyline positions={bgPositions} color={color} weight={7} opacity={0.35} />
           )}
+
+          {/* Tronçons déjà enregistrés sur cet axe */}
+          {existingTroncons.flatMap((t, i) => {
+            const tPos = t.coordinates ?? []
+            if (tPos.length < 2) return []
+            const tc = TRONCON_PALETTE[i % TRONCON_PALETTE.length]
+            const pop = (
+              <Popup>
+                <strong style={{ color: tc }}>{t.code} — {t.nom}</strong><br />
+                <span style={{ fontSize: 11 }}>{t.dist} · Position {t.ordre}</span>
+              </Popup>
+            )
+            return [
+              <Polyline key={t.id + '_l'} positions={tPos} color={tc} weight={5} opacity={0.9}>{pop}</Polyline>,
+              <Marker key={t.id + '_s'} position={tPos[0]} icon={makeTronconLabel(t.code + ' ▶', tc)}>{pop}</Marker>,
+              <Marker key={t.id + '_e'} position={tPos[tPos.length - 1]} icon={makeTronconLabel('◀ ' + t.code, tc)}>{pop}</Marker>,
+            ]
+          })}
 
           {/* Capture les clics carte pour ajouter des points */}
           {onAddPoint && <MapClickHandler onAddPoint={onAddPoint} />}
@@ -1037,12 +1065,15 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
   const parentAxe = axes.find(a => a.id === form.axeId)
   const axeNum    = parentAxe?.num ?? 1
   const axeColor  = ['#1B4F8A','#E67E22','#27AE60'][axeNum - 1] ?? '#1B4F8A'
-  // Géométrie de l'axe parent : priorité géométrie TomTom > coordinates admin
   const parentGeometry = parentAxe?.geometryRoute?.length >= 2
     ? parentAxe.geometryRoute
     : parentAxe?.coordinates?.length >= 2
       ? parentAxe.coordinates
       : null
+  // Tronçons déjà enregistrés sur cet axe (excluant le tronçon en cours d'édition)
+  const axisTroncons = troncons
+    .filter(t => t.axeId === form.axeId && t.id !== troncon?.id)
+    .sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0))
 
   return (
     <Modal title={isEdit ? 'Modifier le tronçon' : 'Ajouter un tronçon'} onClose={onClose} width={660}>
@@ -1107,6 +1138,7 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
           points={coords}
           color={axeColor}
           backgroundAxe={parentGeometry}
+          existingTroncons={axisTroncons}
           mapHeight={380}
           onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { lat, lng }]); setSelectedGeometry(null) }}
           onRouteSelected={route => {
