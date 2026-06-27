@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { MapContainer, TileLayer, Polyline, Marker, useMap, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, Marker, useMap, useMapEvents, Popup } from 'react-leaflet'
 import { fetchRouteAlternatives, computeMultiStopRoute, nearestRoad } from '../services/tomtom'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -345,6 +345,18 @@ function FitBoundsHelper({ positions }) {
   return null
 }
 
+// Capture les clics sur la carte et appelle onAddPoint(lat, lng)
+function MapClickHandler({ onAddPoint }) {
+  useMapEvents({
+    click(e) {
+      const lat = Math.round(e.latlng.lat * 100000) / 100000
+      const lng = Math.round(e.latlng.lng * 100000) / 100000
+      onAddPoint(String(lat), String(lng))
+    },
+  })
+  return null
+}
+
 // Icône point numéroté sur la carte preview
 function makeClickIcon(n, bg = '#1B4F8A') {
   return L.divIcon({
@@ -375,7 +387,7 @@ const GM_BASE_URL = 'https://www.google.com/maps/@5.304290,-4.023577,15z'
 
 const ALT_COLORS = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD']
 
-function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected, backgroundAxe }) {
+function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected, backgroundAxe, mapHeight = 300 }) {
   const [gmOpen,       setGmOpen]       = useState(false)
   const [gmInput,      setGmInput]      = useState('')
   const [gmError,      setGmError]      = useState('')
@@ -533,10 +545,21 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
       )}
 
       {/* ── Carte ──────────────────────────────────────── */}
-      <div style={{ height: '260px', borderRadius: '8px', overflow: 'hidden', border: `2px solid ${selectedIdx !== null ? '#27AE60' : '#e2e8f0'}`, transition: 'border-color 0.2s' }}>
-        <MapContainer key={center.join(',')} center={center}
-          zoom={positions.length > 1 ? 13 : 12}
-          style={{ width: '100%', height: '100%' }} zoomControl attributionControl={false}>
+      <div style={{ position: 'relative', height: `${mapHeight}px`, borderRadius: '8px', overflow: 'hidden', border: `2px solid ${selectedIdx !== null ? '#27AE60' : onAddPoint ? '#1B4F8A' : '#e2e8f0'}`, transition: 'border-color 0.2s' }}>
+        {onAddPoint && (
+          <div style={{
+            position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
+            zIndex: 1000, background: 'rgba(27,79,138,0.88)', color: '#fff',
+            padding: '5px 14px', borderRadius: '20px', fontSize: 12, fontWeight: 600,
+            fontFamily: "'Inter',sans-serif", whiteSpace: 'nowrap', pointerEvents: 'none',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
+          }}>
+            ✚ Cliquez sur la carte pour placer un point
+          </div>
+        )}
+        <MapContainer key={center.join(',') + bgPositions.length} center={center}
+          zoom={positions.length > 1 ? 14 : bgPositions.length > 1 ? 13 : 12}
+          style={{ width: '100%', height: '100%', cursor: onAddPoint ? 'crosshair' : undefined }} zoomControl attributionControl={false}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
 
           {/* Axe parent en arrière-plan (quand on édite un tronçon) */}
@@ -544,11 +567,13 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
             <Polyline
               positions={bgPositions}
               color={color}
-              weight={5}
-              opacity={0.25}
-              dashArray="8 5"
+              weight={7}
+              opacity={0.45}
             />
           )}
+
+          {/* Capture les clics carte pour ajouter des points */}
+          {onAddPoint && <MapClickHandler onAddPoint={onAddPoint} />}
 
           {/* Itinéraires alternatifs */}
           {alternatives.length > 0 ? alternatives.map((alt, i) => (
@@ -1082,6 +1107,7 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
           points={coords}
           color={axeColor}
           backgroundAxe={parentGeometry}
+          mapHeight={380}
           onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { lat, lng }]); setSelectedGeometry(null) }}
           onRouteSelected={route => {
             if (!route) { setSelectedGeometry(null); setDistAutoFilled(false); return }
