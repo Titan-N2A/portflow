@@ -161,21 +161,39 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
         )
       })}
 
-      {/* Tronçons — sous-segments des axes avec délimitations */}
+      {/* Tronçons — colorés selon le niveau de trafic de l'axe parent */}
       {(troncons ?? []).flatMap(t => {
         const positions = t.coordinates ?? []
         if (positions.length < 2) return []
+        const m         = mesures[t.axeId]
+        const niveau    = mapMode === 'prevision'
+          ? (getPredForAxe(predictions, t.axeId)?.niveau_prevu ?? 0)
+          : (m?.niveau ?? 0)
         const axeIdx    = axes.findIndex(a => a.id === t.axeId)
         const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
-        const color     = AXE_COLORS[t.axeId] ?? axeColors[Math.max(axeIdx, 0) % axeColors.length]
+        const baseColor = AXE_COLORS[t.axeId] ?? axeColors[Math.max(axeIdx, 0) % axeColors.length]
+        const color     = niveau > 0 ? levelColor(niveau) : baseColor
         const popup     = (
           <Popup>
             <strong style={{ color }}>{t.nom}</strong><br />
             <span style={{ fontSize: 11, color: '#666' }}>Tronçon {t.code} · {t.dist}</span>
+            {niveau > 0 && (
+              <>
+                <br />
+                <span style={{
+                  display: 'inline-block', marginTop: 4,
+                  padding: '2px 8px', borderRadius: 999,
+                  background: levelBg(niveau), color: levelColor(niveau),
+                  fontWeight: 600, fontSize: 11,
+                }}>
+                  N{niveau} — {levelLabel(niveau)}
+                </span>
+              </>
+            )}
           </Popup>
         )
         return [
-          <Polyline key={t.id + '_l'} positions={positions} color={color} weight={4} opacity={0.82} dashArray="5 3">
+          <Polyline key={t.id + '_l'} positions={positions} color={color} weight={4} opacity={0.88} dashArray="5 3">
             {popup}
           </Polyline>,
           <Marker key={t.id + '_s'} position={positions[0]} icon={makeTronconEndIcon(t.code + '▶', color)}>
