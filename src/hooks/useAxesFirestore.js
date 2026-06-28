@@ -21,6 +21,7 @@ import {
   removeTroncon as fsRemoveTroncon,
   saveSeuil  as fsSaveSeuil,
   seedIfEmpty,
+  cleanupPlaceholderTroncons,
 } from '../services/axesService'
 import {
   DEFAULT_AXES, DEFAULT_TRONCONS, DEFAULT_SEUILS,
@@ -28,7 +29,7 @@ import {
 
 export function useAxesFirestore() {
   const [axes,     setAxes]     = useState(DEFAULT_AXES)
-  const [troncons, setTroncons] = useState(DEFAULT_TRONCONS)
+  const [troncons, setTroncons] = useState([])
   const [seuils,   setSeuils]   = useState(DEFAULT_SEUILS)
   const [loading,  setLoading]  = useState(true)
   const [error,    setError]    = useState(null)
@@ -45,6 +46,8 @@ export function useAxesFirestore() {
     async function init() {
       // 1. Tenter le seed au premier démarrage (silencieux si déjà fait)
       await seedIfEmpty()
+      // 2. Supprimer les tronçons placeholder si présents (coordonnées fausses)
+      await cleanupPlaceholderTroncons()
       if (!mounted) return
 
       // 2. Abonnements temps réel Firestore
@@ -66,8 +69,8 @@ export function useAxesFirestore() {
       )
 
       unsubT = subscribeTroncons(
-        data => { if (mounted) setTroncons(data.length > 0 ? data : DEFAULT_TRONCONS) },
-        ()   => { if (mounted) setTroncons(DEFAULT_TRONCONS) }
+        data => { if (mounted) setTroncons(data) },
+        ()   => { if (mounted) setTroncons([]) }
       )
 
       unsubS = subscribeSeuils(

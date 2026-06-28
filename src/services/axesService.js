@@ -1,6 +1,6 @@
 import {
   collection, doc, setDoc, deleteDoc, getDocs,
-  onSnapshot, query, orderBy, writeBatch, serverTimestamp,
+  onSnapshot, query, orderBy, writeBatch, serverTimestamp, getDoc,
 } from 'firebase/firestore'
 import { db } from './firebase'
 import { DEFAULT_AXES, DEFAULT_TRONCONS, DEFAULT_SEUILS } from '../data/defaultData'
@@ -100,13 +100,8 @@ export async function seedIfEmpty() {
       const { id } = axe
       batch.set(doc(db, COL_AXES, id), { ...axeToFs(axe), createdAt: serverTimestamp() })
     })
-    DEFAULT_TRONCONS.forEach(({ id, coordinates, ...data }) => {
-      batch.set(doc(db, COL_TRONCONS, id), {
-        ...data,
-        coordinates: coordsToFs(coordinates),
-        createdAt: serverTimestamp(),
-      })
-    })
+    // NE PAS seeder DEFAULT_TRONCONS — leurs coordonnées sont des placeholders
+    // incorrects ; l'admin doit créer les vrais tronçons via l'interface.
     DEFAULT_SEUILS.forEach(({ axeId, ...data }) => {
       batch.set(doc(db, COL_SEUILS, axeId), { ...data, createdAt: serverTimestamp() })
     })
@@ -117,6 +112,27 @@ export async function seedIfEmpty() {
   } catch (err) {
     console.warn('⚠ Seed Firestore impossible :', err.message)
     return false
+  }
+}
+
+// Supprime les tronçons placeholder (DEFAULT_TRONCONS) s'ils existent dans Firestore.
+// Appelée au démarrage pour nettoyer les données parasites.
+export async function cleanupPlaceholderTroncons() {
+  const placeholderIds = DEFAULT_TRONCONS.map(t => t.id) // t1a, t1b, ..., t3c
+  try {
+    const batch = writeBatch(db)
+    let found = 0
+    await Promise.all(placeholderIds.map(async id => {
+      const ref = doc(db, COL_TRONCONS, id)
+      const snap = await getDoc(ref)
+      if (snap.exists()) { batch.delete(ref); found++ }
+    }))
+    if (found > 0) {
+      await batch.commit()
+      console.log(`🧹 ${found} tronçons placeholder supprimés de Firestore`)
+    }
+  } catch (err) {
+    console.warn('⚠ Nettoyage tronçons impossible :', err.message)
   }
 }
 
@@ -152,8 +168,8 @@ export async function saveAxe(axe) {
     } catch (err) {
       console.warn(`⚠ Géométrie non calculée pour ${id} :`, err.message)
     }
-  } else if (axe.bidirectionnel && axe.geometryRoute?.length > 5 && !axe.coordinatesRetour?.length) {
-    // Route déjà calculée mais pas de tracé retour → on le génère
+  } else if (axe.bidirectionnel && axe.geometryRoute?.length > 5 && (axe.coordinatesRetour?.length ?? 0) < 5) {
+    // Route déjà calculée mais retour absent ou trop court (ligne droite) → on le génère
     enriched = { ...enriched, coordinatesRetour: [...axe.geometryRoute].reverse() }
   }
 
