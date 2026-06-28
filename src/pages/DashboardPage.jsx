@@ -7,7 +7,6 @@ import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
-import { useTroncons } from '../hooks/useTroncons'
 import { AXE_COLORS, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -176,7 +175,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
         // ── Indicateurs propres au tronçon (proportionnels à sa distance) ──
         const distKm     = parseFloat(t.dist) || 0
         const vitesse    = m?.vitesse ?? 0
-        const axeDist    = parseFloat(String(axe?.dist ?? '')) || distKm || 1
+        const axeDist    = parseFloat(String(axe?.distance ?? axe?.dist ?? '')) || distKm || 1
         const tempsEst   = vitesse > 0
           ? Math.round((distKm / vitesse) * 60 * 10) / 10
           : null
@@ -337,13 +336,12 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
 // ── Dashboard Page ────────────────────────────────────────
 function DashboardPage() {
   // Axes depuis Firestore (persistés, mis à jour par l'admin)
-  const { axes: firestoreAxes, loading: axesLoading } = useAxesFirestore()
+  const { axes: firestoreAxes, troncons, loading: axesLoading } = useAxesFirestore()
   const axes = firestoreAxes.length > 0 ? firestoreAxes : AXES_OFFICIELS
 
   // Données trafic TomTom (calculées sur les axes Firestore)
   const { mesures, kpis, loading, lastUpdate, refresh } = useTrafficData(axes)
   const { predictions } = usePredictions()
-  const { troncons } = useTroncons()
   const isMobile = useIsMobile()
   const [mapMode, setMapMode]         = useState('live')
   const [iaText,  setIaText]          = useState('')
