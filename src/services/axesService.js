@@ -142,12 +142,19 @@ export async function saveAxe(axe) {
     try {
       const geometry = await computeRouteGeometry(axe.coordinates)
       if (geometry && geometry.length > 5) {
-        enriched = { ...axe, geometryRoute: geometry }
+        enriched = { ...enriched, geometryRoute: geometry }
+        // Pour les axes bidirectionnels : tracé retour = route OSRM inversée
+        if (axe.bidirectionnel) {
+          enriched = { ...enriched, coordinatesRetour: [...geometry].reverse() }
+        }
         console.log(`✅ Géométrie calculée pour ${id} : ${geometry.length} points`)
       }
     } catch (err) {
       console.warn(`⚠ Géométrie non calculée pour ${id} :`, err.message)
     }
+  } else if (axe.bidirectionnel && axe.geometryRoute?.length > 5 && !axe.coordinatesRetour?.length) {
+    // Route déjà calculée mais pas de tracé retour → on le génère
+    enriched = { ...enriched, coordinatesRetour: [...axe.geometryRoute].reverse() }
   }
 
   await setDoc(

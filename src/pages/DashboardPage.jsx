@@ -203,7 +203,12 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
 
         const fallbackColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
         const baseColor = AXE_COLORS[t.axeId] ?? fallbackColors[Math.max(axeIdx, 0) % fallbackColors.length]
-        const color     = tronconNiveau > 0 ? levelColor(tronconNiveau) : baseColor
+        // Priorité : niveau propre du tronçon > niveau de l'axe parent > couleur identité
+        const color = tronconNiveau > 0
+          ? levelColor(tronconNiveau)
+          : (m?.niveau ?? 0) > 0
+            ? levelColor(m.niveau)
+            : baseColor
 
         // ── Popup cadrant ────────────────────────────────────────────────
         const popup = (

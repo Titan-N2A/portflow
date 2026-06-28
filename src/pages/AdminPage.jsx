@@ -999,10 +999,9 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
       num:            axe?.num ?? (axes.length + 1),
       bidirectionnel: form.bidirectionnel,
       ...(selectedGeometry ? { geometryRoute: selectedGeometry } : {}),
-      // Tracé retour = aller inversé (fallback ; la géométrie réelle est calculée
-      // en live par TomTom). Retiré si l'axe n'est plus bidirectionnel.
-      ...(form.bidirectionnel && savedCoords.length >= 2
-        ? { coordinatesRetour: [...savedCoords].reverse() }
+      // Tracé retour = géométrie OSRM inversée si disponible, sinon points de contrôle inversés
+      ...(form.bidirectionnel
+        ? { coordinatesRetour: [...(selectedGeometry ?? savedCoords)].reverse() }
         : {}),
     }
     onSave(newAxe)
