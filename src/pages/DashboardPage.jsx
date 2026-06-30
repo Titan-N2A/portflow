@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, Popup, ZoomControl } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Clock, AlertTriangle, BarChart2, Gauge, RefreshCw, Zap, MapPin } from 'lucide-react'
+import { Clock, AlertTriangle, BarChart2, Gauge, RefreshCw, Zap, Activity } from 'lucide-react'
 import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
-import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
+import { useTrafficData, AXES_OFFICIELS, REFRESH_MS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
 import AlertesPredictives from '../components/Dashboard/AlertesPredictives'
@@ -67,9 +67,9 @@ const PAA_ICON = L.divIcon({
 })
 
 // ── KPI Card ─────────────────────────────────────────────
-function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, sub, badge, badgeColor }) {
+function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge, flash }) {
   return (
-    <div className="fp-card fp-fade-in" style={{ flex: 1, minWidth: 0 }}>
+    <div className={`fp-card${flash ? ' fp-kpi-flash' : ''}`} style={{ flex: 1, minWidth: 0, transition: 'background 0.3s' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
         <div style={{
           width: 36, height: 36, borderRadius: '8px',
@@ -349,17 +349,41 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
 
 // ── Dashboard Page ────────────────────────────────────────
 function DashboardPage() {
-  // Axes depuis Firestore (persistés, mis à jour par l'admin)
-  const { axes: firestoreAxes, troncons, loading: axesLoading } = useAxesFirestore()
+  const { axes: firestoreAxes, troncons } = useAxesFirestore()
   const axes = firestoreAxes.length > 0 ? firestoreAxes : AXES_OFFICIELS
 
-  // Données trafic TomTom (calculées sur les axes Firestore)
-  const { mesures, kpis, loading, lastUpdate, refresh } = useTrafficData(axes)
+  const { mesures, kpis, loading, lastUpdate, refresh, refreshing } = useTrafficData(axes)
   const { predictions, meta: predMeta } = usePredictions()
   const isMobile = useIsMobile()
-  const [mapMode, setMapMode]         = useState('live')
-  const [iaText,  setIaText]          = useState('')
-  const [iaLoading, setIaLoading]     = useState(false)
+  const [mapMode,    setMapMode]    = useState('live')
+  const [iaText,     setIaText]     = useState('')
+  const [iaLoading,  setIaLoading]  = useState(false)
+  const [countdown,  setCountdown]  = useState(REFRESH_MS / 1000)
+  const [flashKpis,  setFlashKpis]  = useState(false)
+
+  // Countdown vers la prochaine actualisation
+  useEffect(() => {
+    setCountdown(REFRESH_MS / 1000)
+    const tick = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000)
+    return () => clearInterval(tick)
+  }, [lastUpdate])
+
+  // Flash bref quand les KPIs changent
+  const prevKpisRef = useRef(null)
+  useEffect(() => {
+    if (!kpis) return
+    if (prevKpisRef.current !== null && prevKpisRef.current !== kpis.tempsGlobal) {
+      setFlashKpis(true)
+      const t = setTimeout(() => setFlashKpis(false), 800)
+      return () => clearTimeout(t)
+    }
+    prevKpisRef.current = kpis.tempsGlobal
+  }, [kpis])
+
+  const isSimulated  = Object.values(mesures).some(m => m?.simulated)
+  const sourceLabel  = isSimulated ? 'Simulation' : 'TomTom live'
+  const countdownMin = Math.floor(countdown / 60)
+  const countdownSec = String(countdown % 60).padStart(2, '0')
 
   async function loadIA(currentMesures, force = false) {
     if (!force) {
@@ -375,7 +399,6 @@ function DashboardPage() {
     setIaLoading(false)
   }
 
-  // Chargement initial de l'IA (une seule fois)
   useEffect(() => {
     if (!loading && Object.keys(mesures).length > 0 && !iaText) loadIA(mesures)
   }, [loading])
@@ -392,15 +415,35 @@ function DashboardPage() {
       {/* ── Header ────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
-          <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>Dashboard</h1>
-          <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
-            {lastUpdate ? `Mis à jour à ${lastUpdate.toLocaleTimeString('fr-FR')}` : 'Chargement...'}
-            {mesures.axe1?.simulated && ' · données simulées'}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>Dashboard</h1>
+            {/* Indicateur LIVE */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5,
+              background: isSimulated ? '#FFF3CD' : '#E8F5E9',
+              border: `1px solid ${isSimulated ? '#F0AD4E' : '#66BB6A'}`,
+              borderRadius: 20, padding: '2px 9px' }}>
+              <span style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: isSimulated ? '#F0AD4E' : '#27AE60',
+                animation: refreshing ? 'none' : 'fp-live-pulse 2s infinite',
+                display: 'inline-block',
+              }} />
+              <span style={{ fontSize: 10, fontWeight: 700,
+                color: isSimulated ? '#856404' : '#1B5E20', letterSpacing: '0.05em' }}>
+                {refreshing ? '↻' : sourceLabel.toUpperCase()}
+              </span>
+            </div>
+          </div>
+          <p style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>
+            {lastUpdate
+              ? `Mis à jour à ${lastUpdate.toLocaleTimeString('fr-FR')} · prochain dans ${countdownMin}:${countdownSec}`
+              : 'Chargement des données...'}
           </p>
         </div>
         <button className="fp-btn fp-btn-primary" style={{ fontSize: 12, padding: '0.4rem 0.8rem' }}
-          onClick={async () => { sessionStorage.removeItem('fp_ia_dashboard'); await refresh(); loadIA(null, true) }} disabled={loading}>
-          <RefreshCw size={13} className={loading ? 'fp-spin' : ''} />
+          onClick={async () => { sessionStorage.removeItem('fp_ia_dashboard'); await refresh(); loadIA(null, true) }}
+          disabled={refreshing}>
+          <RefreshCw size={13} className={refreshing ? 'fp-spin' : ''} />
           {!isMobile && 'Actualiser'}
         </button>
       </div>
@@ -413,25 +456,22 @@ function DashboardPage() {
         flexShrink: 0,
       }}>
         <KPICard icon={Clock} iconColor={C.primary}
-          title="Temps moyen"
-          value={kpis?.tempsGlobal} unit="min" />
+          title="Temps moyen" value={kpis?.tempsGlobal} unit="min" flash={flashKpis} />
 
         <KPICard icon={AlertTriangle} iconColor={C.danger}
           title="Tronçon critique"
           value={kpis?.tronconCritique?.nom ?? '—'}
-          badge={kpis?.tronconCritique ? `N${kpis.tronconCritique.niveau} — ${levelLabel(kpis.tronconCritique.niveau)}` : null} />
+          badge={kpis?.tronconCritique ? `N${kpis.tronconCritique.niveau} — ${levelLabel(kpis.tronconCritique.niveau)}` : null}
+          flash={flashKpis} />
 
         <KPICard icon={Clock} iconColor={C.warning}
-          title="Retard moyen"
-          value={kpis?.retardMoyen} unit="min" />
+          title="Retard moyen" value={kpis?.retardMoyen} unit="min" flash={flashKpis} />
 
         <KPICard icon={BarChart2} iconColor="#8E44AD"
-          title="Axes dégradés"
-          value={kpis?.pctCong} unit="%" />
+          title="Axes dégradés" value={kpis?.pctCong} unit="%" flash={flashKpis} />
 
         <KPICard icon={Gauge} iconColor={C.success}
-          title="Vitesse moy."
-          value={kpis?.vitesseMoyenne} unit="km/h" />
+          title="Vitesse moy." value={kpis?.vitesseMoyenne} unit="km/h" flash={flashKpis} />
       </div>
 
       {/* ── Map + Panneau droit ────────────────────────────── */}
