@@ -8,7 +8,7 @@ import { useTrafficData, AXES_OFFICIELS, REFRESH_MS } from '../hooks/useTrafficD
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
 import AlertesPredictives from '../components/Dashboard/AlertesPredictives'
-import { AXE_COLORS, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
+import { AXE_COLORS, AXE_PALETTE, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
 import { useIsMobile } from '../hooks/useIsMobile'
 
@@ -139,8 +139,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         const pred      = isPrevision ? getPredForAxe(predictions, axe.id) : null
         const m         = mesures[axe.id]
         const niveau    = isPrevision ? (pred?.niveau_prevu ?? 0) : (m?.niveau ?? 0)
-        const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
-        const baseColor = AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length]
+        const baseColor = AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length]
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
         // Priorité : géométrie TomTom live > géométrie pré-calculée Firestore > waypoints admin
         const positions = (m?.geometry?.length > 5)        ? m.geometry
@@ -238,8 +237,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
             )
           : (m?.niveau ?? 0)
 
-        const fallbackColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
-        const baseColor = AXE_COLORS[t.axeId] ?? fallbackColors[Math.max(axeIdx, 0) % fallbackColors.length]
+        const baseColor = AXE_COLORS[t.axeId] ?? (axes.find(a => a.id === t.axeId)?.color) ?? AXE_PALETTE[Math.max(axeIdx, 0) % AXE_PALETTE.length]
         // Priorité : niveau propre du tronçon > niveau de l'axe parent > couleur identité
         const color = tronconNiveau > 0
           ? levelColor(tronconNiveau)
@@ -330,8 +328,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         const retourPos = (m?.geometryRetour?.length > 5) ? m.geometryRetour : (axe.coordinatesRetour ?? [])
         if (retourPos.length < 2) return null
         const niveau    = m?.niveau ?? 0
-        const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
-        const color     = niveau > 0 ? levelColor(niveau) : (AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length])
+        const color     = niveau > 0 ? levelColor(niveau) : (AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length])
         const opacity   = m ? 0.6 : 0.25
         return (
           <Polyline key={axe.id + '_retour'} positions={retourPos} color={color} weight={4} opacity={opacity} dashArray="8 6">
@@ -347,12 +344,11 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
       {axes.map((axe, idx) => {
         const startPos = axe.start ?? axe.coordinates?.[0]
         if (!startPos) return null
-        const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
         const m         = mesures[axe.id]
         const niveau    = mapMode === 'prevision'
           ? (getPredForAxe(predictions, axe.id)?.niveau_prevu ?? 0)
           : (m?.niveau ?? 0)
-        const baseColor = AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length]
+        const baseColor = AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length]
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
         return (
           <Marker key={axe.id + '_mk'} position={startPos} icon={makeNumIcon(axe.num ?? idx + 1, color)}>
@@ -686,8 +682,7 @@ function DashboardPage() {
             {axes.map((axe, idx) => {
               const m = mesures[axe.id]
               const niveau = m?.niveau ?? 0
-              const fallbackColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
-              const barColor = AXE_COLORS[axe.id] ?? fallbackColors[idx % fallbackColors.length]
+              const barColor = AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length]
               return (
                 <div key={axe.id} style={{
                   display: 'flex', alignItems: 'center', justifyContent: 'space-between',

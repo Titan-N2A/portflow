@@ -185,9 +185,19 @@ export const DEFAULT_SEUILS = DEFAULT_AXES.map(a => ({
   seuilRouge:  Math.round(a.tRef * 1.8),
 }))
 
-// Couleurs carte par axe — objet indexé par axeId
+// Couleurs identité des axes officiels PAA (base sans trafic)
 export const AXE_COLORS = {
-  axe1: '#1B4F8A',
-  axe2: '#E67E22',
-  axe3: '#27AE60',
+  axe1: '#E67E22',  // orange  — CARENA
+  axe2: '#F1C40F',  // jaune   — Toyota CFAO
+  axe3: '#FFC107',  // ambre   — Agence SODECI
 }
+
+// 5 couleurs disponibles pour les axes ajoutés via l'admin
+// Les couleurs changent dynamiquement selon le niveau de trafic (levelColor)
+export const AXE_PALETTE = [
+  '#2196F3',  // bleu vif
+  '#9C27B0',  // violet
+  '#00BCD4',  // cyan
+  '#E91E63',  // rose
+  '#4CAF50',  // vert
+]

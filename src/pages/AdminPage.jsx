@@ -12,7 +12,7 @@ import {
 import { C } from '../styles/tokens'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { syncDefaultAxes } from '../services/axesService'
-import { AXE_COLORS as DEFAULT_AXE_COLORS } from '../data/defaultData'
+import { AXE_COLORS as DEFAULT_AXE_COLORS, AXE_PALETTE } from '../data/defaultData'
 
 import { listUsers, createUser, updateUser, deleteUserDoc, sendResetEmail } from '../services/userManagement'
 
@@ -989,6 +989,7 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
     tRef:           axe?.tRef     ?? '',
     ordre:          axe?.ordre    ?? (axes.length + 1),
     bidirectionnel: axe?.bidirectionnel ?? false,
+    color:          axe?.color ?? '',
   })
   const [coords,           setCoords]          = useState(getInitialCoords(axe))
   const [selectedGeometry, setSelectedGeometry] = useState(axe?.geometryRoute ?? null)
@@ -1037,6 +1038,7 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
       actif:          axe?.actif ?? true,
       num:            axe?.num ?? (axes.length + 1),
       bidirectionnel: form.bidirectionnel,
+      ...(form.color ? { color: form.color } : {}),
       ...(effectiveGeometry ? { geometryRoute: effectiveGeometry } : {}),
       // coordinatesRetour : on ne recalcule que si l'admin a explicitement choisi
       // un nouvel itinéraire — sinon on préserve le tracé retour TomTom existant.
@@ -1059,7 +1061,7 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
     style: errors[field] ? { borderColor: '#C0392B' } : {},
   })
 
-  const axeColor = ['#1B4F8A','#E67E22','#27AE60'][(axe?.num ?? axes.length + 1) - 1] ?? '#1B4F8A'
+  const axeColor = form.color || DEFAULT_AXE_COLORS[axe?.id] || AXE_PALETTE[(axe?.num ?? axes.length + 1) - 1 - 3] || AXE_PALETTE[0]
 
   return (
     <Modal title={isEdit ? 'Modifier l\'axe' : 'Ajouter un axe'} onClose={onClose} width={660}>
@@ -1147,6 +1149,44 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
           </p>
         </div>
       </label>
+
+      {/* ── Couleur de l'axe ──────────────────────────── */}
+      <div style={{ marginTop: '0.75rem' }}>
+        <p style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: '0.5rem', fontFamily: "'Inter',sans-serif" }}>
+          Couleur de l'axe <span style={{ fontWeight: 400 }}>(change selon le niveau de trafic)</span>
+        </p>
+        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {AXE_PALETTE.map(col => {
+            const selected = form.color === col
+            return (
+              <button
+                key={col}
+                type="button"
+                title={col}
+                onClick={() => setForm(f => ({ ...f, color: col }))}
+                style={{
+                  width: 32, height: 32, borderRadius: '50%', border: 'none', cursor: 'pointer',
+                  background: col, flexShrink: 0, position: 'relative',
+                  boxShadow: selected ? `0 0 0 3px #fff, 0 0 0 5px ${col}` : '0 1px 4px rgba(0,0,0,0.18)',
+                  transform: selected ? 'scale(1.15)' : 'scale(1)',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {selected && (
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14, fontWeight: 700 }}>✓</span>
+                )}
+              </button>
+            )
+          })}
+          {form.color && (
+            <button
+              type="button"
+              onClick={() => setForm(f => ({ ...f, color: '' }))}
+              style={{ fontSize: 11, color: C.textMuted, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline', marginLeft: 4 }}
+            >Réinitialiser</button>
+          )}
+        </div>
+      </div>
 
       {/* ── Coordonnées GPS ───────────────────────────── */}
       <SectionSep label="Tracé GPS — points du tracé routier" />
@@ -1308,7 +1348,7 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
 
   const parentAxe = axes.find(a => a.id === form.axeId)
   const axeNum    = parentAxe?.num ?? 1
-  const axeColor  = ['#1B4F8A','#E67E22','#27AE60'][axeNum - 1] ?? '#1B4F8A'
+  const axeColor  = parentAxe?.color || DEFAULT_AXE_COLORS[form.axeId] || AXE_PALETTE[(axeNum - 1) % AXE_PALETTE.length]
   const parentGeometry = parentAxe?.geometryRoute?.length >= 2
     ? parentAxe.geometryRoute
     : parentAxe?.coordinates?.length >= 2
