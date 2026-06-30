@@ -439,7 +439,7 @@ function makeTronconLabel(label, color) {
 
 const TRONCON_PALETTE = ['#E67E22', '#8E44AD', '#16A085', '#C0392B', '#2980B9', '#D35400']
 
-function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected, backgroundAxe, mapHeight = 300, existingTroncons = [] }) {
+function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected, backgroundAxe, mapHeight = 300, existingTroncons = [], initialGeometry = null }) {
   const [gmOpen,       setGmOpen]       = useState(false)
   const [gmInput,      setGmInput]      = useState('')
   const [gmError,      setGmError]      = useState('')
@@ -640,7 +640,7 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
           {/* Capture les clics carte pour ajouter des points */}
           {onAddPoint && <MapClickHandler onAddPoint={onAddPoint} />}
 
-          {/* Itinéraires alternatifs */}
+          {/* Itinéraires alternatifs / tracé stocké / tracé de contrôle */}
           {alternatives.length > 0 ? alternatives.map((alt, i) => (
             <Polyline
               key={i}
@@ -659,7 +659,11 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
                 </button>
               </Popup>
             </Polyline>
-          )) : (
+          )) : initialGeometry?.length >= 2 ? (
+            // Tracé routier TomTom déjà stocké (mode édition)
+            <Polyline positions={initialGeometry} color={color} weight={5} opacity={0.85} />
+          ) : (
+            // Ligne de contrôle en pointillés entre les waypoints
             positions.length >= 2 && <Polyline positions={positions} color={color} weight={4} opacity={0.6} dashArray="6 4" />
           )}
 
@@ -674,16 +678,18 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
               </Marker>
             )
           })}
-          {(alternatives.length > 0 || positions.length >= 2) && (
+          {(alternatives.length > 0 || initialGeometry?.length >= 2 || positions.length >= 2) && (
             <FitBoundsHelper positions={
               alternatives.length > 0
                 ? selectedIdx !== null
                   ? alternatives[selectedIdx]?.geometry ?? []
                   : alternatives.flatMap(a => a.geometry ?? [])
-                : positions
+                : initialGeometry?.length >= 2
+                  ? initialGeometry
+                  : positions
             } />
           )}
-          {positions.length < 2 && bgPositions.length >= 2 && (
+          {positions.length < 2 && !initialGeometry && bgPositions.length >= 2 && (
             <FitBoundsHelper positions={bgPositions} />
           )}
         </MapContainer>
@@ -953,6 +959,27 @@ function SectionSep({ label }) {
 // ══════════════════════════════════════════════════════════
 // MODAL AXES
 // ══════════════════════════════════════════════════════════
+
+// Retourne les points de contrôle à éditer dans le formulaire.
+// Si l'axe a des waypoints nommés → on les utilise.
+// Si coordinates contient la géométrie TomTom complète (>8 pts) ET geometryRoute est
+// déjà stocké → on affiche seulement départ + arrivée comme points de contrôle,
+// la géométrie routière est gérée séparément via selectedGeometry.
+function getInitialCoords(axe) {
+  if (axe?.waypoints?.length >= 2) return coordsToForm(axe.waypoints)
+  const coords = axe?.coordinates ?? []
+  if (coords.length > 8 && (axe?.geometryRoute?.length ?? 0) >= 2) {
+    const first = coords[0]
+    const last  = coords[coords.length - 1]
+    const toStr = (p, i) => Array.isArray(p) ? String(p[i]) : String(p.lat != null ? (i === 0 ? p.lat : p.lng) : '')
+    return [
+      { name: '', lat: toStr(first, 0), lng: toStr(first, 1) },
+      { name: '', lat: toStr(last,  0), lng: toStr(last,  1) },
+    ]
+  }
+  return coordsToForm(coords)
+}
+
 function ModalAxe({ axe, axes, onSave, onClose }) {
   const isEdit   = !!axe
   const [form, setForm] = useState({
@@ -963,9 +990,11 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
     ordre:          axe?.ordre    ?? (axes.length + 1),
     bidirectionnel: axe?.bidirectionnel ?? false,
   })
-  // Priorité waypoints (avec noms) sur coordinates (sans noms)
-  const [coords,           setCoords]          = useState(coordsToForm(axe?.waypoints?.length ? axe.waypoints : axe?.coordinates ?? []))
+  const [coords,           setCoords]          = useState(getInitialCoords(axe))
   const [selectedGeometry, setSelectedGeometry] = useState(axe?.geometryRoute ?? null)
+  // routeChanged = true uniquement quand l'admin a sélectionné un NOUVEL itinéraire
+  // (différent de celui stocké). Empêche d'écraser coordinatesRetour sans raison.
+  const [routeChanged,     setRouteChanged]     = useState(false)
   const [distAutoFilled,   setDistAutoFilled]   = useState(false)
   const [tRefAutoFilled,   setTRefAutoFilled]   = useState(false)
   const [errors,           setErrors]           = useState({})
@@ -1009,9 +1038,14 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
       num:            axe?.num ?? (axes.length + 1),
       bidirectionnel: form.bidirectionnel,
       ...(effectiveGeometry ? { geometryRoute: effectiveGeometry } : {}),
-      // Tracé retour = géométrie inversée si disponible, sinon points de contrôle inversés
+      // coordinatesRetour : on ne recalcule que si l'admin a explicitement choisi
+      // un nouvel itinéraire — sinon on préserve le tracé retour TomTom existant.
       ...(form.bidirectionnel
-        ? { coordinatesRetour: [...(effectiveGeometry ?? savedCoords)].reverse() }
+        ? {
+            coordinatesRetour: routeChanged
+              ? [...(effectiveGeometry ?? savedCoords)].reverse()
+              : (axe?.coordinatesRetour ?? [...(effectiveGeometry ?? savedCoords)].reverse()),
+          }
         : {}),
     }
     onSave(newAxe)
@@ -1122,10 +1156,22 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
         <MiniMapPreview
           points={coords}
           color={axeColor}
-          onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { name: '', lat, lng }]); setSelectedGeometry(null) }}
+          initialGeometry={selectedGeometry}
+          onAddPoint={(lat, lng) => {
+            setCoords(prev => [...prev, { name: '', lat, lng }])
+            setSelectedGeometry(null)
+            setRouteChanged(false)
+          }}
           onRouteSelected={route => {
-            if (!route) { setSelectedGeometry(null); setDistAutoFilled(false); setTRefAutoFilled(false); return }
+            if (!route) {
+              setSelectedGeometry(null)
+              setRouteChanged(false)
+              setDistAutoFilled(false)
+              setTRefAutoFilled(false)
+              return
+            }
             setSelectedGeometry(route.geometry)
+            setRouteChanged(true)
             setForm(f => ({ ...f, distance: `${route.distance} km`, tRef: String(route.duration) }))
             setDistAutoFilled(true)
             setTRefAutoFilled(true)
@@ -1134,11 +1180,15 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
         />
         {selectedGeometry && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0.5rem 0.75rem', background: '#EBF8F1', border: '1px solid #A7E3C3', borderRadius: '7px', fontSize: 12, color: '#27AE60', fontFamily: "'Inter',sans-serif" }}>
-            <CheckCircle size={13} /> Itinéraire sélectionné — {selectedGeometry.length} points GPS — distance auto-remplie
+            <CheckCircle size={13} />
+            {routeChanged
+              ? `Nouvel itinéraire sélectionné — ${selectedGeometry.length} points GPS — distance calculée`
+              : `Tracé existant chargé — ${selectedGeometry.length} points GPS`
+            }
           </div>
         )}
         {/* Éditeur manuel dessous */}
-        <CoordinatesEditor points={coords} onChange={c => { setCoords(c); setSelectedGeometry(null) }} minPoints={0} />
+        <CoordinatesEditor points={coords} onChange={c => { setCoords(c); setSelectedGeometry(null); setRouteChanged(false) }} minPoints={0} />
         {errors.coords && (
           <p style={{ color: '#C0392B', fontSize: 11, marginTop: 5, fontFamily: "'Inter',sans-serif" }}>
             ⚠ {errors.coords}
