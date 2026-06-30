@@ -11,7 +11,7 @@ const NOMS_AXES = { axe1: 'CARENA', axe2: 'TOYOTA CFAO', axe3: 'SODECI' }
 
 // ── Jour 7 — Courbe 24h ─────────────────────────────────────
 export function computeCourbe24h(data, axeId, sens) {
-  const heures = Array.from({ length: 12 }, (_, i) => i + 7)
+  const heures = Array.from({ length: 24 }, (_, i) => i)
   return heures.map(heure => {
     const valeurs = data
       .filter(d => d.axeId === axeId && d.sens === sens && d.heure === heure)
@@ -38,7 +38,7 @@ export function computeMoyenneParAxe(data) {
  */
 export function computeHeatmap(data, axeId, sens) {
   const jours  = [0, 1, 2, 3, 4, 5, 6] // 0 = dimanche ... 6 = samedi (convention JS)
-  const heures = Array.from({ length: 12 }, (_, i) => i + 7)
+  const heures = Array.from({ length: 24 }, (_, i) => i)
   const grid   = []
 
   jours.forEach(jour => {

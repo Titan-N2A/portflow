@@ -13,7 +13,7 @@ import { computeCourbe24h, computeRepartitionNiveaux, computeHeatmap } from '../
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler)
 
-const HEURES_LABELS = ['7h','8h','9h','10h','11h','12h','13h','14h','15h','16h','17h','18h']
+const HEURES_LABELS = ['0h','1h','2h','3h','4h','5h','6h','7h','8h','9h','10h','11h','12h','13h','14h','15h','16h','17h','18h','19h','20h','21h','22h','23h']
 const PALETTE       = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
 const JOURS_LABELS  = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 const JOURS_ORDRE   = [1, 2, 3, 4, 5, 6, 0] // JS .getDay() : lundi=1 ... dimanche=0

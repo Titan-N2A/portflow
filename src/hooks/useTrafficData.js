@@ -100,7 +100,8 @@ export function useTrafficData(axes = DEFAULT_AXES) {
   const [loading,         setLoading]         = useState(true)
   const [lastUpdate,      setLastUpdate]      = useState(null)
 
-  const axesRef = useRef(axes)
+  const axesRef    = useRef(axes)
+  const mesuresRef = useRef({})
   useEffect(() => { axesRef.current = axes }, [axes])
 
   // Appel TomTom direct → écrit dans mesures_live → onSnapshot met à jour le dashboard
@@ -155,17 +156,20 @@ export function useTrafficData(axes = DEFAULT_AXES) {
         setGeometryRetours(prev => ({ ...prev, ...retours }))
       }
 
-      // TomTom indisponible → aucune écriture Firestore → onSnapshot ne se redéclenche pas
-      // On met à jour le state local directement avec les valeurs simulées (approximations
-      // basées sur l'heure et l'historique) pour que les KPIs continuent de changer.
+      // TomTom indisponible → aucune écriture Firestore → onSnapshot ne se redéclenche pas.
+      // On simule uniquement si Firestore n'a pas encore fourni de vraies mesures,
+      // pour ne pas écraser les données live reçues via onSnapshot.
       if (axesReels === 0) {
-        const localData = {}
-        axesRef.current.forEach(axe => {
-          localData[axe.id] = results[axe.id] ?? simulateAxe(axe)
-        })
-        setMesures(localData)
-        setKpis(computeKPIs(localData, axesRef.current))
-        setLastUpdate(new Date())
+        const hasRealFirestoreData = Object.values(mesuresRef.current).some(m => !m.simulated)
+        if (!hasRealFirestoreData) {
+          const localData = {}
+          axesRef.current.forEach(axe => {
+            localData[axe.id] = results[axe.id] ?? simulateAxe(axe)
+          })
+          setMesures(localData)
+          setKpis(computeKPIs(localData, axesRef.current))
+          setLastUpdate(new Date())
+        }
       }
     } catch (err) {
       console.error('TomTom refresh:', err)
@@ -178,6 +182,7 @@ export function useTrafficData(axes = DEFAULT_AXES) {
       collection(db, 'mesures_live'),
       (snapshot) => {
         const data = buildMesures(snapshot, axesRef.current)
+        mesuresRef.current = data
         setMesures(data)
         setKpis(computeKPIs(data, axesRef.current))
         setLastUpdate(new Date())
@@ -187,6 +192,7 @@ export function useTrafficData(axes = DEFAULT_AXES) {
         console.error('mesures_live erreur:', err)
         const sim = {}
         axesRef.current.forEach(axe => { sim[axe.id] = simulateAxe(axe) })
+        mesuresRef.current = sim
         setMesures(sim)
         setKpis(computeKPIs(sim, axesRef.current))
         setLoading(false)
