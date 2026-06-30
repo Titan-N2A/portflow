@@ -990,6 +990,10 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
   function handleSubmit() {
     if (!validate()) return
     const savedCoords = formToCoords(coords)
+    // Si l'utilisateur a cliqué "Calculer" mais que TomTom+OSRM ont échoué,
+    // selectedGeometry est null. On retombe sur l'ancienne géométrie Firestore
+    // pour éviter de supprimer geometryRoute du document (setDoc sans merge).
+    const effectiveGeometry = selectedGeometry ?? axe?.geometryRoute ?? null
     const newAxe = {
       id:             axe?.id ?? `axe_${Date.now()}`,
       nom:            form.nom.trim(),
@@ -1004,10 +1008,10 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
       actif:          axe?.actif ?? true,
       num:            axe?.num ?? (axes.length + 1),
       bidirectionnel: form.bidirectionnel,
-      ...(selectedGeometry ? { geometryRoute: selectedGeometry } : {}),
-      // Tracé retour = géométrie OSRM inversée si disponible, sinon points de contrôle inversés
+      ...(effectiveGeometry ? { geometryRoute: effectiveGeometry } : {}),
+      // Tracé retour = géométrie inversée si disponible, sinon points de contrôle inversés
       ...(form.bidirectionnel
-        ? { coordinatesRetour: [...(selectedGeometry ?? savedCoords)].reverse() }
+        ? { coordinatesRetour: [...(effectiveGeometry ?? savedCoords)].reverse() }
         : {}),
     }
     onSave(newAxe)
