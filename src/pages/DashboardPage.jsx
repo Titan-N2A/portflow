@@ -380,8 +380,7 @@ function DashboardPage() {
     prevKpisRef.current = kpis.tempsGlobal
   }, [kpis])
 
-  const isSimulated  = Object.values(mesures).some(m => m?.simulated)
-  const sourceLabel  = isSimulated ? 'Simulation' : 'TomTom live'
+  const hasData      = Object.keys(mesures).length > 0
   const countdownMin = Math.floor(countdown / 60)
   const countdownSec = String(countdown % 60).padStart(2, '0')
 
@@ -419,18 +418,16 @@ function DashboardPage() {
             <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>Dashboard</h1>
             {/* Indicateur LIVE */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 5,
-              background: isSimulated ? '#FFF3CD' : '#E8F5E9',
-              border: `1px solid ${isSimulated ? '#F0AD4E' : '#66BB6A'}`,
+              background: '#E8F5E9', border: '1px solid #66BB6A',
               borderRadius: 20, padding: '2px 9px' }}>
               <span style={{
                 width: 7, height: 7, borderRadius: '50%',
-                background: isSimulated ? '#F0AD4E' : '#27AE60',
+                background: refreshing ? '#F0AD4E' : '#27AE60',
                 animation: refreshing ? 'none' : 'fp-live-pulse 2s infinite',
                 display: 'inline-block',
               }} />
-              <span style={{ fontSize: 10, fontWeight: 700,
-                color: isSimulated ? '#856404' : '#1B5E20', letterSpacing: '0.05em' }}>
-                {refreshing ? '↻' : sourceLabel.toUpperCase()}
+              <span style={{ fontSize: 10, fontWeight: 700, color: '#1B5E20', letterSpacing: '0.05em' }}>
+                {refreshing ? 'MISE À JOUR...' : 'LIVE'}
               </span>
             </div>
           </div>

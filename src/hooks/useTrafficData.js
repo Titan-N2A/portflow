@@ -18,23 +18,6 @@ function computeNiveau(ratio) {
   return 5
 }
 
-function simulateAxe(axe) {
-  const hour   = new Date().getHours()
-  const isRush = (hour >= 7 && hour <= 9) || (hour >= 16 && hour <= 19)
-  const base   = axe.tRef ?? 20
-  const factor = isRush ? 1.2 + Math.random() * 0.4 : 1.0 + Math.random() * 0.2
-  const tempsLive = Math.round(base * factor * 10) / 10
-  const ratio     = tempsLive / base
-  return {
-    tempsLive,
-    niveau:    computeNiveau(ratio),
-    vitesse:   Math.round(((axe.dist ?? 10) / tempsLive) * 60 * 10) / 10,
-    retard:    Math.round((tempsLive - base) * 10) / 10,
-    ratio,
-    simulated: true,
-    source:    'simulation',
-  }
-}
 
 function computeKPIs(mesures, axes) {
   const vals = axes.map(a => mesures[a.id]).filter(Boolean)
@@ -86,10 +69,7 @@ function buildMesures(snapshot, axes) {
       data[r.axeId].tempsRetour = tempsLive
     }
   })
-  // Simulation pour les axes absents de Firestore
-  axes.forEach(axe => {
-    if (!data[axe.id]) data[axe.id] = simulateAxe(axe)
-  })
+  // Axes absents de Firestore → pas de simulation, ils afficheront "—"
   return data
 }
 
@@ -150,25 +130,11 @@ export function useTrafficData(axes = DEFAULT_AXES) {
         setGeometryRetours(prev => ({ ...prev, ...retours }))
       }
 
-      // TomTom indisponible → mise à jour locale avec simulation
-      // (onSnapshot reprend la main dès que GitHub Actions écrit dans mesures_live)
-      if (axesReels === 0) {
-        const localData = {}
-        axesRef.current.forEach(axe => {
-          localData[axe.id] = results[axe.id] ?? simulateAxe(axe)
-        })
-        setMesures(localData)
-        setKpis(computeKPIs(localData, axesRef.current))
-        setLastUpdate(new Date())
-      }
+      // TomTom indisponible → on garde les données Firestore (onSnapshot),
+      // pas de simulation — les valeurs viennent de GitHub Actions (toutes les 10 min)
     } catch (err) {
       console.error('TomTom refresh:', err)
-      // Même en cas d'erreur réseau, on simule pour garder les KPIs vivants
-      const sim = {}
-      axesRef.current.forEach(axe => { sim[axe.id] = simulateAxe(axe) })
-      setMesures(sim)
-      setKpis(computeKPIs(sim, axesRef.current))
-      setLastUpdate(new Date())
+      // Ne pas écraser les données Firestore avec une simulation
     } finally {
       setRefreshing(false)
     }
