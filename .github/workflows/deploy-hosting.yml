@@ -28,9 +28,9 @@ jobs:
           VITE_FIREBASE_STORAGE_BUCKET: portflow-46738.appspot.com
           VITE_FIREBASE_MESSAGING_SENDER_ID: "330399151120"
           VITE_FIREBASE_APP_ID: 1:330399151120:web:9e3116bb2b6ba6c3598695
-          VITE_TOMTOM_API_KEY: ${{ secrets.VITE_TOMTOM_API_KEY }}
+          VITE_TOMTOM_API_KEY: OKRpdcKYIWdRTpEyr3eHab19LOQizhdZ
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
-          VITE_GOOGLE_MATRIX_API_KEY: ${{ secrets.VITE_GOOGLE_MATRIX_API_KEY }}
+          VITE_GOOGLE_MATRIX_API_KEY: AIzaSyBsm4oMoYDdpfRX6hDQr3lKu5IaJRjlXBo
 
       - name: Déployer sur Firebase Hosting
         run: |
