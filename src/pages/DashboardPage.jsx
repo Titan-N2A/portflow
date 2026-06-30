@@ -121,8 +121,10 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
           : (axe.geometryRoute?.length > 5)                ? axe.geometryRoute
           : (axe.coordinates ?? [])
         if (positions.length < 2) return null
+        // Opacité réduite si pas de données live — signal visuel "fallback identité"
+        const opacity = m ? 0.95 : 0.45
         return (
-          <Polyline key={axe.id} positions={positions} color={color} weight={7} opacity={0.95}>
+          <Polyline key={axe.id} positions={positions} color={color} weight={7} opacity={opacity}>
             <Popup>
               <strong style={{ color }}>{axe.nom}</strong><br />
               {isPrevision ? (
@@ -296,8 +298,9 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
         const niveau    = m?.niveau ?? 0
         const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
         const color     = niveau > 0 ? levelColor(niveau) : (AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length])
+        const opacity   = m ? 0.6 : 0.25
         return (
-          <Polyline key={axe.id + '_retour'} positions={retourPos} color={color} weight={4} opacity={0.6} dashArray="8 6">
+          <Polyline key={axe.id + '_retour'} positions={retourPos} color={color} weight={4} opacity={opacity} dashArray="8 6">
             <Popup>
               <strong style={{ color }}>{axe.shortNom ?? axe.nom} (retour)</strong><br />
               {m?.tempsRetour ? `Temps retour : ${m.tempsRetour} min` : 'Données retour indisponibles'}
@@ -306,12 +309,17 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
         )
       })}
 
-      {/* Marqueurs numérotés — depuis Firestore */}
+      {/* Marqueurs numérotés — couleur = niveau de congestion si dispo, sinon identité */}
       {axes.map((axe, idx) => {
         const startPos = axe.start ?? axe.coordinates?.[0]
         if (!startPos) return null
         const axeColors = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
-        const color = AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length]
+        const m         = mesures[axe.id]
+        const niveau    = mapMode === 'prevision'
+          ? (getPredForAxe(predictions, axe.id)?.niveau_prevu ?? 0)
+          : (m?.niveau ?? 0)
+        const baseColor = AXE_COLORS[axe.id] ?? axeColors[idx % axeColors.length]
+        const color     = niveau > 0 ? levelColor(niveau) : baseColor
         return (
           <Marker key={axe.id + '_mk'} position={startPos} icon={makeNumIcon(axe.num ?? idx + 1, color)}>
             <Popup>
