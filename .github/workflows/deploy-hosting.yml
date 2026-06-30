@@ -35,6 +35,12 @@ jobs:
       - name: Déployer sur Firebase Hosting
         run: |
           echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PORTFLOW_46738 }}' > /tmp/sa.json
-          npx firebase-tools deploy --only hosting --project portflow-46738 --non-interactive
+          npx firebase-tools deploy --only hosting --project portflow-46738 --non-interactive 2>&1 | tee /tmp/deploy.log
+          EXIT=${PIPESTATUS[0]}
+          if [ $EXIT -ne 0 ] && grep -q "is the current active version" /tmp/deploy.log; then
+            echo "✅ Version déjà active — déploiement considéré réussi."
+            exit 0
+          fi
+          exit $EXIT
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
