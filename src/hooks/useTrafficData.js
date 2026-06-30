@@ -43,8 +43,10 @@ function computeKPIs(mesures, axes) {
   const vitesseMoyenne = vals.reduce((s, m) => s + m.vitesse,   0) / vals.length
   const degrades  = vals.filter(m => m.niveau >= 3).length
   const pctCong   = Math.round((degrades / vals.length) * 100)
-  const pire      = vals.reduce((max, m) => m.niveau > (max?.niveau ?? -1)
-    ? { ...m, axe: axes.find(a => mesures[a.id] === m) } : max, null)
+  // Fix: garder la référence axe par appariement explicite (pas par référence objet)
+  const paires    = axes.map(a => ({ axe: a, m: mesures[a.id] })).filter(({ m }) => m)
+  const pireEntry = paires.reduce((best, curr) =>
+    curr.m.niveau > (best?.m?.niveau ?? -1) ? curr : best, null)
   const alertes   = axes
     .map(a => ({ axe: a, mesure: mesures[a.id] }))
     .filter(({ mesure }) => mesure && mesure.niveau >= 3)
@@ -53,8 +55,8 @@ function computeKPIs(mesures, axes) {
     retardMoyen:     Math.round(retardMoyen    * 10) / 10,
     vitesseMoyenne:  Math.round(vitesseMoyenne * 10) / 10,
     pctCong,
-    tronconCritique: pire
-      ? { nom: `${pire.axe?.shortNom ?? '?'} – ${pire.axe?.troncons?.at(-1) ?? '?'}`, niveau: pire.niveau }
+    tronconCritique: pireEntry
+      ? { nom: `${pireEntry.axe.shortNom ?? '?'} – ${pireEntry.axe.troncons?.at(-1) ?? '?'}`, niveau: pireEntry.m.niveau }
       : null,
     alertes,
   }
@@ -102,15 +104,20 @@ export function useTrafficData(axes = DEFAULT_AXES) {
   useEffect(() => { axesRef.current = axes }, [axes])
 
   // Appel TomTom direct → écrit dans mesures_live → onSnapshot met à jour le dashboard
+  // Si TomTom est indisponible (résultats simulés), met à jour le state local directement
+  // pour que les KPIs ne restent pas figés entre deux runs GitHub Actions.
   const refresh = useCallback(async () => {
     try {
       const results = await fetchAllAxes(axesRef.current)
       const now = new Date().toISOString()
       const retours = {}
+      let axesReels = 0
+
       await Promise.all(
         Object.entries(results).map(async ([axeId, m]) => {
           const axe = axesRef.current.find(a => a.id === axeId)
           if (!axe || m.simulated) return
+          axesReels++
           const base = {
             axeId, sens: 'aller',
             nom:      `${axe.shortNom} (aller)`,
@@ -143,8 +150,22 @@ export function useTrafficData(axes = DEFAULT_AXES) {
           }
         })
       )
+
       if (Object.keys(retours).length > 0) {
         setGeometryRetours(prev => ({ ...prev, ...retours }))
+      }
+
+      // TomTom indisponible → aucune écriture Firestore → onSnapshot ne se redéclenche pas
+      // On met à jour le state local directement avec les valeurs simulées (approximations
+      // basées sur l'heure et l'historique) pour que les KPIs continuent de changer.
+      if (axesReels === 0) {
+        const localData = {}
+        axesRef.current.forEach(axe => {
+          localData[axe.id] = results[axe.id] ?? simulateAxe(axe)
+        })
+        setMesures(localData)
+        setKpis(computeKPIs(localData, axesRef.current))
+        setLastUpdate(new Date())
       }
     } catch (err) {
       console.error('TomTom refresh:', err)
