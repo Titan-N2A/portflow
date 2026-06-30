@@ -74,7 +74,7 @@ function Spinner({ msg }) {
 
 function GraphiquesPage() {
   // Les deux sources — toujours chargées pour que le switch soit instantané
-  const { data: collecteData, loading: collecteLoading } = useCollecteAuto(5000)
+  const { data: collecteData, loading: collecteLoading } = useCollecteAuto(8000)
   const { data: histoData,    loading: histoLoading    } = useHistoricalData()
   const { axes: firestoreAxes } = useAxesFirestore()
 
@@ -99,9 +99,30 @@ function GraphiquesPage() {
   // Compteurs pour les labels du sélecteur
   const liveCount = collecteData.filter(d => AXES_OFFICIELS_IDS.has(d.axeId)).length
 
+  // En mode live : filtrer aux dernières 24h (courbes, min/max, donut)
+  // et aux 7 derniers jours (heatmap) pour que les graphiques reflètent l'état actuel
+  function tsToMs(ts) {
+    if (!ts) return 0
+    return typeof ts.toMillis === 'function' ? ts.toMillis() : new Date(ts).getTime()
+  }
+
+  const data24h = useMemo(() => {
+    if (source !== 'live') return data
+    const cutoff = Date.now() - 24 * 60 * 60 * 1000
+    return data.filter(d => tsToMs(d.timestamp) >= cutoff)
+  }, [data, source])
+
+  const data7d = useMemo(() => {
+    if (source !== 'live') return data
+    const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+    return data.filter(d => tsToMs(d.timestamp) >= cutoff)
+  }, [data, source])
+
+  const live24hCount = data24h.filter(d => AXES_OFFICIELS_IDS.has(d.axeId)).length
+
   // ── Courbes 24h ─────────────────────────────────────────────
   const lineDatasets = useMemo(() => axeDefs.map(axe => {
-    const courbe = computeCourbe24h(data, axe.id, 'aller')
+    const courbe = computeCourbe24h(data24h, axe.id, 'aller')
     return {
       label:                axe.label,
       data:                 courbe.map(p => p.temps_moyen),
@@ -113,7 +134,7 @@ function GraphiquesPage() {
       pointHoverRadius:     6,
       pointBackgroundColor: axe.color,
     }
-  }), [data, axeDefs.map(a => a.id).join()])
+  }), [data24h, axeDefs.map(a => a.id).join()])
 
   const filteredLineDatasets = axeFilter === 'tous'
     ? lineDatasets
@@ -123,8 +144,8 @@ function GraphiquesPage() {
 
   // ── Heatmap ──────────────────────────────────────────────────
   const heatmapGrid = useMemo(
-    () => computeHeatmap(data, hmAxe, hmSens),
-    [data, hmAxe, hmSens],
+    () => computeHeatmap(data7d, hmAxe, hmSens),
+    [data7d, hmAxe, hmSens],
   )
 
   function getHeatCell(jour, heure) {
@@ -133,7 +154,7 @@ function GraphiquesPage() {
 
   // ── Min / Moyen / Max ────────────────────────────────────────
   const minMaxData = useMemo(() => {
-    const stats = computeMinMaxParAxe(data, axeDefs)
+    const stats = computeMinMaxParAxe(data24h, axeDefs)
     return {
       labels: axeDefs.map(a => a.label),
       datasets: [
@@ -142,10 +163,10 @@ function GraphiquesPage() {
         { label: 'Max',   data: stats.map(s => s.max), backgroundColor: 'rgba(192,57,43,0.85)',  borderRadius: 5, borderSkipped: false },
       ],
     }
-  }, [data, axeDefs.map(a => a.id).join()])
+  }, [data24h, axeDefs.map(a => a.id).join()])
 
   // ── Donut répartition niveaux ────────────────────────────────
-  const repartition = useMemo(() => computeRepartitionNiveaux(data, periode), [data, periode])
+  const repartition = useMemo(() => computeRepartitionNiveaux(data24h, periode), [data24h, periode])
   const donutData   = {
     labels: repartition.map(r => `${r.label} (${r.pct}%)`),
     datasets: [{
@@ -173,7 +194,7 @@ function GraphiquesPage() {
           <h1 style={{ fontSize: 20, fontWeight: 800, color: C.text }}>Graphiques</h1>
           <p style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>
             {source === 'live' ? (
-              <>Collecte TomTom · <strong>{liveCount}</strong> mesures (axes officiels) · juin 2026</>
+              <>Collecte live · <strong>{live24hCount}</strong> mesures (24h) · <strong>{liveCount}</strong> total</>
             ) : (
               <>Historique PAA · <strong>{histoData.length}</strong> mesures · Référence février 2025</>
             )}

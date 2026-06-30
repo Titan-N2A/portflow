@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, Polyline, Marker, Popup, ZoomControl } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, Marker, Popup, ZoomControl, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Clock, AlertTriangle, BarChart2, Gauge, RefreshCw, Zap, Activity } from 'lucide-react'
+import { Clock, AlertTriangle, BarChart2, Gauge, RefreshCw, Zap, X } from 'lucide-react'
 import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useTrafficData, AXES_OFFICIELS, REFRESH_MS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
@@ -97,8 +97,33 @@ function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge,
   )
 }
 
+// ── Zoom intelligent sur l'axe sélectionné ───────────────
+function MapZoomController({ selectedAxe, mesures }) {
+  const map     = useMap()
+  const mesRef  = useRef(mesures)
+  const mounted = useRef(false)
+  useEffect(() => { mesRef.current = mesures }, [mesures])
+
+  useEffect(() => {
+    if (!mounted.current) { mounted.current = true; return }
+    if (!selectedAxe) {
+      map.flyTo(PAA_CENTER, 13, { duration: 0.5 })
+      return
+    }
+    const m   = mesRef.current[selectedAxe.id]
+    const raw = (m?.geometry?.length > 5)             ? m.geometry
+      : (selectedAxe.geometryRoute?.length > 5)       ? selectedAxe.geometryRoute
+      : (selectedAxe.coordinates ?? [])
+    if (raw.length < 2) return
+    const lls = raw.map(p => Array.isArray(p) ? p : [p.lat, p.lng])
+    try { map.flyToBounds(L.latLngBounds(lls), { padding: [60, 60], maxZoom: 15, duration: 0.7 }) } catch {}
+  }, [selectedAxe?.id, map])
+
+  return null
+}
+
 // ── Dashboard Map ─────────────────────────────────────────
-function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
+function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedAxe, onAxeSelect }) {
   return (
     <MapContainer center={PAA_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false}>
       <TileLayer
@@ -106,6 +131,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
         attribution="&copy; OpenStreetMap"
       />
       <ZoomControl position="bottomright" />
+      <MapZoomController selectedAxe={selectedAxe} mesures={mesures} />
 
       {/* Axes polylines — utilise les axes Firestore dynamiques */}
       {axes.map((axe, idx) => {
@@ -122,9 +148,17 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons }) {
           : (axe.coordinates ?? [])
         if (positions.length < 2) return null
         // Opacité réduite si pas de données live — signal visuel "fallback identité"
-        const opacity = m ? 0.95 : 0.45
+        const opacity     = m ? 0.95 : 0.45
+        const isSelected  = selectedAxe?.id === axe.id
         return (
-          <Polyline key={axe.id} positions={positions} color={color} weight={7} opacity={opacity}>
+          <Polyline
+            key={axe.id}
+            positions={positions}
+            color={color}
+            weight={isSelected ? 11 : 7}
+            opacity={isSelected ? 1 : opacity}
+            eventHandlers={{ click: (e) => { e.originalEvent?.stopPropagation?.(); onAxeSelect(axe) } }}
+          >
             <Popup>
               <strong style={{ color }}>{axe.nom}</strong><br />
               {isPrevision ? (
@@ -355,11 +389,16 @@ function DashboardPage() {
   const { mesures, kpis, loading, lastUpdate, refresh, refreshing } = useTrafficData(axes)
   const { predictions, meta: predMeta } = usePredictions()
   const isMobile = useIsMobile()
-  const [mapMode,    setMapMode]    = useState('live')
-  const [iaText,     setIaText]     = useState('')
-  const [iaLoading,  setIaLoading]  = useState(false)
-  const [countdown,  setCountdown]  = useState(REFRESH_MS / 1000)
-  const [flashKpis,  setFlashKpis]  = useState(false)
+  const [mapMode,      setMapMode]      = useState('live')
+  const [selectedAxe,  setSelectedAxe]  = useState(null)
+  const [iaText,       setIaText]       = useState('')
+  const [iaLoading,    setIaLoading]    = useState(false)
+  const [countdown,    setCountdown]    = useState(REFRESH_MS / 1000)
+  const [flashKpis,    setFlashKpis]    = useState(false)
+
+  function handleAxeSelect(axe) {
+    setSelectedAxe(prev => prev?.id === axe.id ? null : axe)
+  }
 
   // Countdown vers la prochaine actualisation
   useEffect(() => {
@@ -487,7 +526,7 @@ function DashboardPage() {
           position: 'relative', borderRadius: '10px', overflow: 'hidden',
           boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
         }}>
-          <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} troncons={troncons} />
+          <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} troncons={troncons} selectedAxe={selectedAxe} onAxeSelect={handleAxeSelect} />
 
           {/* Boutons superposés */}
           <div style={{
@@ -516,6 +555,76 @@ function DashboardPage() {
           display: 'flex', flexDirection: 'column', gap: '0.75rem',
           overflowY: isMobile ? 'visible' : 'auto',
         }}>
+
+          {/* ── Panneau axe sélectionné ───────────────────────── */}
+          {selectedAxe && (() => {
+            const m        = mesures[selectedAxe.id]
+            const niveau   = m?.niveau ?? 0
+            const axeColor = AXE_COLORS[selectedAxe.id] ?? C.primary
+            const color    = niveau > 0 ? levelColor(niveau) : axeColor
+            return (
+              <div className="fp-card" style={{ padding: '1rem', borderTop: `3px solid ${color}`, flexShrink: 0 }}>
+
+                {/* En-tête */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.65rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 3, height: 30, borderRadius: 2, background: color, flexShrink: 0 }} />
+                    <div>
+                      <p style={{ fontSize: 13, fontWeight: 800, color: C.text, lineHeight: 1.2 }}>{selectedAxe.shortNom ?? selectedAxe.nom}</p>
+                      <p style={{ fontSize: 10, color: C.textMuted, marginTop: 2 }}>{selectedAxe.distance} · Réf. {selectedAxe.tRef} min</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setSelectedAxe(null)} style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: C.textMuted, padding: 4, borderRadius: 4,
+                    display: 'flex', alignItems: 'center',
+                  }}>
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {/* Badge niveau */}
+                <div style={{ textAlign: 'center', marginBottom: '0.65rem' }}>
+                  <span style={{
+                    padding: '3px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700,
+                    background: levelBg(niveau || 1), color: levelColor(niveau || 1),
+                    border: `1px solid ${levelColor(niveau || 1)}40`,
+                  }}>
+                    {niveau > 0 ? `N${niveau} — ${levelLabel(niveau)}` : 'En attente de données'}
+                  </span>
+                </div>
+
+                {/* Grille 2×2 indicateurs */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                  {[
+                    { label: 'Temps aller', value: m?.tempsLive,   unit: 'min',  c: color },
+                    { label: 'Vitesse',     value: m?.vitesse,     unit: 'km/h', c: C.success },
+                    {
+                      label: 'Retard',
+                      value: m?.retard != null ? (m.retard >= 0 ? `+${m.retard}` : m.retard) : '—',
+                      unit: 'min',
+                      c: m?.retard > 0 ? C.danger : C.success,
+                    },
+                    { label: 'Ratio ×',    value: m?.ratio?.toFixed(2), unit: '', c: color },
+                  ].map(({ label, value, unit, c }) => (
+                    <div key={label} style={{ background: '#f8fafc', borderRadius: 6, padding: '7px 8px', textAlign: 'center' }}>
+                      <p style={{ fontSize: 9, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{label}</p>
+                      <p style={{ fontSize: 18, fontWeight: 800, color: c, lineHeight: 1 }}>{value ?? '—'}</p>
+                      {unit && <p style={{ fontSize: 9, color: C.textLight, marginTop: 2 }}>{unit}</p>}
+                    </div>
+                  ))}
+                </div>
+
+                {/* Temps retour si disponible */}
+                {selectedAxe.bidirectionnel && m?.tempsRetour && (
+                  <div style={{ marginTop: 6, padding: '5px 10px', background: '#f8fafc', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 11, color: C.textMuted }}>Retour</span>
+                    <span style={{ fontSize: 14, fontWeight: 700, color: color }}>{m.tempsRetour} min</span>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
 
           {/* Alertes actives (live) ou prédictives (prevision) */}
           {mapMode === 'prevision' ? (

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore'
+import { collection, onSnapshot, doc, setDoc, query, orderBy, limit } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { DEFAULT_AXES, AXE_COLORS } from '../data/defaultData'
 import { fetchAllAxes } from '../services/tomtom'
@@ -81,8 +81,34 @@ export function useTrafficData(axes = DEFAULT_AXES) {
   const [lastUpdate,      setLastUpdate]      = useState(null)
   const [refreshing,      setRefreshing]      = useState(false)
 
-  const axesRef = useRef(axes)
+  const axesRef     = useRef(axes)
+  const mesuresSnap = useRef({})
+
   useEffect(() => { axesRef.current = axes }, [axes])
+  useEffect(() => { mesuresSnap.current = mesures }, [mesures])
+
+  // Quand les axes changent (modification Admin → tRef, etc.),
+  // recalcule immédiatement niveau/ratio/retard sans attendre le prochain snapshot
+  useEffect(() => {
+    const prev = mesuresSnap.current
+    if (!axes.length || !Object.keys(prev).length) return
+    const updated = {}
+    axes.forEach(axe => {
+      const m = prev[axe.id]
+      if (!m) return
+      const tRef = axe.tRef ?? 20
+      updated[axe.id] = {
+        ...m,
+        ratio:  Math.round(m.tempsLive / tRef * 100) / 100,
+        niveau: computeNiveau(m.tempsLive / tRef),
+        retard: Math.round((m.tempsLive - tRef) * 10) / 10,
+      }
+    })
+    if (Object.keys(updated).length > 0) {
+      setMesures(updated)
+      setKpis(computeKPIs(updated, axes))
+    }
+  }, [axes])
 
   const refresh = useCallback(async () => {
     setRefreshing(true)
@@ -97,11 +123,13 @@ export function useTrafficData(axes = DEFAULT_AXES) {
           const axe = axesRef.current.find(a => a.id === axeId)
           if (!axe || m.simulated) return
           axesReels++
+          // distance peut être '12.4 km' (string) ou un number — on extrait le nombre
+          const distKm = parseFloat(axe.dist ?? axe.distance) || 0
           await setDoc(doc(db, 'mesures_live', `${axeId}_aller`), {
             axeId, sens: 'aller',
             nom:       `${axe.shortNom} (aller)`,
             temps_min: m.tempsLive,
-            dist_km:   axe.dist,
+            dist_km:   distKm,
             niveau:    m.niveau,
             vitesse:   m.vitesse,
             retard:    m.retard,
@@ -114,9 +142,9 @@ export function useTrafficData(axes = DEFAULT_AXES) {
               axeId, sens: 'retour',
               nom:       `${axe.shortNom} (retour)`,
               temps_min: m.tempsRetour,
-              dist_km:   axe.dist,
+              dist_km:   distKm,
               niveau:    computeNiveau(r2),
-              vitesse:   Math.round((axe.dist / m.tempsRetour) * 60 * 10) / 10,
+              vitesse:   distKm > 0 ? Math.round((distKm / m.tempsRetour) * 60 * 10) / 10 : 0,
               retard:    Math.round((m.tempsRetour - axe.tRef) * 10) / 10,
               timestamp: now,
               source:    'tomtom_live',
@@ -161,6 +189,45 @@ export function useTrafficData(axes = DEFAULT_AXES) {
 
     return () => { unsubscribe(); clearInterval(interval) }
   }, [refresh])
+
+  // Écoute collecte_auto pour mettre à jour les KPIs quand GitHub Actions tourne
+  useEffect(() => {
+    const q = query(
+      collection(db, 'collecte_auto'),
+      orderBy('timestamp', 'desc'),
+      limit(30)
+    )
+
+    const unsubCollecte = onSnapshot(q, (snap) => {
+      // Extrait la mesure la plus récente par (axeId, sens)
+      const latest = {}
+      snap.docs.forEach(d => {
+        const r = d.data()
+        if (!r.axeId || !r.sens || !r.temps_min) return
+        const key = `${r.axeId}_${r.sens}`
+        if (!latest[key]) latest[key] = r  // desc → premier = plus récent
+      })
+
+      // 'aller' doit être traité avant 'retour' dans buildMesures
+      const sorted = Object.values(latest).sort((a, b) =>
+        a.sens === 'aller' ? -1 : b.sens === 'aller' ? 1 : 0
+      )
+
+      const data = buildMesures(
+        { forEach: cb => sorted.forEach(r => cb({ data: () => r })) },
+        axesRef.current
+      )
+
+      if (Object.keys(data).length > 0) {
+        setMesures(data)
+        setKpis(computeKPIs(data, axesRef.current))
+        setLastUpdate(new Date())
+        setLoading(false)
+      }
+    }, err => console.error('collecte_auto → dashboard:', err))
+
+    return () => unsubCollecte()
+  }, [])
 
   const mesuresAvecRetour = useMemo(() => {
     if (Object.keys(geometryRetours).length === 0) return mesures
