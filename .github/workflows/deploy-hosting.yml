@@ -1,4 +1,4 @@
-name: Deploy FlowPort — Firebase Hosting
+name: Deploy PortFlow — Firebase Hosting
 
 on:
   push:
@@ -17,32 +17,27 @@ jobs:
           cache: npm
 
       - name: Installer les dépendances
-        run: npm install
+        run: npm ci
 
       - name: Build production
         run: npm run build
         env:
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          # Valeurs publiques Firebase (non sensibles — embarquées dans tout app web Firebase)
+          VITE_FIREBASE_API_KEY: AIzaSyAnjGSgFXIB1cSvslFbUdiTjB6zrUmHhwc
           VITE_FIREBASE_AUTH_DOMAIN: portflow-46738.firebaseapp.com
           VITE_FIREBASE_PROJECT_ID: portflow-46738
-          VITE_FIREBASE_STORAGE_BUCKET: portflow-46738.firebasestorage.app
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: portflow-46738.appspot.com
+          VITE_FIREBASE_MESSAGING_SENDER_ID: "330399151120"
+          VITE_FIREBASE_APP_ID: 1:330399151120:web:9e3116bb2b6ba6c3598695
+          # Clés API (à ajouter dans GitHub Settings → Secrets → Actions)
           VITE_TOMTOM_API_KEY: ${{ secrets.VITE_TOMTOM_API_KEY }}
           VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
           VITE_GOOGLE_MATRIX_API_KEY: ${{ secrets.VITE_GOOGLE_MATRIX_API_KEY }}
 
-      - name: Installer Firebase CLI
-        run: npm install -g firebase-tools
-
       - name: Déployer sur Firebase Hosting
-        run: |
-          firebase deploy --only hosting --project portflow-46738 --non-interactive 2>&1 | tee /tmp/deploy.log
-          EXIT=${PIPESTATUS[0]}
-          if [ $EXIT -ne 0 ] && grep -q "is the current active version" /tmp/deploy.log; then
-            echo "✅ Version déjà active sur Firebase — déploiement considéré réussi."
-            exit 0
-          fi
-          exit $EXIT
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_PORTFLOW_46738 }}
+          projectId: portflow-46738
+          channelId: live
