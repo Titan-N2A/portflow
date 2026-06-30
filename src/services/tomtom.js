@@ -8,8 +8,8 @@ const SODECI_PT = { lat: 5.313880, lng: -4.010854 }
 
 export const DEFAULT_ROUTES = [
   { id: 'axe1', shortNom: 'CARENA',      from: CARENA,    to: PALM, dist: 12.4, tRef: 27.4, bidirectionnel: true  },
-  { id: 'axe2', shortNom: 'Toyota CFAO', from: CFAO,      to: PALM, dist:  7.0, tRef: 16.9, bidirectionnel: false },
-  { id: 'axe3', shortNom: 'SODECI',      from: SODECI_PT, to: PALM, dist: 10.9, tRef: 17.8, bidirectionnel: false },
+  { id: 'axe2', shortNom: 'Toyota CFAO', from: CFAO,      to: PALM, dist:  7.0, tRef: 16.9, bidirectionnel: true  },
+  { id: 'axe3', shortNom: 'SODECI',      from: SODECI_PT, to: PALM, dist: 10.9, tRef: 17.8, bidirectionnel: true  },
 ]
 
 function computeNiveau(ratio) {
@@ -40,24 +40,50 @@ async function fetchAxeRoute(axe) {
 }
 
 // ── OSRM — routage libre sans clé API (OpenStreetMap) ────────
-// Utilisé pour la sélection d'itinéraire dans l'admin.
+// Utilisé comme fallback si TomTom est indisponible.
 // OSRM utilise lng,lat (inverse de Leaflet) — on convertit à la sortie.
+// alternatives : false | true (→3) | nombre entier (1-3, limité par OSRM)
 async function fetchOSRM(waypoints, alternatives = false) {
-  // waypoints : [[lat,lng], ...]
   const coords = waypoints.map(([lat, lng]) => `${lng},${lat}`).join(';')
-  const url = `https://router.project-osrm.org/route/v1/driving/${coords}` +
-    `?overview=full&geometries=geojson${alternatives ? '&alternatives=3' : ''}`
+  const n      = typeof alternatives === 'number' ? Math.min(alternatives, 3) : (alternatives ? 3 : 0)
+  const url    = `https://router.project-osrm.org/route/v1/driving/${coords}` +
+    `?overview=full&geometries=geojson${n > 0 ? `&alternatives=${n}` : ''}`
   const res  = await fetch(url)
   if (!res.ok) throw new Error(`OSRM ${res.status}`)
   const data = await res.json()
   if (data.code !== 'Ok' || !data.routes?.length) throw new Error('Aucun itinéraire disponible')
   return data.routes.map((r, i) => ({
     index:    i,
-    label:    `Itinéraire ${i + 1}`,
-    distance: Math.round(r.distance / 100) / 10,          // m → km
-    duration: Math.round(r.duration / 60),                 // s → min
-    geometry: r.geometry.coordinates.map(([lng, lat]) => [lat, lng]), // lng,lat → lat,lng
+    label:    i === 0 ? 'Itinéraire principal (OSRM)' : `Alternative ${i} (OSRM)`,
+    distance: Math.round(r.distance / 100) / 10,
+    duration: Math.round(r.duration / 60),
+    geometry: r.geometry.coordinates.map(([lng, lat]) => [lat, lng]),
   }))
+}
+
+// ── TomTom alternatives — jusqu'à 5 tracés avec données trafic réel ──
+// L'API TomTom Routing v1 limite maxAlternatives à 5.
+async function fetchTomTomAlternatives(from, to, maxAlts) {
+  const n   = Math.min(Math.max(1, maxAlts), 5)
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/` +
+    `${from[0]},${from[1]}:${to[0]},${to[1]}/json` +
+    `?key=${TOMTOM_KEY}&traffic=true&travelMode=car&maxAlternatives=${n}`
+  const res  = await fetch(url)
+  if (!res.ok) throw new Error(`TomTom ${res.status}`)
+  const data = await res.json()
+  if (!data.routes?.length) throw new Error('Aucun itinéraire TomTom')
+  return data.routes.map((route, i) => {
+    const secs    = route.summary?.travelTimeInSeconds ?? 0
+    const points  = route.legs?.flatMap(l => l.points) ?? []
+    const distM   = route.summary?.lengthInMeters ?? 0
+    return {
+      index:    i,
+      label:    i === 0 ? 'Itinéraire optimal (TomTom)' : `Alternative ${i} (TomTom)`,
+      distance: Math.round(distM / 100) / 10,
+      duration: Math.round(secs / 60),
+      geometry: points.map(p => [p.latitude, p.longitude]),
+    }
+  })
 }
 
 // Vérifie si un point GPS est sur une route (OSRM nearest)
@@ -78,20 +104,32 @@ export async function nearestRoad(lat, lng) {
 }
 
 // Alternatives d'itinéraire départ→arrivée (choix du tracé dans l'admin)
-export async function fetchRouteAlternatives(fromCoord, toCoord) {
+// maxAlts : nombre d'alternatives souhaitées (TomTom max=5, OSRM fallback max=3)
+// Stratégie : TomTom en priorité (trafic réel) → OSRM si clé absente ou erreur
+export async function fetchRouteAlternatives(fromCoord, toCoord, maxAlts = 5) {
   const from = Array.isArray(fromCoord) ? fromCoord : [fromCoord.lat, fromCoord.lng]
   const to   = Array.isArray(toCoord)   ? toCoord   : [toCoord.lat,   toCoord.lng]
-  return fetchOSRM([from, to], true)
+  if (TOMTOM_KEY) {
+    try {
+      return await fetchTomTomAlternatives(from, to, maxAlts)
+    } catch {
+      // TomTom indisponible → fallback OSRM
+    }
+  }
+  return fetchOSRM([from, to], Math.min(maxAlts, 3))
 }
 
 // Route passant par TOUS les waypoints (points intermédiaires)
-export async function computeMultiStopRoute(coordsArray) {
+// withAlternatives = true uniquement pour 2 points (OSRM ne supporte pas les alternatives multi-stops)
+export async function computeMultiStopRoute(coordsArray, withAlternatives = false) {
   const pts = coordsArray
     .map(p => Array.isArray(p) ? p : [p.lat, p.lng])
     .filter(([lat, lng]) => !isNaN(lat) && !isNaN(lng))
   if (pts.length < 2) return null
-  const routes = await fetchOSRM(pts, false)
+  const canAlt = withAlternatives && pts.length === 2
+  const routes = await fetchOSRM(pts, canAlt)
   if (!routes.length) return null
+  if (canAlt) return routes  // retourne le tableau complet pour MiniMapPreview
   return { geometry: routes[0].geometry, distance: routes[0].distance, duration: routes[0].duration }
 }
 

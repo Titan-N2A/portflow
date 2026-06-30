@@ -10,8 +10,8 @@ Le PAA est le premier port d'Afrique de l'Ouest. Il traite conteneurs, marchandi
 
 AXES SURVEILLÉS PAR FLOWPORT :
 • Axe CARENA (Axe 1) : CARENA (Plateau) → Pharmacie Palm Beach — 12,4 km — T_ref : 27,4 min — bidirectionnel (aller + retour). Principal axe d'accès depuis le centre-ville d'Abidjan.
-• Axe Toyota CFAO (Axe 2) : Toyota CFAO → Pharmacie Palm Beach — 7,0 km — T_ref : 16,9 min. Axe depuis le boulevard de Marseille, majoritairement utilisé par les poids lourds.
-• Axe SODECI (Axe 3) : SODECI → Pharmacie Palm Beach — 10,9 km — T_ref : 17,8 min. Dessert la zone industrielle de Vridi et les terminaux pétroliers.
+• Axe Toyota CFAO (Axe 2) : Toyota CFAO → Pharmacie Palm Beach — 7,0 km — T_ref : 16,9 min — bidirectionnel (aller + retour). Axe depuis le boulevard de Marseille, majoritairement utilisé par les poids lourds.
+• Axe SODECI (Axe 3) : SODECI → Pharmacie Palm Beach — 10,9 km — T_ref : 17,8 min — bidirectionnel (aller + retour). Dessert la zone industrielle de Vridi et les terminaux pétroliers.
 → Les 3 axes convergent vers la Pharmacie Palm Beach, point de convergence principale d'accès au port.
 
 NIVEAUX DE CONGESTION (ratio = temps_live / T_ref) :

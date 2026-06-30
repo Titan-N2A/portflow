@@ -3,7 +3,11 @@
     "modele": "RandomForestClassifier",
     "accuracy": 0.7918,
     "date_entrainement": "2026-06-19T11:06:21.470417",
-    "note": "POC niveau axe — base réelle février 2025 (2016 mesures)"
+    "note": "POC niveau axe — base réelle février 2025 (2016 mesures). Exporter collecte_auto pour enrichir.",
+    "n_records_histo": 2016,
+    "n_records_live": 0,
+    "n_records_total": 2016,
+    "sources": ["portflow_mesures_normalisees.csv (2016 mesures, fév. 2025)"]
   },
   "predictions": {
     "axe1_aller_lundi_7h": {

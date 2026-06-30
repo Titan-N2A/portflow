@@ -1,9 +1,10 @@
+import { C, levelColor, levelLabel } from '../../styles/tokens'
 import { getJourLabel, getForecastJour, detectEpisodes } from '../../services/predictions'
-import { tokens, getTrafficColor, getTrafficLabel } from '../../styles/tokens'
 import { AXES_DATA } from '../../data/axes'
 
 function AlertesPredictives({ predictions, meta }) {
   const jourLabel = getJourLabel()
+  const nLive     = meta?.n_records_live ?? 0
 
   const alertes = AXES_DATA.flatMap(axe =>
     axe.sens.map(sens => {
@@ -14,166 +15,86 @@ function AlertesPredictives({ predictions, meta }) {
   ).filter(a => a.episodes.length > 0)
 
   return (
-    <div
-      className="pf-card"
-      style={{
-        background:    tokens.colors.bg.surface,
-        borderRadius:  tokens.radius.md,
-        padding:       tokens.spacing.card,
-        border:        `1px solid ${tokens.colors.bg.border}`,
-        position:      'relative',
-        overflow:      'hidden',
-      }}
-    >
-      {/* Accent top line — orange pour alertes */}
-      <div style={{
-        position: 'absolute', top: 0, left: 0, right: 0, height: '2px',
-        background: `linear-gradient(90deg, transparent, ${tokens.colors.accent.secondary}, transparent)`,
-        opacity: alertes.length > 0 ? 1 : 0.35,
-      }} />
-
+    <div className="fp-card" style={{ padding: '1rem' }}>
       {/* Header */}
-      <div style={{
-        display:        'flex',
-        justifyContent: 'space-between',
-        alignItems:     'center',
-        marginBottom:   '1rem',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <span style={{ fontSize: '1rem' }}>🔮</span>
-          <div>
-            <h3 style={{
-              color:         tokens.colors.text.primary,
-              margin:        0,
-              fontSize:      '0.9rem',
-              fontFamily:    tokens.fonts.ui,
-              fontWeight:    600,
-            }}>
-              Alertes prédictives
-            </h3>
-            <p style={{
-              color:      tokens.colors.text.muted,
-              fontSize:   '0.68rem',
-              fontFamily: tokens.fonts.data,
-              margin:     '2px 0 0',
-              letterSpacing: '0.06em',
-            }}>
-              {jourLabel.toUpperCase()}
-            </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+        <span style={{ fontSize: '1rem' }}>🔮</span>
+        <div style={{ flex: 1 }}>
+          <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>Alertes prédictives</span>
+          <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'monospace', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: 1 }}>
+            {jourLabel}
           </div>
         </div>
-
         {meta && (
           <div style={{
-            display:      'flex',
-            alignItems:   'center',
-            gap:          '6px',
-            padding:      '4px 10px',
-            background:   tokens.colors.bg.elevated,
-            borderRadius: tokens.radius.full,
-            border:       `1px solid ${tokens.colors.bg.border}`,
+            padding: '3px 10px', borderRadius: '999px',
+            background: C.bg, border: `1px solid ${C.border}`,
+            display: 'flex', alignItems: 'center', gap: 5,
           }}>
-            <div style={{
-              width: '6px', height: '6px',
-              background: tokens.colors.accent.primary,
-              borderRadius: '50%',
-              boxShadow: `0 0 6px ${tokens.colors.accent.primary}`,
-            }} />
-            <span style={{
-              color:      tokens.colors.text.secondary,
-              fontSize:   '0.68rem',
-              fontFamily: tokens.fonts.data,
-              fontWeight: 700,
-            }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: C.primary, boxShadow: `0 0 6px ${C.primary}` }} />
+            <span style={{ fontSize: 11, color: C.textMuted, fontFamily: 'monospace', fontWeight: 700 }}>
               {Math.round(meta.accuracy * 100)}% précision
             </span>
           </div>
         )}
       </div>
 
-      {/* Contenu */}
+      {/* Avertissement volume insuffisant */}
+      {nLive === 0 && (
+        <div style={{
+          padding: '0.45rem 0.7rem', borderRadius: '6px',
+          background: '#FFFBEA', border: `1px solid ${C.warning}40`,
+          fontSize: 11, color: C.textMuted, marginBottom: '0.65rem', lineHeight: 1.5,
+        }}>
+          <strong style={{ color: C.warning }}>ℹ</strong> Modèle entraîné sur l'historique PAA fév. 2025 uniquement.
+          Pour intégrer les données live, exporter Firestore <code>collecte_auto</code> → <code>ml/collecte_auto.csv</code> puis relancer <code>train_model.py</code>.
+        </div>
+      )}
+
+      {/* Alertes */}
       {alertes.length === 0 ? (
         <div style={{
-          display:      'flex',
-          alignItems:   'center',
-          gap:          '10px',
-          padding:      '0.75rem 1rem',
-          background:   'rgba(0,229,160,0.06)',
-          borderRadius: tokens.radius.sm,
-          border:       '1px solid rgba(0,229,160,0.18)',
+          display: 'flex', alignItems: 'center', gap: '10px',
+          padding: '0.5rem 0.75rem', borderRadius: '6px',
+          background: `${C.n1}10`, border: `1px solid ${C.n1}30`,
         }}>
-          <span style={{ fontSize: '1.1rem' }}>✓</span>
-          <span style={{ color: tokens.colors.traffic.fluid, fontSize: '0.82rem', fontWeight: 600 }}>
+          <span>✓</span>
+          <span style={{ fontSize: 12, color: C.n1, fontWeight: 600 }}>
             Aucune congestion notable prévue aujourd'hui.
           </span>
         </div>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
           {alertes.map(({ axe, sens, episodes }) =>
             episodes.map((ep, i) => {
-              const couleur = getTrafficColor(ep.niveauMax)
+              const couleur = levelColor(ep.niveauMax)
               return (
-                <div
-                  key={`${axe.id}-${sens}-${i}`}
-                  style={{
-                    display:        'flex',
-                    justifyContent: 'space-between',
-                    alignItems:     'center',
-                    background:     tokens.colors.bg.elevated,
-                    borderLeft:     `3px solid ${couleur}`,
-                    borderRadius:   tokens.radius.sm,
-                    padding:        '0.65rem 0.9rem',
-                    gap:            '8px',
-                    flexWrap:       'wrap',
-                  }}
-                >
+                <div key={`${axe.id}-${sens}-${i}`} style={{
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                  background: C.bg, borderLeft: `3px solid ${couleur}`,
+                  borderRadius: '6px', padding: '0.5rem 0.75rem', gap: '8px', flexWrap: 'wrap',
+                }}>
                   <div>
-                    <div style={{
-                      color:      tokens.colors.text.primary,
-                      fontWeight: 600,
-                      fontSize:   '0.82rem',
-                      fontFamily: tokens.fonts.ui,
-                    }}>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: C.text }}>
                       {axe.nom.split(' — ')[0]}
-                      <span style={{
-                        color:      tokens.colors.text.muted,
-                        fontWeight: 400,
-                        marginLeft: '6px',
-                        fontSize:   '0.75rem',
-                      }}>
+                      <span style={{ color: C.textMuted, fontWeight: 400, marginLeft: '6px', fontSize: 11 }}>
                         ({sens})
                       </span>
                     </div>
-                    <div style={{
-                      color:      tokens.colors.text.secondary,
-                      fontSize:   '0.75rem',
-                      fontFamily: tokens.fonts.data,
-                      marginTop:  '2px',
-                    }}>
+                    <div style={{ fontSize: 11, color: C.textMuted, fontFamily: 'monospace', marginTop: 2 }}>
                       {ep.heureDebut}h – {ep.heureFin + 1}h
                     </div>
                   </div>
-
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                     <span style={{
-                      padding:      '3px 10px',
-                      borderRadius: tokens.radius.full,
-                      background:   couleur + '18',
-                      border:       `1px solid ${couleur}40`,
-                      color:        couleur,
-                      fontSize:     '0.7rem',
-                      fontWeight:   700,
-                      fontFamily:   tokens.fonts.ui,
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
+                      padding: '2px 8px', borderRadius: '999px',
+                      background: `${couleur}18`, border: `1px solid ${couleur}40`,
+                      color: couleur, fontSize: 10, fontWeight: 700,
+                      textTransform: 'uppercase', letterSpacing: '0.05em',
                     }}>
-                      {getTrafficLabel(ep.niveauMax)}
+                      {levelLabel(ep.niveauMax)}
                     </span>
-                    <span style={{
-                      color:      tokens.colors.text.muted,
-                      fontSize:   '0.7rem',
-                      fontFamily: tokens.fonts.data,
-                    }}>
+                    <span style={{ fontSize: 11, color: C.textMuted, fontFamily: 'monospace' }}>
                       {ep.confianceMoyenne}%
                     </span>
                   </div>
@@ -184,14 +105,9 @@ function AlertesPredictives({ predictions, meta }) {
         </div>
       )}
 
-      <p style={{
-        color:      tokens.colors.text.muted,
-        fontSize:   '0.65rem',
-        fontFamily: tokens.fonts.data,
-        marginTop:  '0.75rem',
-        letterSpacing: '0.04em',
-      }}>
-        POC · prévisions RF basées sur l'historique PAA — février 2025
+      <p style={{ fontSize: 10, color: C.textLight, marginTop: '0.65rem', fontFamily: 'monospace', letterSpacing: '0.04em' }}>
+        RF · {meta?.n_records_total ?? 2016} mesures
+        {nLive > 0 ? ` (dont ${nLive} live)` : ' · historique seul'}
       </p>
     </div>
   )

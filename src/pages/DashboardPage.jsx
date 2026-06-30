@@ -7,6 +7,7 @@ import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
+import AlertesPredictives from '../components/Dashboard/AlertesPredictives'
 import { AXE_COLORS, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -346,7 +347,7 @@ function DashboardPage() {
 
   // Données trafic TomTom (calculées sur les axes Firestore)
   const { mesures, kpis, loading, lastUpdate, refresh } = useTrafficData(axes)
-  const { predictions } = usePredictions()
+  const { predictions, meta: predMeta } = usePredictions()
   const isMobile = useIsMobile()
   const [mapMode, setMapMode]         = useState('live')
   const [iaText,  setIaText]          = useState('')
@@ -471,36 +472,40 @@ function DashboardPage() {
           overflowY: isMobile ? 'visible' : 'auto',
         }}>
 
-          {/* Alertes actives */}
-          <div className="fp-card" style={{ padding: '1rem' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
-              <AlertTriangle size={15} color={C.danger} />
-              <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>Alertes actives</span>
-              <span className="fp-badge fp-badge-red" style={{ marginLeft: 'auto' }}>
-                {kpis?.alertes?.length ?? 0}
-              </span>
-            </div>
-            {kpis?.alertes?.length ? (
-              kpis.alertes.map(({ axe, mesure }) => (
-                <div key={axe.id} style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                  padding: '0.5rem 0', borderBottom: `1px solid ${C.borderLight}`,
-                }}>
-                  <div>
-                    <p style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{axe.shortNom}</p>
-                    <p style={{ fontSize: 11, color: C.textMuted }}>{mesure.tempsLive} min · +{mesure.retard} min</p>
+          {/* Alertes actives (live) ou prédictives (prevision) */}
+          {mapMode === 'prevision' ? (
+            <AlertesPredictives predictions={predictions} meta={predMeta} />
+          ) : (
+            <div className="fp-card" style={{ padding: '1rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
+                <AlertTriangle size={15} color={C.danger} />
+                <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>Alertes actives</span>
+                <span className="fp-badge fp-badge-red" style={{ marginLeft: 'auto' }}>
+                  {kpis?.alertes?.length ?? 0}
+                </span>
+              </div>
+              {kpis?.alertes?.length ? (
+                kpis.alertes.map(({ axe, mesure }) => (
+                  <div key={axe.id} style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    padding: '0.5rem 0', borderBottom: `1px solid ${C.borderLight}`,
+                  }}>
+                    <div>
+                      <p style={{ fontSize: 12, fontWeight: 600, color: C.text }}>{axe.shortNom}</p>
+                      <p style={{ fontSize: 11, color: C.textMuted }}>{mesure.tempsLive} min · +{mesure.retard} min</p>
+                    </div>
+                    <div style={{
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: levelColor(mesure.niveau),
+                      boxShadow: `0 0 6px ${levelColor(mesure.niveau)}80`,
+                    }} />
                   </div>
-                  <div style={{
-                    width: 10, height: 10, borderRadius: '50%',
-                    background: levelColor(mesure.niveau),
-                    boxShadow: `0 0 6px ${levelColor(mesure.niveau)}80`,
-                  }} />
-                </div>
-              ))
-            ) : (
-              <p style={{ fontSize: 12, color: C.textMuted }}>Aucune alerte — trafic fluide</p>
-            )}
-          </div>
+                ))
+              ) : (
+                <p style={{ fontSize: 12, color: C.textMuted }}>Aucune alerte — trafic fluide</p>
+              )}
+            </div>
+          )}
 
           {/* IA FlowPort */}
           <div className="fp-card" style={{ padding: '1rem', flex: 1 }}>

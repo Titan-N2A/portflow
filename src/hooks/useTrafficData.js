@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { collection, onSnapshot, doc, setDoc } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { DEFAULT_AXES, AXE_COLORS } from '../data/defaultData'
@@ -92,10 +92,11 @@ function buildMesures(snapshot, axes) {
 }
 
 export function useTrafficData(axes = DEFAULT_AXES) {
-  const [mesures,    setMesures]    = useState({})
-  const [kpis,       setKpis]       = useState(null)
-  const [loading,    setLoading]    = useState(true)
-  const [lastUpdate, setLastUpdate] = useState(null)
+  const [mesures,         setMesures]         = useState({})
+  const [geometryRetours, setGeometryRetours] = useState({})
+  const [kpis,            setKpis]            = useState(null)
+  const [loading,         setLoading]         = useState(true)
+  const [lastUpdate,      setLastUpdate]      = useState(null)
 
   const axesRef = useRef(axes)
   useEffect(() => { axesRef.current = axes }, [axes])
@@ -105,6 +106,7 @@ export function useTrafficData(axes = DEFAULT_AXES) {
     try {
       const results = await fetchAllAxes(axesRef.current)
       const now = new Date().toISOString()
+      const retours = {}
       await Promise.all(
         Object.entries(results).map(async ([axeId, m]) => {
           const axe = axesRef.current.find(a => a.id === axeId)
@@ -135,8 +137,15 @@ export function useTrafficData(axes = DEFAULT_AXES) {
               source:    'tomtom_live',
             })
           }
+          // Mémoriser la géométrie de retour TomTom pour l'affichage du tracé retour
+          if (m.geometryRetour?.length > 5) {
+            retours[axeId] = m.geometryRetour
+          }
         })
       )
+      if (Object.keys(retours).length > 0) {
+        setGeometryRetours(prev => ({ ...prev, ...retours }))
+      }
     } catch (err) {
       console.error('TomTom refresh:', err)
     }
@@ -173,5 +182,15 @@ export function useTrafficData(axes = DEFAULT_AXES) {
     }
   }, [refresh])
 
-  return { mesures, kpis, loading, lastUpdate, refresh }
+  // Fusionne les géométries retour TomTom (en mémoire) avec les mesures Firestore
+  const mesuresAvecRetour = useMemo(() => {
+    if (Object.keys(geometryRetours).length === 0) return mesures
+    const merged = { ...mesures }
+    Object.entries(geometryRetours).forEach(([axeId, geom]) => {
+      if (merged[axeId]) merged[axeId] = { ...merged[axeId], geometryRetour: geom }
+    })
+    return merged
+  }, [mesures, geometryRetours])
+
+  return { mesures: mesuresAvecRetour, kpis, loading, lastUpdate, refresh }
 }

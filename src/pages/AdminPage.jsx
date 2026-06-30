@@ -422,7 +422,7 @@ function parseGoogleMapsCoords(raw) {
 // URL Google Maps centrée sur Port-Bouët / PAA Abidjan
 const GM_BASE_URL = 'https://www.google.com/maps/@5.304290,-4.023577,15z'
 
-const ALT_COLORS = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD']
+const ALT_COLORS = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#16A085']
 
 // Icône étiquette délimitation tronçon (dans le formulaire admin)
 function makeTronconLabel(label, color) {
@@ -512,7 +512,7 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
         onRouteSelected?.(alt)
       } else {
         // Départ → arrivée directs → propose les alternatives TomTom
-        const alts = await fetchRouteAlternatives(positions[0], positions[positions.length - 1], 3)
+        const alts = await fetchRouteAlternatives(positions[0], positions[positions.length - 1], 5)
         setAlternatives(alts)
         if (alts.length === 1) {
           setSelectedIdx(0)
@@ -675,7 +675,13 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
             )
           })}
           {(alternatives.length > 0 || positions.length >= 2) && (
-            <FitBoundsHelper positions={alternatives[0]?.geometry ?? positions} />
+            <FitBoundsHelper positions={
+              alternatives.length > 0
+                ? selectedIdx !== null
+                  ? alternatives[selectedIdx]?.geometry ?? []
+                  : alternatives.flatMap(a => a.geometry ?? [])
+                : positions
+            } />
           )}
           {positions.length < 2 && bgPositions.length >= 2 && (
             <FitBoundsHelper positions={bgPositions} />

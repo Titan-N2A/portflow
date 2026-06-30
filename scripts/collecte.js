@@ -14,8 +14,8 @@ const FS           = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}
 
 const DEFAULT_AXES = [
   { id: 'axe1', shortNom: 'CARENA',      from: { lat: 5.330980, lng: -4.029706 }, to: { lat: 5.258715, lng: -3.982088 }, dist: 12.4, tRef: 27.4, bidirectionnel: true  },
-  { id: 'axe2', shortNom: 'Toyota CFAO', from: { lat: 5.296002, lng: -4.005151 }, to: { lat: 5.258715, lng: -3.982088 }, dist:  7.0, tRef: 16.9, bidirectionnel: false },
-  { id: 'axe3', shortNom: 'SODECI',      from: { lat: 5.313880, lng: -4.010854 }, to: { lat: 5.258715, lng: -3.982088 }, dist: 10.9, tRef: 17.8, bidirectionnel: false },
+  { id: 'axe2', shortNom: 'Toyota CFAO', from: { lat: 5.296002, lng: -4.005151 }, to: { lat: 5.258715, lng: -3.982088 }, dist:  7.0, tRef: 16.9, bidirectionnel: true  },
+  { id: 'axe3', shortNom: 'SODECI',      from: { lat: 5.313880, lng: -4.010854 }, to: { lat: 5.258715, lng: -3.982088 }, dist: 10.9, tRef: 17.8, bidirectionnel: true  },
 ]
 
 // ── Firestore REST helpers ────────────────────────────────────
