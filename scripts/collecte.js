@@ -11,9 +11,9 @@ const PROJECT_ID   = 'portflow-46738'
 const FS           = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 
 const DEFAULT_AXES = [
-  { id: 'axe1', shortNom: 'CARENA',        from: { lat: 5.328885, lng: -4.028669 }, to: { lat: 5.258678, lng: -3.982025 }, dist: 12.4, tRef: 27.4, bidirectionnel: true },
+  { id: 'axe1', shortNom: 'CARENA',        from: { lat: 5.328885, lng: -4.028669 }, to: { lat: 5.258678, lng: -3.982025 }, dist: 11.9, tRef: 27.4, bidirectionnel: true },
   { id: 'axe2', shortNom: 'Toyota CFAO',   from: { lat: 5.295922, lng: -4.005071 }, to: { lat: 5.258678, lng: -3.982025 }, dist:  7.0, tRef: 16.9, bidirectionnel: true },
-  { id: 'axe3', shortNom: 'Agence SODECI', from: { lat: 5.311777, lng: -4.010880 }, to: { lat: 5.258678, lng: -3.982025 }, dist: 13.2, tRef: 22.0, bidirectionnel: true },
+  { id: 'axe3', shortNom: 'Agence SODECI', from: { lat: 5.311777, lng: -4.010880 }, to: { lat: 5.258678, lng: -3.982025 }, dist: 11.7, tRef: 22.0, bidirectionnel: true },
 ]
 
 // ── Firestore REST helpers ────────────────────────────────────

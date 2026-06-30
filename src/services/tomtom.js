@@ -1,15 +1,15 @@
 const TOMTOM_KEY = import.meta.env.VITE_TOMTOM_API_KEY ?? ''
 
 // Routes PAA par défaut (fallback si Firestore indisponible)
-const CARENA    = { lat: 5.330980, lng: -4.029706 }
-const PALM      = { lat: 5.258715, lng: -3.982088 }
-const CFAO      = { lat: 5.296002, lng: -4.005151 }
-const SODECI_PT = { lat: 5.313880, lng: -4.010854 }
+const CARENA    = { lat: 5.328885, lng: -4.028669 }
+const PALM      = { lat: 5.258678, lng: -3.982025 }
+const CFAO      = { lat: 5.295922, lng: -4.005071 }
+const SODECI_PT = { lat: 5.311777, lng: -4.010880 }
 
 export const DEFAULT_ROUTES = [
-  { id: 'axe1', shortNom: 'CARENA',      from: CARENA,    to: PALM, dist: 12.4, tRef: 27.4, bidirectionnel: true  },
+  { id: 'axe1', shortNom: 'CARENA',      from: CARENA,    to: PALM, dist: 11.9, tRef: 27.4, bidirectionnel: true  },
   { id: 'axe2', shortNom: 'Toyota CFAO', from: CFAO,      to: PALM, dist:  7.0, tRef: 16.9, bidirectionnel: true  },
-  { id: 'axe3', shortNom: 'SODECI',      from: SODECI_PT, to: PALM, dist: 10.9, tRef: 17.8, bidirectionnel: true  },
+  { id: 'axe3', shortNom: 'SODECI',      from: SODECI_PT, to: PALM, dist: 11.7, tRef: 22.0, bidirectionnel: true  },
 ]
 
 function computeNiveau(ratio) {
