@@ -54,12 +54,13 @@ function buildMesures(snapshot, axes) {
     if (!axe) return
     const tempsLive = r.temps_min
     if (r.sens === 'aller' || !data[r.axeId]) {
+      const ratio = tempsLive / (axe.tRef ?? 20)
       data[r.axeId] = {
         tempsLive,
-        niveau:    r.niveau  ?? computeNiveau(tempsLive / (axe.tRef ?? 20)),
+        niveau:    computeNiveau(ratio),   // toujours recalculé depuis tempsLive/tRef courant
         vitesse:   r.vitesse ?? 0,
-        retard:    r.retard  ?? 0,
-        ratio:     tempsLive / (axe.tRef ?? 20),
+        retard:    Math.round((tempsLive - (axe.tRef ?? 20)) * 10) / 10,
+        ratio,
         simulated: false,
         source:    r.source  ?? 'firestore',
         updatedAt: r.timestamp ?? null,

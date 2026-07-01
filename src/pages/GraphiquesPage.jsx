@@ -127,7 +127,7 @@ function GraphiquesPage() {
     tRef:  axe.tRef ?? 20,
   }))
 
-  const [source,    setSource]    = useState('live')
+  const [source,    setSource]    = useState('historique')
   const [lineDir,   setLineDir]   = useState('aller')
   const [axeFilter, setAxeFilter] = useState('tous')
   const [periode,   setPeriode]   = useState('tous')

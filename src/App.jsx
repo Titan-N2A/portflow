@@ -1,5 +1,6 @@
-import { useState } from 'react'
-import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, Lock, X, Activity, LogOut } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, Lock, X, LogOut } from 'lucide-react'
+import logoPAA from './assets/logo_port.png'
 import Sidebar        from './components/Layout/Sidebar'
 import DashboardPage  from './pages/DashboardPage'
 import GraphiquesPage from './pages/GraphiquesPage'
@@ -146,9 +147,7 @@ function MobileShell({ page, onNavigate, user, isAdmin, onLogin, children }) {
         zIndex: 100,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: 28, height: 28, borderRadius: '7px', background: C.sidebarActive, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <Activity size={15} color="#fff" />
-          </div>
+          <img src={logoPAA} alt="PAA" style={{ width: 28, height: 28, objectFit: 'contain', filter: 'brightness(0) invert(1)', flexShrink: 0 }} />
           <span style={{ color: '#fff', fontWeight: 800, fontSize: 15, fontFamily: "'Inter',sans-serif" }}>FlowPort</span>
           <span style={{ color: C.sidebarMuted, fontSize: 11, fontFamily: "'Inter',sans-serif" }}>· PAA</span>
         </div>
@@ -223,27 +222,53 @@ function MobileShell({ page, onNavigate, user, isAdmin, onLogin, children }) {
   )
 }
 
-function Spinner() {
+function SplashScreen() {
   return (
     <div style={{
-      display: 'flex', flexDirection: 'column', alignItems: 'center',
-      justifyContent: 'center', minHeight: '100vh', background: C.bg, gap: '1rem',
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: C.sidebar,
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      gap: '1.25rem',
     }}>
-      <div style={{ width: 48, height: 48, borderRadius: '12px', background: C.sidebarActive, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Activity size={24} color="#fff" />
+      <style>{`
+        @keyframes fp-splash-fade { from { opacity:0; transform:scale(0.92) } to { opacity:1; transform:scale(1) } }
+        @keyframes fp-dot-bounce  { 0%,100% { opacity:.35; transform:translateY(0) } 50% { opacity:1; transform:translateY(-6px) } }
+      `}</style>
+      <img
+        src={logoPAA}
+        alt="Port Autonome d'Abidjan"
+        style={{ width: 110, height: 'auto', filter: 'brightness(0) invert(1)', animation: 'fp-splash-fade 0.5s ease' }}
+      />
+      <div style={{ textAlign: 'center' }}>
+        <p style={{ color:'#fff', fontWeight:800, fontSize:22, fontFamily:"'Inter',sans-serif", letterSpacing:'-0.5px', margin:0 }}>FlowPort</p>
+        <p style={{ color:'rgba(255,255,255,0.5)', fontSize:11, fontFamily:"'Inter',sans-serif", marginTop:4 }}>Port Autonome d'Abidjan · Système de Trafic Routier</p>
       </div>
-      <p style={{ fontSize: 13, color: C.textMuted, fontFamily: "'Inter', sans-serif" }}>Chargement...</p>
+      <div style={{ display:'flex', gap:6, marginTop:4 }}>
+        {[0,1,2].map(i => (
+          <div key={i} style={{
+            width:8, height:8, borderRadius:'50%', background: '#fff',
+            animation: `fp-dot-bounce 1s ${i*0.18}s ease-in-out infinite`,
+          }} />
+        ))}
+      </div>
     </div>
   )
 }
 
 function App() {
-  const [currentPage, setCurrentPage] = useState('dashboard')
-  const [showLogin,   setShowLogin]   = useState(false)
-  const { user, isAdmin, loading }    = useAuth()
-  const isMobile                      = useIsMobile()
+  const [currentPage,  setCurrentPage]  = useState('dashboard')
+  const [showLogin,    setShowLogin]    = useState(false)
+  const [splashDone,   setSplashDone]   = useState(false)
+  const { user, isAdmin, loading }      = useAuth()
+  const isMobile                        = useIsMobile()
 
-  if (loading) return <Spinner />
+  useEffect(() => {
+    const t = setTimeout(() => setSplashDone(true), 2000)
+    return () => clearTimeout(t)
+  }, [])
+
+  if (loading || !splashDone) return <SplashScreen />
 
   let page = currentPage
   if (ADMIN_ONLY.includes(page)  && !isAdmin) page = 'dashboard'

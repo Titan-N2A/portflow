@@ -1,5 +1,6 @@
-import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Activity, Lock } from 'lucide-react'
+import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Lock } from 'lucide-react'
 import { C } from '../../styles/tokens'
+import logoPAA from '../../assets/logo_port.png'
 
 // Grand public : Dashboard + IA uniquement
 const NAV_PUBLIC = [
@@ -72,46 +73,38 @@ function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, 
 
       {/* ── Logo ─────────────────────────────────────────── */}
       <div style={{
-        padding:      '1.4rem 1rem 1.1rem',
+        padding:      '1.1rem 1rem 0.9rem',
         borderBottom: `1px solid ${C.sidebarBorder}`,
+        display:      'flex',
+        flexDirection:'column',
+        alignItems:   'center',
+        gap:          '0.5rem',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '3px' }}>
-          <div style={{
-            width: 32, height: 32, borderRadius: '8px',
-            background: C.sidebarActive,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            flexShrink: 0,
-          }}>
-            <Activity size={18} color="#fff" />
-          </div>
+        <img
+          src={logoPAA}
+          alt="Port Autonome d'Abidjan"
+          style={{ width: 72, height: 'auto', filter: 'brightness(0) invert(1)', opacity: 0.92 }}
+        />
+        <div style={{ textAlign: 'center' }}>
           <span style={{
-            color:       '#fff',
-            fontWeight:  800,
-            fontSize:    '16px',
+            color:         '#fff',
+            fontWeight:    800,
+            fontSize:      '15px',
             letterSpacing: '-0.3px',
-            fontFamily:  "'Inter', sans-serif",
+            fontFamily:    "'Inter', sans-serif",
+            display:       'block',
           }}>
             FlowPort
           </span>
+          <p style={{
+            color:      C.sidebarMuted,
+            fontSize:   '10px',
+            fontFamily: "'Inter', sans-serif",
+            margin:     0,
+          }}>
+            PAA · Trafic Routier
+          </p>
         </div>
-        <p style={{
-          color:         C.sidebarMuted,
-          fontSize:      '11px',
-          fontFamily:    "'Inter', sans-serif",
-          paddingLeft:   '40px',
-          letterSpacing: '0.02em',
-        }}>
-          PAA · Trafic Routier
-        </p>
-        <p style={{
-          color:       C.sidebarMuted,
-          fontSize:    '9px',
-          fontFamily:  "'Inter', sans-serif",
-          paddingLeft: '40px',
-          opacity:     0.5,
-        }}>
-          v1.0.0
-        </p>
       </div>
 
       {/* ── Navigation ───────────────────────────────────── */}

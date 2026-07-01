@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { FileText, Download, Trash2, FilePlus, Database } from 'lucide-react'
 import { C, levelLabel } from '../styles/tokens'
 import jsPDF from 'jspdf'
+import logoPAA from '../assets/logo_port.png'
 import * as XLSX from 'xlsx'
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
@@ -112,14 +113,35 @@ function pdfNiveauLabel(n) {
 }
 function pdfFmtRetard(r) { return r >= 0 ? `+${r} min` : `${r} min` }
 
-function pdfPageHeader(doc, rapport, titre) {
+let _logoPAA64 = null
+async function getLogoPAA64() {
+  if (_logoPAA64) return _logoPAA64
+  return new Promise(resolve => {
+    const img = new Image()
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width  = img.naturalWidth
+      canvas.height = img.naturalHeight
+      canvas.getContext('2d').drawImage(img, 0, 0)
+      _logoPAA64 = canvas.toDataURL('image/png')
+      resolve(_logoPAA64)
+    }
+    img.onerror = () => resolve(null)
+    img.src = logoPAA
+  })
+}
+
+function pdfPageHeader(doc, rapport, titre, logo64) {
   doc.setFillColor(27,79,138)
   doc.rect(0,0,210,16,'F')
+  if (logo64) {
+    try { doc.addImage(logo64, 'PNG', 191, 0.5, 15, 15) } catch {}
+  }
   doc.setTextColor(255,255,255)
   doc.setFontSize(9); doc.setFont('helvetica','bold')
   doc.text(titre||'RAPPORT TRAFIC PAA', 14, 10.5)
   doc.setFont('helvetica','normal')
-  doc.text(`${rapport.nom} — ${rapport.periodeLabel}`, 196, 10.5, { align:'right' })
+  doc.text(`${rapport.nom} — ${rapport.periodeLabel}`, logo64 ? 185 : 196, 10.5, { align:'right' })
 }
 function pdfPageFooter(doc, rapport, pageNum, total) {
   doc.setFillColor(240,244,248)
@@ -185,7 +207,8 @@ function pdfRecommandations(rows, niveauGlobal) {
 
 // ── Génération PDF ────────────────────────────────────────────
 
-function telechargerPDF(rapport, rows) {
+async function telechargerPDF(rapport, rows) {
+  const logo64 = await getLogoPAA64()
   const doc = new jsPDF()
   const now = rapport.date.toLocaleString('fr-FR')
   const PW = 210, ML = 14, CW = 182
@@ -256,7 +279,7 @@ function telechargerPDF(rapport, rows) {
 
   // ── PAGE 2 : SYNTHÈSE EXÉCUTIVE ─────────────────────────────
   doc.addPage()
-  pdfPageHeader(doc, rapport, 'SYNTHÈSE EXÉCUTIVE')
+  pdfPageHeader(doc, rapport, 'SYNTHÈSE EXÉCUTIVE', logo64)
   y=24
   doc.setTextColor(27,79,138); doc.setFontSize(14); doc.setFont('helvetica','bold')
   doc.text('2. Synthèse exécutive', ML, y); y+=7
@@ -326,13 +349,13 @@ function telechargerPDF(rapport, rows) {
 
   // ── PAGE 3 : ANALYSE DÉTAILLÉE PAR AXE ──────────────────────
   doc.addPage()
-  pdfPageHeader(doc, rapport, 'ANALYSE DÉTAILLÉE PAR AXE')
+  pdfPageHeader(doc, rapport, 'ANALYSE DÉTAILLÉE PAR AXE', logo64)
   y=24
   doc.setTextColor(27,79,138); doc.setFontSize(14); doc.setFont('helvetica','bold')
   doc.text('3. Analyse détaillée par axe', ML, y); y+=12
 
   rows.forEach((row) => {
-    if(y>240){doc.addPage();pdfPageHeader(doc,rapport,'ANALYSE DÉTAILLÉE PAR AXE');y=26}
+    if(y>240){doc.addPage();pdfPageHeader(doc,rapport,'ANALYSE DÉTAILLÉE PAR AXE',logo64);y=26}
     const ratio3=row.tRef>0?row.tMoyen/row.tRef:1
     const [rc,gc,bc]=pdfNiveauColor(row.niveau)
     doc.setFillColor(rc,gc,bc); doc.rect(ML,y,4,11,'F')
@@ -363,7 +386,7 @@ function telechargerPDF(rapport, rows) {
 
   // ── PAGE 4 : INTERPRÉTATION GLOBALE ─────────────────────────
   doc.addPage()
-  pdfPageHeader(doc, rapport, 'INTERPRÉTATION GLOBALE')
+  pdfPageHeader(doc, rapport, 'INTERPRÉTATION GLOBALE', logo64)
   y=24
   doc.setTextColor(27,79,138); doc.setFontSize(14); doc.setFont('helvetica','bold')
   doc.text('4. Interprétation globale et tendances', ML, y); y+=12
@@ -424,13 +447,13 @@ function telechargerPDF(rapport, rows) {
 
   // ── PAGE 5 : RECOMMANDATIONS + CONCLUSION ───────────────────
   doc.addPage()
-  pdfPageHeader(doc, rapport, 'RECOMMANDATIONS OPÉRATIONNELLES')
+  pdfPageHeader(doc, rapport, 'RECOMMANDATIONS OPÉRATIONNELLES', logo64)
   y=24
   doc.setTextColor(27,79,138); doc.setFontSize(14); doc.setFont('helvetica','bold')
   doc.text('5. Recommandations opérationnelles', ML, y); y+=12
 
   pdfRecommandations(rows,nGlobal).forEach((rec,i)=>{
-    if(y>248){doc.addPage();pdfPageHeader(doc,rapport,'RECOMMANDATIONS');y=26}
+    if(y>248){doc.addPage();pdfPageHeader(doc,rapport,'RECOMMANDATIONS',logo64);y=26}
     doc.setFillColor(27,79,138); doc.circle(ML+4,y+4,4,'F')
     doc.setTextColor(255,255,255); doc.setFontSize(8); doc.setFont('helvetica','bold')
     doc.text(String(i+1),ML+4,y+5.5,{align:'center'})
