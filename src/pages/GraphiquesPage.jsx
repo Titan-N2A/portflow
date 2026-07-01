@@ -17,10 +17,18 @@ const HEURES_LABELS = Array.from({ length: 24 }, (_, i) => `${i}h`)
 const PALETTE       = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
 const MOIS_COURTS   = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
 
-// Palette heatmap : bleu clair → ambre → orange → rouge → violet foncé (évite le tout-vert)
-function heatColor(niveau) {
-  return { 1:'#29B6F6', 2:'#FDD835', 3:'#FB8C00', 4:'#E53935', 5:'#6A1B9A' }[niveau] ?? null
+// Couleur heatmap basée sur le % de retard (vert → jaune → orange → rouge)
+function heatColorRatio(ratio) {
+  const r = ratio - 1
+  if (r <= 0.15) return { bg: '#27AE60', fg: '#fff' }
+  if (r <= 0.30) return { bg: '#F9CF26', fg: '#5a3e00' }
+  if (r <= 0.55) return { bg: '#F0871A', fg: '#fff' }
+  if (r <= 0.85) return { bg: '#E03B1A', fg: '#fff' }
+  return { bg: '#8B1A1A', fg: '#fff' }
 }
+
+const JOURS_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
+const JOURS_ORDRE  = [1, 2, 3, 4, 5, 6, 0]  // lundi en premier
 
 // Seuls les 3 axes officiels PAA — exclut les axes de test admin
 const AXES_OFFICIELS_IDS = new Set(['axe1', 'axe2', 'axe3'])
@@ -184,10 +192,13 @@ function GraphiquesPage() {
   const lineData    = { labels: HEURES_LABELS, datasets: filteredLineDatasets }
   const lineHasData = filteredLineDatasets.some(ds => ds.data.some(v => v != null))
 
-  // ── Heatmap calendrier continu (date × heure) ───────────────
+  // ── Heatmap : jours × heures, palette vert→rouge ────────────
   const heatScrollRef = useRef(null)
 
-  const heatmapCalendar = useMemo(() => {
+  // Heures affichées (6h → 22h)
+  const HM_HEURES = Array.from({ length: 17 }, (_, i) => i + 6)
+
+  const heatmapGrid = useMemo(() => {
     const filtered = data.filter(d =>
       AXES_OFFICIELS_IDS.has(d.axeId) &&
       d.sens === hmSens &&
@@ -196,46 +207,29 @@ function GraphiquesPage() {
       d.heure != null &&
       (hmAxe === 'tous' || d.axeId === hmAxe)
     )
-    if (!filtered.length) return { dates: [], grid: {}, months: [] }
+    if (!filtered.length) return {}
 
+    // Accumulateur par (jourSemaine, heure)
     const acc = {}
     filtered.forEach(d => {
-      const key = `${d.date}_${d.heure}`
-      if (!acc[key]) acc[key] = { date: d.date, heure: d.heure, sum: 0, count: 0, sumRef: 0 }
+      const jourJS = new Date(d.date + 'T00:00:00').getDay()
+      const key    = `${jourJS}_${d.heure}`
+      if (!acc[key]) acc[key] = { sum: 0, count: 0, sumRef: 0 }
       acc[key].sum    += d.temps_min
       acc[key].count  += 1
       acc[key].sumRef += axeDefs.find(a => a.id === d.axeId)?.tRef ?? 20
     })
 
-    const dates = [...new Set(filtered.map(d => d.date))].sort()
-
     const grid = {}
-    Object.values(acc).forEach(c => {
-      const moyenne = c.sum / c.count
-      const avgRef  = c.sumRef / c.count
-      const ratio   = moyenne / avgRef
-      const niveau  = ratio <= 1.10 ? 1 : ratio <= 1.25 ? 2 : ratio <= 1.50 ? 3 : ratio <= 2.00 ? 4 : 5
-      grid[`${c.date}_${c.heure}`] = { moyenne: Math.round(moyenne * 10) / 10, niveau }
+    Object.entries(acc).forEach(([key, c]) => {
+      const moyenne  = c.sum    / c.count
+      const avgRef   = c.sumRef / c.count
+      const ratio    = moyenne  / avgRef
+      const retardPct = Math.round((ratio - 1) * 100)
+      grid[key] = { moyenne: Math.round(moyenne * 10) / 10, ratio, retardPct }
     })
-
-    // Groupes de mois pour l'en-tête
-    const months = []
-    let cur = null
-    dates.forEach(d => {
-      const mk = d.substring(0, 7)
-      if (mk !== cur) { months.push({ key: mk, count: 1 }); cur = mk }
-      else months[months.length - 1].count++
-    })
-
-    return { dates, grid, months }
+    return grid
   }, [data, hmAxe, hmSens, axeDefs.map(a => a.id + a.tRef).join(',')])
-
-  // Auto-scroll vers les dates les plus récentes (droite)
-  useEffect(() => {
-    if (heatScrollRef.current) {
-      heatScrollRef.current.scrollLeft = heatScrollRef.current.scrollWidth
-    }
-  }, [heatmapCalendar.dates.length])
 
   // ── Min / Moyen / Max ────────────────────────────────────────
   const minMaxData = useMemo(() => {
@@ -413,12 +407,21 @@ function GraphiquesPage() {
         </div>
       </div>
 
-      {/* ── G3 — Heatmap congestion calendrier continu ─────────── */}
+      {/* ── G3 — Heatmap congestion (jour × heure) ──────────────── */}
       <div className="fp-card" style={{ flexShrink: 0 }}>
-        <div className="fp-section-header">
-          <span className="fp-section-title">
-            Heatmap congestion — {heatmapCalendar.dates.length} jour{heatmapCalendar.dates.length !== 1 ? 's' : ''} × 24h
-          </span>
+        <div className="fp-section-header" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            <span className="fp-section-title">Heatmap congestion — jour × heure</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              {/* légende inline */}
+              <span style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>Fluide</span>
+              {[0.05, 0.22, 0.43, 0.70, 0.95].map((r, i) => {
+                const { bg } = heatColorRatio(1 + r)
+                return <div key={i} style={{ width: 18, height: 18, borderRadius: 4, background: bg }} />
+              })}
+              <span style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>Congestionné</span>
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
             <select className="fp-select" style={{ width: 'auto' }} value={hmAxe} onChange={e => setHmAxe(e.target.value)}>
               <option value="tous">Tous les axes (moyenne)</option>
@@ -433,104 +436,89 @@ function GraphiquesPage() {
           </div>
         </div>
 
-        {heatmapCalendar.dates.length === 0 ? (
-          <EmptyChart height={220} />
+        {Object.keys(heatmapGrid).length === 0 ? (
+          <EmptyChart height={260} />
         ) : (
-          <>
-            <div ref={heatScrollRef} style={{ overflowX: 'auto', width: '100%' }}>
-              <table style={{
-                borderCollapse: 'separate', borderSpacing: '2px',
-                minWidth: `${heatmapCalendar.dates.length * 20 + 44}px`,
-                width: '100%',
-              }}>
-                <colgroup>
-                  <col style={{ width: 38 }} />
-                  {heatmapCalendar.dates.map(d => <col key={d} />)}
-                </colgroup>
-                <thead>
-                  {/* Ligne mois */}
-                  <tr>
-                    <td />
-                    {heatmapCalendar.months.map(m => (
-                      <th key={m.key} colSpan={m.count} style={{
-                        fontSize: 9, fontWeight: 700, color: '#fff',
-                        background: C.primary, textAlign: 'center',
-                        borderRadius: 3, padding: '2px 0',
-                        fontFamily: "'Inter',sans-serif",
-                        letterSpacing: '0.04em',
-                      }}>
-                        {MOIS_COURTS[parseInt(m.key.split('-')[1]) - 1]} {m.key.split('-')[0]}
-                      </th>
-                    ))}
-                  </tr>
-                  {/* Ligne jours (affiché tous les 3 jours) */}
-                  <tr>
-                    <td />
-                    {heatmapCalendar.dates.map((d, i) => (
-                      <th key={d} style={{
-                        fontSize: 8, color: C.textMuted, textAlign: 'center',
-                        fontFamily: 'monospace', padding: '1px 0',
-                        fontWeight: 400,
-                      }}>
-                        {i % 3 === 0 ? d.split('-')[2] : ''}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: 24 }, (_, h) => (
-                    <tr key={h}>
-                      <td style={{
-                        fontSize: 9, color: C.textMuted, textAlign: 'right',
-                        paddingRight: 5, fontFamily: 'monospace', whiteSpace: 'nowrap',
-                      }}>
-                        {h}h
-                      </td>
-                      {heatmapCalendar.dates.map(date => {
-                        const cell = heatmapCalendar.grid[`${date}_${h}`]
-                        const bg   = cell ? heatColor(cell.niveau) : null
+          <div ref={heatScrollRef} style={{ overflowX: 'auto', width: '100%' }}>
+            <table style={{
+              borderCollapse: 'separate', borderSpacing: '4px',
+              width: '100%', tableLayout: 'fixed',
+            }}>
+              <colgroup>
+                <col style={{ width: 52 }} />
+                {HM_HEURES.map(h => <col key={h} />)}
+              </colgroup>
+              <thead>
+                <tr>
+                  <th />
+                  {HM_HEURES.map(h => (
+                    <th key={h} style={{
+                      fontSize: 11, fontWeight: 700, color: C.textMuted,
+                      textAlign: 'center', padding: '0 0 6px',
+                      fontFamily: "'Inter',sans-serif",
+                    }}>
+                      {h}h
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {JOURS_ORDRE.map((jourJS, idx) => (
+                  <tr key={jourJS}>
+                    <td style={{
+                      fontSize: 13, fontWeight: 700, color: C.text,
+                      paddingRight: 10, textAlign: 'right',
+                      fontFamily: "'Inter',sans-serif", whiteSpace: 'nowrap',
+                    }}>
+                      {JOURS_LABELS[idx]}
+                    </td>
+                    {HM_HEURES.map(h => {
+                      const cell = heatmapGrid[`${jourJS}_${h}`]
+                      if (!cell) {
                         return (
-                          <td key={date} style={{ padding: '1px' }}>
-                            <div
-                              title={cell
-                                ? `${date} ${h}h — ${cell.moyenne} min · N${cell.niveau} ${levelLabel(cell.niveau)}`
-                                : `${date} ${h}h — Pas de données`}
-                              style={{
-                                height: 15, borderRadius: 2,
-                                background: bg ? `${bg}D0` : '#EDF2F7',
-                                border: `1px solid ${bg ? `${bg}60` : '#E2E8F0'}`,
-                                boxShadow: cell?.niveau >= 4 ? `0 0 3px ${bg}80` : 'none',
-                                cursor: 'default',
-                                transition: 'opacity 0.1s',
-                              }}
-                              onMouseEnter={e => { e.currentTarget.style.opacity = '0.75' }}
-                              onMouseLeave={e => { e.currentTarget.style.opacity = '1' }}
-                            />
+                          <td key={h} style={{ padding: 0 }}>
+                            <div style={{
+                              height: 38, borderRadius: 6,
+                              background: '#EDF2F7',
+                              border: '1px solid #E2E8F0',
+                            }} />
                           </td>
                         )
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Légende */}
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-              {[
-                [1, 'Fluide'], [2, 'Modéré'], [3, 'Dense'], [4, 'Congestionné'], [5, 'Critique'],
-              ].map(([n, lbl]) => (
-                <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <div style={{ width: 12, height: 12, borderRadius: 3, background: `${heatColor(n)}D0`, border: `1px solid ${heatColor(n)}60` }} />
-                  <span style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>{lbl}</span>
-                </div>
-              ))}
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <div style={{ width: 12, height: 12, borderRadius: 3, background: '#EDF2F7', border: '1px solid #E2E8F0' }} />
-                <span style={{ fontSize: 10, color: C.textLight, fontFamily: "'Inter',sans-serif" }}>Pas de données</span>
-              </div>
-            </div>
-          </>
+                      }
+                      const { bg, fg } = heatColorRatio(cell.ratio)
+                      return (
+                        <td key={h} style={{ padding: 0 }}>
+                          <div
+                            title={`${JOURS_LABELS[idx]} ${h}h — ${cell.moyenne} min · +${cell.retardPct}% vs référence`}
+                            style={{
+                              height: 38, borderRadius: 6,
+                              background: bg,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              cursor: 'default',
+                              transition: 'filter 0.12s',
+                              boxShadow: cell.ratio >= 1.55 ? `0 2px 8px ${bg}70` : 'none',
+                            }}
+                            onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.12)' }}
+                            onMouseLeave={e => { e.currentTarget.style.filter = 'none' }}
+                          >
+                            <span style={{
+                              fontSize: 12, fontWeight: 800,
+                              color: fg,
+                              fontFamily: "'Inter',sans-serif",
+                              letterSpacing: '-0.3px',
+                              userSelect: 'none',
+                            }}>
+                              {cell.retardPct}%
+                            </span>
+                          </div>
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
