@@ -12,7 +12,7 @@ export const DEFAULT_ROUTES = [
   { id: 'axe3', shortNom: 'SODECI',      from: SODECI_PT, to: PALM, dist: 11.7, tRef: 22.0, bidirectionnel: true  },
 ]
 
-function computeNiveau(ratio) {
+export function computeNiveau(ratio) {
   if (!ratio) return 0
   if (ratio <= 1.10) return 1
   if (ratio <= 1.25) return 2
@@ -117,6 +117,51 @@ export async function fetchRouteAlternatives(fromCoord, toCoord, maxAlts = 5) {
     }
   }
   return fetchOSRM([from, to], Math.min(maxAlts, 3))
+}
+
+// ── ETA point à point (position utilisateur → destination) ──
+// computeTravelTimeFor=all : récupère noTrafficTravelTimeInSeconds dans la
+// même requête, pour dériver le niveau de congestion sans appel supplémentaire.
+async function fetchTomTomETA(from, to) {
+  const url = `https://api.tomtom.com/routing/1/calculateRoute/` +
+    `${from.lat},${from.lng}:${to.lat},${to.lng}/json` +
+    `?key=${TOMTOM_KEY}&traffic=true&travelMode=car&computeTravelTimeFor=all`
+  const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+  if (res.status === 403 || res.status === 429) throw new Error('quota TomTom dépassé')
+  if (!res.ok) throw new Error(`TomTom ${res.status}`)
+  const data    = await res.json()
+  const route   = data?.routes?.[0]
+  const summary = route?.summary
+  if (!summary?.travelTimeInSeconds) throw new Error('Aucun itinéraire disponible')
+  const noTraffic = summary.noTrafficTravelTimeInSeconds ?? summary.travelTimeInSeconds
+  const points    = route.legs?.flatMap(l => l.points) ?? []
+  return {
+    dureeSec:  summary.travelTimeInSeconds,
+    distanceM: summary.lengthInMeters,
+    niveau:    computeNiveau(summary.travelTimeInSeconds / noTraffic),
+    geometry:  points.length > 1 ? points.map(p => [p.latitude, p.longitude]) : null,
+  }
+}
+
+// Fallback sans clé TomTom ou en cas d'erreur — pas de trafic temps réel disponible
+async function fetchETAOSRM(from, to) {
+  const routes = await fetchOSRM([[from.lat, from.lng], [to.lat, to.lng]])
+  if (!routes.length) throw new Error('Aucun itinéraire disponible')
+  const r = routes[0]
+  return { dureeSec: r.duration * 60, distanceM: r.distance * 1000, niveau: 0, geometry: r.geometry }
+}
+
+// ETA avec trafic réel — TomTom en priorité, OSRM en secours (niveau inconnu)
+export async function fetchETA(from, to) {
+  if (TOMTOM_KEY) {
+    try {
+      return await fetchTomTomETA(from, to)
+    } catch (err) {
+      if (err.message === 'quota TomTom dépassé') throw err
+      // TomTom indisponible → fallback OSRM
+    }
+  }
+  return fetchETAOSRM(from, to)
 }
 
 // Route passant par TOUS les waypoints (points intermédiaires)

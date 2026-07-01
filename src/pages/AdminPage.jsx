@@ -7,12 +7,13 @@ import {
   Plus, Pencil, Ban, Trash2, Save, X,
   Users, AlertOctagon, MapPin, Layers, RefreshCw,
   CheckCircle, AlertCircle, Eye, EyeOff,
-  Navigation, Copy, ChevronDown, ChevronUp,
+  Navigation, Copy, ChevronDown, ChevronUp, Radio,
 } from 'lucide-react'
 import { C } from '../styles/tokens'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { syncDefaultAxes } from '../services/axesService'
 import { AXE_COLORS as DEFAULT_AXE_COLORS, AXE_PALETTE } from '../data/defaultData'
+import UsersLiveMap from '../components/Admin/UsersLiveMap'
 
 import { listUsers, createUser, updateUser, deleteUserDoc, sendResetEmail } from '../services/userManagement'
 
@@ -1838,6 +1839,7 @@ function AdminPage() {
     { id: 'troncons', icon: Layers,       label: 'Tronçons'         },
     { id: 'seuils',   icon: AlertOctagon, label: 'Seuils d\'alerte' },
     { id: 'users',    icon: Users,        label: 'Utilisateurs'     },
+    { id: 'live',     icon: Radio,        label: 'Utilisateurs en temps réel' },
   ]
 
 
@@ -2068,6 +2070,17 @@ function AdminPage() {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── UTILISATEURS EN TEMPS RÉEL ──────────────────────── */}
+      {tab === 'live' && (
+        <div>
+          <p style={{ fontSize: 13, color: C.textMuted, marginBottom: '1rem', lineHeight: 1.6 }}>
+            Positions GPS anonymisées des utilisateurs publics ayant accepté la géolocalisation.
+            Un marqueur disparaît automatiquement après 5 minutes d'inactivité.
+          </p>
+          <UsersLiveMap axes={axes} />
         </div>
       )}
 

@@ -7,7 +7,11 @@ import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useTrafficData, AXES_OFFICIELS, REFRESH_MS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
+import { useGeolocation } from '../hooks/useGeolocation'
 import AlertesPredictives from '../components/Dashboard/AlertesPredictives'
+import GeocoderSearch from '../components/shared/GeocoderSearch'
+import ETACard from '../components/shared/ETACard'
+import { createETATracker } from '../services/eta'
 import { AXE_COLORS, AXE_PALETTE, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { askGemini, buildTrafficPrompt } from '../services/gemini'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -53,6 +57,26 @@ function makeTronconEndIcon(code, color) {
     className: '', iconSize: [null, 16], iconAnchor: [0, 8],
   })
 }
+
+// ── Marqueur position utilisateur (point bleu pulsant) ────
+const USER_POSITION_ICON = L.divIcon({
+  html: `<div style="position:relative;width:22px;height:22px;">
+    <div style="position:absolute;inset:-8px;border-radius:50%;background:${C.primary}33;animation:fp-pulse 1.6s infinite;"></div>
+    <div style="position:absolute;inset:0;border-radius:50%;background:${C.primary};border:2px solid #fff;box-shadow:0 2px 8px rgba(0,0,0,0.35);"></div>
+  </div>`,
+  className: '', iconSize: [22, 22], iconAnchor: [11, 11],
+})
+
+// ── Marqueur destination (pin rouge) ──────────────────────
+const DESTINATION_ICON = L.divIcon({
+  html: `<div style="
+    background:${C.danger};border-radius:50% 50% 50% 0;
+    width:24px;height:24px;transform:rotate(-45deg);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,0.35);border:2px solid #fff;
+  "><div style="transform:rotate(45deg);width:7px;height:7px;background:#fff;border-radius:50%;"></div></div>`,
+  className: '', iconSize: [24, 24], iconAnchor: [12, 24],
+})
 
 // ── Marqueur PAA (cercle vert) ────────────────────────────
 const PAA_ICON = L.divIcon({
@@ -123,7 +147,7 @@ function MapZoomController({ selectedAxe, mesures }) {
 }
 
 // ── Dashboard Map ─────────────────────────────────────────
-function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedAxe, onAxeSelect }) {
+function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedAxe, onAxeSelect, userPosition, destination, routeGeometry }) {
   return (
     <MapContainer center={PAA_CENTER} zoom={13} style={{ width: '100%', height: '100%' }} zoomControl={false}>
       <TileLayer
@@ -373,6 +397,21 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
           <span style={{ fontSize: 11, color: '#555' }}>Arrivée commune · 3 axes convergent ici</span>
         </Popup>
       </Marker>
+
+      {/* Trajet utilisateur — tracé + marqueurs position/destination */}
+      {routeGeometry?.length > 1 && (
+        <Polyline positions={routeGeometry} color={C.primary} weight={5} opacity={0.85} dashArray="1 10" />
+      )}
+      {userPosition && (
+        <Marker position={[userPosition.lat, userPosition.lng]} icon={USER_POSITION_ICON}>
+          <Popup><strong>Votre position</strong></Popup>
+        </Marker>
+      )}
+      {destination && (
+        <Marker position={[destination.lat, destination.lng]} icon={DESTINATION_ICON}>
+          <Popup><strong>{destination.label}</strong></Popup>
+        </Marker>
+      )}
     </MapContainer>
   )
 }
@@ -384,6 +423,7 @@ function DashboardPage() {
 
   const { mesures, kpis, loading, lastUpdate, refresh, refreshing } = useTrafficData(axes)
   const { predictions, meta: predMeta } = usePredictions()
+  const { position: userPosition } = useGeolocation(axes)
   const isMobile = useIsMobile()
   const [mapMode,      setMapMode]      = useState('live')
   const [selectedAxe,  setSelectedAxe]  = useState(null)
@@ -391,10 +431,34 @@ function DashboardPage() {
   const [iaLoading,    setIaLoading]    = useState(false)
   const [countdown,    setCountdown]    = useState(REFRESH_MS / 1000)
   const [flashKpis,    setFlashKpis]    = useState(false)
+  const [destination,  setDestination]  = useState(null)
+  const [eta,          setEta]          = useState(null)
+  const [etaLoading,   setEtaLoading]   = useState(false)
+  const etaTrackerRef = useRef(null)
+  if (!etaTrackerRef.current) etaTrackerRef.current = createETATracker()
 
   function handleAxeSelect(axe) {
     setSelectedAxe(prev => prev?.id === axe.id ? null : axe)
   }
+
+  function handleDestinationSelect(dest) {
+    setDestination(dest)
+    if (!dest) setEta(null)
+  }
+
+  // Recalcule l'ETA quand la position ou la destination change
+  // (le tracker interne applique le seuil 200m / 2min pour économiser le quota)
+  useEffect(() => {
+    if (!userPosition || !destination) return
+    let cancelled = false
+    setEtaLoading(true)
+    etaTrackerRef.current.update(userPosition, destination).then(result => {
+      if (!cancelled) setEta(result)
+    }).finally(() => {
+      if (!cancelled) setEtaLoading(false)
+    })
+    return () => { cancelled = true }
+  }, [userPosition, destination])
 
   // Countdown vers la prochaine actualisation
   useEffect(() => {
@@ -506,6 +570,24 @@ function DashboardPage() {
           title="Vitesse moy." value={kpis?.vitesseMoyenne} unit="km/h" flash={flashKpis} />
       </div>
 
+      {/* ── Mon trajet ────────────────────────────────────── */}
+      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '0.75rem', flexShrink: 0 }}>
+        <div className="fp-card" style={{ padding: '1rem', flex: isMobile ? 'none' : '0 0 300px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          <p style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+            Destination
+          </p>
+          <GeocoderSearch onSelect={handleDestinationSelect} />
+          {!userPosition && (
+            <p style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+              ETA non disponible — activez la géolocalisation pour estimer votre arrivée.
+            </p>
+          )}
+        </div>
+        <div style={{ flex: 1 }}>
+          <ETACard eta={eta} loading={etaLoading} />
+        </div>
+      </div>
+
       {/* ── Map + Panneau droit ────────────────────────────── */}
       <div style={{
         flex: isMobile ? 'none' : 1,
@@ -522,7 +604,8 @@ function DashboardPage() {
           position: 'relative', borderRadius: '10px', overflow: 'hidden',
           boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
         }}>
-          <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} troncons={troncons} selectedAxe={selectedAxe} onAxeSelect={handleAxeSelect} />
+          <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} troncons={troncons} selectedAxe={selectedAxe} onAxeSelect={handleAxeSelect}
+            userPosition={userPosition} destination={destination} routeGeometry={eta?.geometry} />
 
           {/* Boutons superposés */}
           <div style={{

@@ -45,5 +45,16 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    // ── Positions live utilisateurs (anonymisées) — visibles admin uniquement ──
+    // Écriture séparée en create/update/delete : sur un delete, request.resource
+    // est toujours null (pas de document envoyé), donc "request.resource.data.sessionId"
+    // échouerait systématiquement et bloquerait le nettoyage (useGeolocation cleanup()).
+    match /utilisateurs_live/{sessionId} {
+      allow create, update: if request.resource.data.sessionId == sessionId;
+      allow delete: if resource.data.sessionId == sessionId;
+      allow read: if request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
   }
 }

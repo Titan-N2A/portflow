@@ -12,6 +12,7 @@ import { useAuth }    from './hooks/useAuth'
 import { useIsMobile } from './hooks/useIsMobile'
 import { logOut, signIn } from './services/auth'
 import { C }          from './styles/tokens'
+import ConsentBanner, { CONSENT_KEY } from './components/shared/ConsentBanner'
 
 const PAGES = {
   dashboard:  DashboardPage,
@@ -271,6 +272,7 @@ function App() {
   const [currentPage,  setCurrentPage]  = useState('dashboard')
   const [showLogin,    setShowLogin]    = useState(false)
   const [splashDone,   setSplashDone]   = useState(false)
+  const [geoConsent,   setGeoConsent]   = useState(() => sessionStorage.getItem(CONSENT_KEY))
   const { user, isAdmin, loading }      = useAuth()
   const isMobile                        = useIsMobile()
 
@@ -291,6 +293,7 @@ function App() {
     return (
       <>
         {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+        <ConsentBanner onDecision={setGeoConsent} />
         <MobileShell
           page={page}
           onNavigate={setCurrentPage}
@@ -307,6 +310,7 @@ function App() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F4F4F4' }}>
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
+      <ConsentBanner onDecision={setGeoConsent} />
       <Sidebar
         currentPage={page}
         onNavigate={setCurrentPage}
