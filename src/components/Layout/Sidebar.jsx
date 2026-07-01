@@ -80,11 +80,14 @@ function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, 
         alignItems:   'center',
         gap:          '0.5rem',
       }}>
-        <img
-          src={logoPAA}
-          alt="Port Autonome d'Abidjan"
-          style={{ width: 72, height: 'auto', filter: 'brightness(0) invert(1)', opacity: 0.92 }}
-        />
+        <div style={{
+          width: 72, height: 72, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.93)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexShrink: 0, overflow: 'hidden',
+        }}>
+          <img src={logoPAA} alt="Port Autonome d'Abidjan" style={{ width: 68, height: 68, objectFit: 'contain' }} />
+        </div>
         <div style={{ textAlign: 'center' }}>
           <span style={{
             color:         '#fff',

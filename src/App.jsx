@@ -147,7 +147,14 @@ function MobileShell({ page, onNavigate, user, isAdmin, onLogin, children }) {
         zIndex: 100,
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <img src={logoPAA} alt="PAA" style={{ width: 28, height: 28, objectFit: 'contain', filter: 'brightness(0) invert(1)', flexShrink: 0 }} />
+          <div style={{
+            width: 30, height: 30, borderRadius: '50%',
+            background: 'rgba(255,255,255,0.93)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            flexShrink: 0, overflow: 'hidden',
+          }}>
+            <img src={logoPAA} alt="PAA" style={{ width: 27, height: 27, objectFit: 'contain' }} />
+          </div>
           <span style={{ color: '#fff', fontWeight: 800, fontSize: 15, fontFamily: "'Inter',sans-serif" }}>FlowPort</span>
           <span style={{ color: C.sidebarMuted, fontSize: 11, fontFamily: "'Inter',sans-serif" }}>· PAA</span>
         </div>
@@ -235,11 +242,15 @@ function SplashScreen() {
         @keyframes fp-splash-fade { from { opacity:0; transform:scale(0.92) } to { opacity:1; transform:scale(1) } }
         @keyframes fp-dot-bounce  { 0%,100% { opacity:.35; transform:translateY(0) } 50% { opacity:1; transform:translateY(-6px) } }
       `}</style>
-      <img
-        src={logoPAA}
-        alt="Port Autonome d'Abidjan"
-        style={{ width: 110, height: 'auto', filter: 'brightness(0) invert(1)', animation: 'fp-splash-fade 0.5s ease' }}
-      />
+      <div style={{
+        width: 120, height: 120, borderRadius: '50%',
+        background: 'rgba(255,255,255,0.95)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        animation: 'fp-splash-fade 0.5s ease', flexShrink: 0,
+        overflow: 'hidden',
+      }}>
+        <img src={logoPAA} alt="Port Autonome d'Abidjan" style={{ width: 112, height: 112, objectFit: 'contain' }} />
+      </div>
       <div style={{ textAlign: 'center' }}>
         <p style={{ color:'#fff', fontWeight:800, fontSize:22, fontFamily:"'Inter',sans-serif", letterSpacing:'-0.5px', margin:0 }}>FlowPort</p>
         <p style={{ color:'rgba(255,255,255,0.5)', fontSize:11, fontFamily:"'Inter',sans-serif", marginTop:4 }}>Port Autonome d'Abidjan · Système de Trafic Routier</p>
