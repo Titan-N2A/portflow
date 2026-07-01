@@ -11,7 +11,7 @@ import { MapContainer, TileLayer, Marker, Popup, ZoomControl } from 'react-leafl
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { collection, onSnapshot } from 'firebase/firestore'
-import { Users } from 'lucide-react'
+import { Users, AlertTriangle } from 'lucide-react'
 import { db } from '../../services/firebase'
 import { C } from '../../styles/tokens'
 import { PAA_CENTER_COORDS } from '../../data/defaultData'
@@ -39,9 +39,11 @@ function formatSecondesEcoulees(timestamp, now) {
 function UsersLiveMap({ axes = [] }) {
   const [sessions, setSessions] = useState([])
   const [now,      setNow]      = useState(() => Date.now())
+  const [error,    setError]    = useState(null)
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, COL), snapshot => {
+      setError(null)
       const data = snapshot.docs.map(d => {
         const r = d.data()
         return {
@@ -54,7 +56,12 @@ function UsersLiveMap({ axes = [] }) {
         }
       })
       setSessions(data)
-    }, err => console.error('UsersLiveMap — abonnement impossible :', err))
+    }, err => {
+      console.error('UsersLiveMap — abonnement impossible :', err)
+      setError(err.code === 'permission-denied'
+        ? 'Accès refusé par les règles Firestore — vérifiez que firestore.rules a bien été déployé et que votre compte a le rôle "admin".'
+        : 'Impossible de charger les utilisateurs en temps réel.')
+    })
     return () => unsub()
   }, [])
 
@@ -78,6 +85,16 @@ function UsersLiveMap({ axes = [] }) {
           {actives.length} utilisateur{actives.length !== 1 ? 's' : ''} actif{actives.length !== 1 ? 's' : ''} sur la carte
         </span>
       </div>
+
+      {error && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: 8, marginBottom: '0.75rem',
+          padding: '0.6rem 0.85rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8,
+        }}>
+          <AlertTriangle size={14} color={C.danger} style={{ flexShrink: 0 }} />
+          <span style={{ fontSize: 12, color: C.danger }}>{error}</span>
+        </div>
+      )}
 
       <div style={{ height: 500, borderRadius: 10, overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.1)' }}>
         <MapContainer center={PAA_CENTER_COORDS} zoom={12} style={{ width: '100%', height: '100%' }} zoomControl={false}>
