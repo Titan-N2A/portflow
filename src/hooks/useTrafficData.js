@@ -46,9 +46,15 @@ function computeKPIs(mesures, axes) {
 }
 
 function buildMesures(snapshot, axes) {
+  const raw = []
+  snapshot.forEach(d => raw.push(d.data()))
+  // 'aller' doit toujours être traité avant 'retour' — sans ça, un document
+  // 'retour' reçu en premier (ordre Firestore non garanti sans orderBy)
+  // écraserait la mesure principale de l'axe avec la donnée de retour.
+  const ordered = [...raw].sort((a, b) => (a.sens === 'aller' ? -1 : b.sens === 'aller' ? 1 : 0))
+
   const data = {}
-  snapshot.forEach(d => {
-    const r = d.data()
+  ordered.forEach(r => {
     if (!r.axeId || !r.temps_min) return
     const axe = axes.find(a => a.id === r.axeId)
     if (!axe) return
@@ -72,6 +78,33 @@ function buildMesures(snapshot, axes) {
   })
   // Axes absents de Firestore → pas de simulation, ils afficheront "—"
   return data
+}
+
+// Convertit un timestamp Firestore (Timestamp | ISO string | {seconds}) en ms
+function toMillis(ts) {
+  if (!ts) return 0
+  if (typeof ts === 'string') return new Date(ts).getTime()
+  if (typeof ts.toMillis === 'function') return ts.toMillis()
+  if (typeof ts.seconds === 'number') return ts.seconds * 1000
+  return 0
+}
+
+// Fusionne un nouveau jeu de mesures avec l'existant, axe par axe, en ne
+// gardant que la donnée la plus récente (par updatedAt). Sans ça, deux
+// sources concurrentes (mesures_live écrit par le navigateur toutes les
+// 2 min si TomTom répond, collecte_auto écrit par GitHub Actions toutes
+// les 10 min de façon fiable) s'écrasent mutuellement selon l'ordre
+// d'arrivée des événements onSnapshot plutôt que par fraîcheur réelle —
+// c'est ce qui pouvait donner des KPIs figés sur une ancienne valeur.
+function mergeMesures(prev, incoming) {
+  const merged = { ...prev }
+  Object.entries(incoming).forEach(([axeId, m]) => {
+    const existing = merged[axeId]
+    if (!existing || toMillis(m.updatedAt) >= toMillis(existing.updatedAt)) {
+      merged[axeId] = m
+    }
+  })
+  return merged
 }
 
 export function useTrafficData(axes = DEFAULT_AXES) {
@@ -173,9 +206,10 @@ export function useTrafficData(axes = DEFAULT_AXES) {
     const unsubscribe = onSnapshot(
       collection(db, 'mesures_live'),
       (snapshot) => {
-        const data = buildMesures(snapshot, axesRef.current)
-        setMesures(data)
-        setKpis(computeKPIs(data, axesRef.current))
+        const data   = buildMesures(snapshot, axesRef.current)
+        const merged = mergeMesures(mesuresSnap.current, data)
+        setMesures(merged)
+        setKpis(computeKPIs(merged, axesRef.current))
         setLastUpdate(new Date())
         setLoading(false)
       },
@@ -209,19 +243,15 @@ export function useTrafficData(axes = DEFAULT_AXES) {
         if (!latest[key]) latest[key] = r  // desc → premier = plus récent
       })
 
-      // 'aller' doit être traité avant 'retour' dans buildMesures
-      const sorted = Object.values(latest).sort((a, b) =>
-        a.sens === 'aller' ? -1 : b.sens === 'aller' ? 1 : 0
-      )
-
       const data = buildMesures(
-        { forEach: cb => sorted.forEach(r => cb({ data: () => r })) },
+        { forEach: cb => Object.values(latest).forEach(r => cb({ data: () => r })) },
         axesRef.current
       )
 
       if (Object.keys(data).length > 0) {
-        setMesures(data)
-        setKpis(computeKPIs(data, axesRef.current))
+        const merged = mergeMesures(mesuresSnap.current, data)
+        setMesures(merged)
+        setKpis(computeKPIs(merged, axesRef.current))
         setLastUpdate(new Date())
         setLoading(false)
       }
