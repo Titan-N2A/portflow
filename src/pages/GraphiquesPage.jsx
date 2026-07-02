@@ -33,10 +33,10 @@ const JOURS_ORDRE  = [1, 2, 3, 4, 5, 6, 0]  // lundi en premier
 // Seuls les 3 axes officiels PAA — exclut les axes de test admin
 const AXES_OFFICIELS_IDS = new Set(['axe1', 'axe2', 'axe3'])
 
-function computeMinMaxParAxe(data, axeDefs) {
+function computeMinMaxParAxe(data, axeDefs, sens) {
   return axeDefs.map(axe => {
     const vals = data
-      .filter(d => d.axeId === axe.id && d.sens === 'aller')
+      .filter(d => d.axeId === axe.id && d.sens === sens)
       .map(d => d.temps_min)
       .filter(v => v != null)
     if (!vals.length) return { min: 0, moy: 0, max: 0 }
@@ -139,7 +139,10 @@ function GraphiquesPage() {
     tRef:  axe.tRef ?? 20,
   }))
 
-  const [source,    setSource]    = useState('historique')
+  // La collecte automatique tourne désormais de façon fiable (cron externe,
+  // toutes les 5 min) — "live" est la vraie donnée actuelle par défaut,
+  // "historique" (dataset statique février 2025) reste dispo en bascule.
+  const [source,    setSource]    = useState('live')
   const [lineDir,   setLineDir]   = useState('aller')
   const [axeFilter, setAxeFilter] = useState('tous')
   const [periode,   setPeriode]   = useState('tous')
@@ -233,7 +236,7 @@ function GraphiquesPage() {
 
   // ── Min / Moyen / Max ────────────────────────────────────────
   const minMaxData = useMemo(() => {
-    const stats  = computeMinMaxParAxe(data24h, axeDefs)
+    const stats  = computeMinMaxParAxe(data24h, axeDefs, lineDir)
     const hasAny = stats.some(s => s.moy > 0)
     if (!hasAny) return null
     return {
@@ -244,7 +247,7 @@ function GraphiquesPage() {
         { label: 'Max',   data: stats.map(s => s.max), backgroundColor: 'rgba(192,57,43,0.85)',  borderRadius: 6, borderSkipped: false },
       ],
     }
-  }, [data24h, axeDefs.map(a => a.id).join()])
+  }, [data24h, axeDefs.map(a => a.id).join(), lineDir])
 
   // ── Donut répartition niveaux ────────────────────────────────
   const repartition  = useMemo(() => computeRepartitionNiveaux(data24h, periode), [data24h, periode])
@@ -351,7 +354,7 @@ function GraphiquesPage() {
         {/* G2 — Histogramme Min/Moyen/Max */}
         <div className="fp-card" style={{ flex: 1, minWidth: 0 }}>
           <div className="fp-section-header">
-            <span className="fp-section-title">Min / Moyen / Max par axe</span>
+            <span className="fp-section-title">Min / Moyen / Max par axe ({lineDir === 'aller' ? 'Aller' : 'Retour'})</span>
           </div>
           {minMaxData ? (
             <div style={{ height: 240 }}>

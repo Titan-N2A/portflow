@@ -66,11 +66,20 @@ export const REFERENCES = {
 }
 
 // Résumé global par axe (toutes heures confondues)
+// axe2_retour/axe3_retour n'ont pas de courbe horaire historique dédiée
+// (dataset février 2025 incomplet sur ces trajets retour) — on retombe sur
+// la même moyenne que l'aller, cohérent avec useTrafficData.js qui utilise
+// déjà un seul tRef par axe pour les deux sens. Sans ces entrées,
+// getReference() renvoyait null pour ces axes en retour, et les indicateurs
+// synthétiques (donut, heatmap) qui font `if (!ref) return` les excluaient
+// silencieusement de tous les graphiques.
 export const REFERENCES_GLOBALES = {
   axe1_aller:  { moyenne: 27.4, vitesse: 32.6, pointe: '10h–12h' },
   axe1_retour: { moyenne: 36.3, vitesse: 24.6, pointe: '17h–18h' },
   axe2_aller:  { moyenne: 16.9, vitesse: 28.4, pointe: '12h–13h' },
+  axe2_retour: { moyenne: 16.9, vitesse: 28.4, pointe: '12h–13h' },
   axe3_aller:  { moyenne: 17.8, vitesse: 28.0, pointe: '11h–13h' },
+  axe3_retour: { moyenne: 17.8, vitesse: 28.0, pointe: '11h–13h' },
 }
 
 /**
