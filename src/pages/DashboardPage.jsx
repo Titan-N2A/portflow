@@ -609,30 +609,54 @@ function DashboardPage() {
         {/* Carte */}
         <div style={{
           flex: isMobile ? 'none' : '1 1 65%',
-          height: isMobile ? 260 : undefined,
-          position: 'relative', borderRadius: '10px', overflow: 'hidden',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+          display: 'flex', flexDirection: 'column', gap: '0.5rem',
+          minHeight: 0,
         }}>
-          <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} troncons={troncons} selectedAxe={selectedAxe} onAxeSelect={handleAxeSelect}
-            userPosition={userPosition} destination={destination} routeGeometry={eta?.geometry} />
-
-          {/* Boutons superposés */}
           <div style={{
-            position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)',
-            zIndex: 1000, display: 'flex', background: '#fff',
-            borderRadius: '8px', overflow: 'hidden',
-            boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-            border: '1px solid #e2e8f0',
+            flex: isMobile ? 'none' : 1,
+            height: isMobile ? 220 : undefined,
+            position: 'relative', borderRadius: '10px', overflow: 'hidden',
+            boxShadow: '0 1px 4px rgba(0,0,0,0.1)', minHeight: 0,
           }}>
-            {[['live','Temps réel'],['prevision','Prévisions ML']].map(([mode, label]) => (
-              <button key={mode} onClick={() => setMapMode(mode)} style={{
-                padding: isMobile ? '5px 10px' : '6px 16px',
-                border: 'none', cursor: 'pointer',
-                background: mapMode === mode ? C.primary : 'transparent',
-                color: mapMode === mode ? '#fff' : C.text,
-                fontWeight: 600, fontSize: isMobile ? 11 : 12,
-                fontFamily: "'Inter', sans-serif", transition: 'all 0.15s',
-              }}>{label}</button>
+            <DashboardMap axes={axes} mesures={mesures} mapMode={mapMode} predictions={predictions} troncons={troncons} selectedAxe={selectedAxe} onAxeSelect={handleAxeSelect}
+              userPosition={userPosition} destination={destination} routeGeometry={eta?.geometry} />
+
+            {/* Boutons superposés */}
+            <div style={{
+              position: 'absolute', top: '10px', left: '50%', transform: 'translateX(-50%)',
+              zIndex: 1000, display: 'flex', background: '#fff',
+              borderRadius: '8px', overflow: 'hidden',
+              boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+              border: '1px solid #e2e8f0',
+            }}>
+              {[['live','Temps réel'],['prevision','Prévisions ML']].map(([mode, label]) => (
+                <button key={mode} onClick={() => setMapMode(mode)} style={{
+                  padding: isMobile ? '5px 10px' : '6px 16px',
+                  border: 'none', cursor: 'pointer',
+                  background: mapMode === mode ? C.primary : 'transparent',
+                  color: mapMode === mode ? '#fff' : C.text,
+                  fontWeight: 600, fontSize: isMobile ? 11 : 12,
+                  fontFamily: "'Inter', sans-serif", transition: 'all 0.15s',
+                }}>{label}</button>
+              ))}
+            </div>
+          </div>
+
+          {/* Légende niveaux de congestion */}
+          <div className="fp-card" style={{
+            padding: '0.5rem 0.9rem', flexShrink: 0, minHeight: 38,
+            display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 16, flexWrap: 'wrap',
+          }}>
+            {[1, 2, 3, 4, 5].map(n => (
+              <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  width: 12, height: 12, borderRadius: 3, flexShrink: 0,
+                  background: levelColor(n), boxShadow: '0 0 0 1px rgba(0,0,0,0.08)',
+                }} />
+                <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  {levelLabel(n)}
+                </span>
+              </div>
             ))}
           </div>
         </div>

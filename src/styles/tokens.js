@@ -25,12 +25,14 @@ export const C = {
   textMuted:     '#7F8C8D',
   textLight:     '#95A5A6',
 
-  // Niveaux de congestion
-  n1: '#1E8449',
-  n2: '#27AE60',
-  n3: '#F1C40F',
-  n4: '#E67E22',
-  n5: '#C0392B',
+  // Niveaux de congestion — saturation relevée pour se démarquer nettement
+  // des couleurs pastel des routes du fond de carte OpenStreetMap (tracés
+  // trafic superposés, doivent rester lisibles par-dessus).
+  n1: '#059669',
+  n2: '#22C55E',
+  n3: '#FBBF24',
+  n4: '#F97316',
+  n5: '#DC2626',
 }
 
 export function levelColor(n) {
