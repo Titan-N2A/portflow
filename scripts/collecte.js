@@ -2,6 +2,15 @@
 // collecte.js — Collecte trafic PAA (GitHub Actions)
 // Stratégie : Google Distance Matrix (1 appel) → fallback TomTom
 // Écrit dans : mesures_live (dashboard) + mesures + collecte_auto
+//
+// SOURCE UNIQUE DE VÉRITÉ pour les mesures persistées : c'est le seul
+// écrivain régulier de mesures_live/collecte_auto (invoqué par
+// .github/workflows/collecte_auto.yml toutes les ~10 min). Le front
+// (src/hooks/useTrafficData.js) est lecteur seul ; son bouton
+// "Actualiser" ne fait qu'une prévisualisation locale, jamais persistée.
+// Champ temporel canonique : "timestamp" (ISO 8601) sur tous les
+// documents — ne pas réintroduire "updatedAt" (ancien schéma, source
+// de bugs de fraîcheur avec l'ex-collector/collecte.js, supprimé).
 // ============================================================
 
 const TOMTOM_KEY   = process.env.TOMTOM_KEY   || 'OKRpdcKYIWdRTpEyr3eHab19LOQizhdZ'

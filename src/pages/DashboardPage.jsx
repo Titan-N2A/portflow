@@ -4,7 +4,7 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Clock, AlertTriangle, CheckCircle2, Gauge, RefreshCw, Zap, X, Users } from 'lucide-react'
 import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
-import { useTrafficData, AXES_OFFICIELS, REFRESH_MS } from '../hooks/useTrafficData'
+import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
 import { useGeolocation } from '../hooks/useGeolocation'
@@ -422,7 +422,7 @@ function DashboardPage() {
   const { axes: firestoreAxes, troncons } = useAxesFirestore()
   const axes = firestoreAxes.length > 0 ? firestoreAxes : AXES_OFFICIELS
 
-  const { mesures, kpis, loading, lastUpdate, refresh, refreshing } = useTrafficData(axes)
+  const { mesures, kpis, loading, lastUpdate, refresh, refreshing, dataHealth } = useTrafficData(axes)
   const { predictions, meta: predMeta } = usePredictions()
   const { position: userPosition } = useGeolocation(axes)
   const activeUsersCount = useActiveUsersCount()
@@ -431,7 +431,7 @@ function DashboardPage() {
   const [selectedAxe,  setSelectedAxe]  = useState(null)
   const [iaText,       setIaText]       = useState('')
   const [iaLoading,    setIaLoading]    = useState(false)
-  const [countdown,    setCountdown]    = useState(REFRESH_MS / 1000)
+  const [nowTick,      setNowTick]      = useState(() => Date.now())
   const [flashKpis,    setFlashKpis]    = useState(false)
   const [destination,  setDestination]  = useState(null)
   const [eta,          setEta]          = useState(null)
@@ -462,12 +462,11 @@ function DashboardPage() {
     return () => { cancelled = true }
   }, [userPosition, destination])
 
-  // Countdown vers la prochaine actualisation
+  // Rafraîchit le texte "il y a X min" sans dépendre d'une nouvelle donnée
   useEffect(() => {
-    setCountdown(REFRESH_MS / 1000)
-    const tick = setInterval(() => setCountdown(c => Math.max(0, c - 1)), 1000)
+    const tick = setInterval(() => setNowTick(Date.now()), 30 * 1000)
     return () => clearInterval(tick)
-  }, [lastUpdate])
+  }, [])
 
   // Flash bref quand les KPIs changent
   const prevKpisRef = useRef(null)
@@ -481,9 +480,10 @@ function DashboardPage() {
     prevKpisRef.current = kpis.tempsGlobal
   }, [kpis])
 
-  const hasData      = Object.keys(mesures).length > 0
-  const countdownMin = Math.floor(countdown / 60)
-  const countdownSec = String(countdown % 60).padStart(2, '0')
+  const hasData = Object.keys(mesures).length > 0
+  const isLive  = dataHealth.freshCount > 0
+  const dataAge = lastUpdate ? Math.max(0, Math.floor((nowTick - lastUpdate.getTime()) / 60000)) : null
+  const ageLabel = dataAge == null ? null : dataAge <= 0 ? 'à l\'instant' : dataAge === 1 ? 'il y a 1 min' : `il y a ${dataAge} min`
 
   async function loadIA(currentMesures, force = false) {
     if (!force) {
@@ -517,25 +517,29 @@ function DashboardPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>Dashboard</h1>
-            {/* Indicateur LIVE */}
+            {/* Indicateur de fraîcheur — honnête : LIVE seulement si des mesures
+                sont réellement fraîches (< STALE_AFTER_MS), sinon signalé */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 5,
-              background: '#E8F5E9', border: '1px solid #66BB6A',
+              background: isLive ? '#E8F5E9' : '#FEF2F2',
+              border: `1px solid ${isLive ? '#66BB6A' : '#FCA5A5'}`,
               borderRadius: 20, padding: '2px 9px' }}>
               <span style={{
                 width: 7, height: 7, borderRadius: '50%',
-                background: refreshing ? '#F0AD4E' : '#27AE60',
-                animation: refreshing ? 'none' : 'fp-live-pulse 2s infinite',
+                background: refreshing ? '#F0AD4E' : (isLive ? '#27AE60' : '#C0392B'),
+                animation: (refreshing || !isLive) ? 'none' : 'fp-live-pulse 2s infinite',
                 display: 'inline-block',
               }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: '#1B5E20', letterSpacing: '0.05em' }}>
-                {refreshing ? 'MISE À JOUR...' : 'LIVE'}
+              <span style={{ fontSize: 10, fontWeight: 700, color: isLive ? '#1B5E20' : '#C0392B', letterSpacing: '0.05em' }}>
+                {refreshing ? 'MISE À JOUR...' : isLive ? 'LIVE' : 'DONNÉES ANCIENNES'}
               </span>
             </div>
           </div>
           <p style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>
-            {lastUpdate
-              ? `Mis à jour à ${lastUpdate.toLocaleTimeString('fr-FR')} · prochain dans ${countdownMin}:${countdownSec}`
-              : 'Chargement des données...'}
+            {!lastUpdate
+              ? 'Synchronisation en cours — en attente de données...'
+              : isLive
+                ? `Mis à jour à ${lastUpdate.toLocaleTimeString('fr-FR')} (${ageLabel})`
+                : `Dernière donnée reçue à ${lastUpdate.toLocaleTimeString('fr-FR')} (${ageLabel}) — synchronisation interrompue`}
           </p>
         </div>
         <button className="fp-btn fp-btn-primary" style={{ fontSize: 12, padding: '0.4rem 0.8rem' }}
