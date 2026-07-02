@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { collection, onSnapshot, query, orderBy, limit } from 'firebase/firestore'
+import { collection, onSnapshot, query, orderBy, limit, doc, setDoc } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { DEFAULT_AXES, AXE_COLORS } from '../data/defaultData'
 import { fetchAllAxes } from '../services/tomtom'
@@ -8,16 +8,24 @@ export const AXES_OFFICIELS = DEFAULT_AXES
 export { AXE_COLORS }
 
 // Cadence nominale de la collecte serveur (scripts/collecte.js, GitHub Actions).
-// N'est plus utilisée pour un auto-poll côté client — sert de référence pour
-// l'UI (ex. libellé "toutes les ~10 min").
-export const REFRESH_MS = 10 * 60 * 1000
+export const REFRESH_MS = 5 * 60 * 1000
 
 // Au-delà de ce délai sans nouvelle mesure, une donnée n'est plus considérée
 // "live" : elle est exclue des KPI agrégés et signalée comme périmée dans l'UI.
-// 15 min = marge raisonnable au-dessus du cycle nominal de 10 min de
-// scripts/collecte.js, pour absorber un cycle manqué sans fausse alerte
-// immédiate (GitHub Actions peut retarder les cron jobs sous forte charge).
 export const STALE_AFTER_MS = 15 * 60 * 1000
+
+// Seuils d'affichage à 3 paliers pour le badge de fraîcheur (plus fins que
+// STALE_AFTER_MS, qui ne gouverne que l'inclusion dans les KPI agrégés).
+export const FRESH_TIER_MS      = 3  * 60 * 1000 // < 3 min  → "En direct"
+export const MAYBE_STALE_TIER_MS = 10 * 60 * 1000 // 3-10 min → "Peut-être obsolète" ; au-delà → "Connexion perdue"
+
+// Classe un âge de donnée (ms) en palier de fraîcheur pour l'UI.
+export function freshnessTier(ageMs) {
+  if (ageMs == null) return { tier: 'none',  label: 'Aucune donnée',        color: '#95A5A6' }
+  if (ageMs <= FRESH_TIER_MS)       return { tier: 'live',  label: 'En direct',            color: '#27AE60' }
+  if (ageMs <= MAYBE_STALE_TIER_MS) return { tier: 'maybe', label: 'Peut-être obsolète',   color: '#E67E22' }
+  return { tier: 'lost', label: 'Connexion perdue', color: '#C0392B' }
+}
 
 function computeNiveau(ratio) {
   if (!ratio) return 0
@@ -172,7 +180,8 @@ export function useTrafficData(axes = DEFAULT_AXES) {
   const [lastUpdate,      setLastUpdate]      = useState(null) // horodatage RÉEL de la donnée la plus fraîche, pas l'heure d'arrivée du snapshot
   const [refreshing,      setRefreshing]      = useState(false)
   const [dataHealth,      setDataHealth]      = useState({
-    source: null, freshCount: 0, staleCount: 0, lastTimestamp: null, reason: 'en attente de données',
+    source: null, freshCount: 0, staleCount: 0, lastTimestamp: null,
+    reason: 'en attente de données', ...freshnessTier(null),
   })
 
   const axesRef      = useRef(axes)
@@ -209,15 +218,21 @@ export function useTrafficData(axes = DEFAULT_AXES) {
     const entries     = Object.values(evalued)
     const freshEntries = entries.filter(m => !m.stale)
     const staleEntries = entries.filter(m => m.stale)
-    const freshTimestamps = freshEntries.map(m => toMillis(m.timestamp)).filter(t => t != null)
-    const realLastUpdate  = freshTimestamps.length ? new Date(Math.max(...freshTimestamps)) : null
+    // lastUpdate reflète le timestamp le plus récent connu, fraîche OU
+    // périmée — sinon, quand tout devient périmé (freshCount=0), on perdrait
+    // la trace de "il y a combien de temps" et afficherait à tort "aucune
+    // donnée" au lieu de "connexion perdue depuis X min".
+    const allTimestamps  = entries.map(m => toMillis(m.timestamp)).filter(t => t != null)
+    const realLastUpdate = allTimestamps.length ? new Date(Math.max(...allTimestamps)) : null
 
     setLastUpdate(realLastUpdate)
+    const ageOfLastUpdate = realLastUpdate ? now - realLastUpdate.getTime() : null
     const health = {
       source:        lastSourceRef.current,
       freshCount:    freshEntries.length,
       staleCount:    staleEntries.length,
       lastTimestamp: realLastUpdate,
+      ...freshnessTier(ageOfLastUpdate),
       reason: freshEntries.length === 0
         ? (entries.length === 0 ? 'aucune mesure reçue' : 'toutes les mesures dépassent le seuil de péremption')
         : null,
@@ -250,12 +265,12 @@ export function useTrafficData(axes = DEFAULT_AXES) {
     if (Object.keys(updated).length > 0) applyMesures(updated, null)
   }, [axes, applyMesures])
 
-  // Rafraîchissement MANUEL uniquement (bouton "Actualiser") — n'écrit plus
-  // dans Firestore. Le front est lecteur seul : scripts/collecte.js (GitHub
-  // Actions) est l'unique source de vérité qui persiste les mesures. Un clic
-  // sur "Actualiser" interroge TomTom pour une prévisualisation locale
-  // (le tracé retour inclus), utile pour CET utilisateur, sans concurrencer
-  // ni polluer la collecte serveur partagée par tous les visiteurs.
+  // Rafraîchissement MANUEL uniquement (bouton "Actualiser", jamais de
+  // setInterval automatique) — persiste dans mesures_live, partagé par tous
+  // les visiteurs. Sert de filet de secours quand scripts/collecte.js
+  // (GitHub Actions, cadence non garantie) prend du retard : un présentateur
+  // peut forcer une donnée fraîche visible de tous en un clic, sans faire
+  // concurrence à la collecte serveur au fil de l'eau (pas d'auto-poll).
   const refresh = useCallback(async () => {
     setRefreshing(true)
     try {
@@ -264,9 +279,29 @@ export function useTrafficData(axes = DEFAULT_AXES) {
       const retours  = {}
       const localData = {}
 
-      Object.entries(results).forEach(([axeId, m]) => {
+      await Promise.all(Object.entries(results).map(async ([axeId, m]) => {
         const axe = axesRef.current.find(a => a.id === axeId)
         if (!axe || m.simulated) return
+        const distKm = parseFloat(axe.dist ?? axe.distance) || 0
+
+        await setDoc(doc(db, 'mesures_live', `${axeId}_aller`), {
+          axeId, sens: 'aller', nom: `${axe.shortNom} (aller)`,
+          temps_min: m.tempsLive, dist_km: distKm,
+          niveau: m.niveau, vitesse: m.vitesse, retard: m.retard,
+          timestamp: now, source: 'client_manuel',
+        })
+        if (m.tempsRetour != null) {
+          const r2 = m.tempsRetour / axe.tRef
+          await setDoc(doc(db, 'mesures_live', `${axeId}_retour`), {
+            axeId, sens: 'retour', nom: `${axe.shortNom} (retour)`,
+            temps_min: m.tempsRetour, dist_km: distKm,
+            niveau: computeNiveau(r2),
+            vitesse: distKm > 0 ? Math.round((distKm / m.tempsRetour) * 60 * 10) / 10 : 0,
+            retard: Math.round((m.tempsRetour - axe.tRef) * 10) / 10,
+            timestamp: now, source: 'client_manuel',
+          })
+        }
+
         localData[axeId] = {
           tempsLive:   m.tempsLive,
           niveau:      m.niveau,
@@ -274,19 +309,19 @@ export function useTrafficData(axes = DEFAULT_AXES) {
           retard:      m.retard,
           ratio:       m.ratio,
           simulated:   false,
-          source:      'client_local',
+          source:      'client_manuel',
           timestamp:   now,
           tempsRetour: m.tempsRetour,
         }
         if (m.geometryRetour?.length > 5) retours[axeId] = m.geometryRetour
-      })
+      }))
 
       if (Object.keys(retours).length > 0) {
         setGeometryRetours(prev => ({ ...prev, ...retours }))
       }
       if (Object.keys(localData).length > 0) {
         const merged = mergeMesures(mesuresSnap.current, localData)
-        applyMesures(merged, 'client_local')
+        applyMesures(merged, 'client_manuel')
       }
     } catch (err) {
       console.error('Rafraîchissement manuel :', err)

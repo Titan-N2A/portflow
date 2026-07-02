@@ -2,8 +2,12 @@ name: Collecte Auto Trafic PAA
 
 on:
   schedule:
-    # Toutes les 10 min, 24h/24, 7j/7 (port opère en continu)
-    - cron: '*/10 * * * *'
+    # Toutes les 5 min, 24h/24, 7j/7 (port opère en continu).
+    # 5 min = minimum réaliste sur GitHub Actions (le scheduler ne garantit
+    # pas de délai plus court, et peut retarder sous charge indépendamment
+    # de l'intervalle configuré — voir le bouton "Actualiser" du dashboard
+    # comme filet de secours manuel pour forcer une donnée fraîche).
+    - cron: '*/5 * * * *'
   workflow_dispatch: # déclenchement manuel depuis GitHub
 
 jobs:

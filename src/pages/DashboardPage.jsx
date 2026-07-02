@@ -92,7 +92,7 @@ const PAA_ICON = L.divIcon({
 })
 
 // ── KPI Card ─────────────────────────────────────────────
-function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge, flash }) {
+function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge, flash, freshness }) {
   return (
     <div className={`fp-card${flash ? ' fp-kpi-flash' : ''}`} style={{ flex: 1, minWidth: 0, transition: 'background 0.3s' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
@@ -103,6 +103,13 @@ function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge,
         }}>
           <Icon size={18} color={iconColor} />
         </div>
+        {freshness && (
+          <span title={freshness.label} style={{
+            width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 2,
+            background: freshness.color,
+            boxShadow: freshness.tier === 'live' ? `0 0 5px ${freshness.color}` : 'none',
+          }} />
+        )}
       </div>
       <p style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
         {title}
@@ -171,8 +178,9 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
           : (axe.geometryRoute?.length > 5)                ? axe.geometryRoute
           : (axe.coordinates ?? [])
         if (positions.length < 2) return null
-        // Opacité réduite si pas de données live — signal visuel "fallback identité"
-        const opacity     = m ? 0.95 : 0.45
+        // Opacité en 3 paliers : donnée fraîche (0.95) > mesure présente mais
+        // périmée (0.65, on la montre encore mais atténuée) > aucune donnée (0.45)
+        const opacity     = !m ? 0.45 : m.stale ? 0.65 : 0.95
         const isSelected  = selectedAxe?.id === axe.id
         return (
           <Polyline
@@ -480,10 +488,13 @@ function DashboardPage() {
     prevKpisRef.current = kpis.tempsGlobal
   }, [kpis])
 
-  const hasData = Object.keys(mesures).length > 0
-  const isLive  = dataHealth.freshCount > 0
-  const dataAge = lastUpdate ? Math.max(0, Math.floor((nowTick - lastUpdate.getTime()) / 60000)) : null
+  const hasData  = Object.keys(mesures).length > 0
+  const dataAge  = lastUpdate ? Math.max(0, Math.floor((nowTick - lastUpdate.getTime()) / 60000)) : null
   const ageLabel = dataAge == null ? null : dataAge <= 0 ? 'à l\'instant' : dataAge === 1 ? 'il y a 1 min' : `il y a ${dataAge} min`
+  // 3 paliers de fraîcheur (dataHealth.tier vient du hook, seule source de
+  // vérité) : 'live' < 3min, 'maybe' 3-10min, 'lost' > 10min, 'none' jamais reçu.
+  const freshBg = { live: '#E8F5E9', maybe: '#FEF3E0', lost: '#FEF2F2', none: '#F1F1F1' }[dataHealth.tier] ?? '#F1F1F1'
+  const freshBorder = `${dataHealth.color}55`
 
   async function loadIA(currentMesures, force = false) {
     if (!force) {
@@ -517,29 +528,30 @@ function DashboardPage() {
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>Dashboard</h1>
-            {/* Indicateur de fraîcheur — honnête : LIVE seulement si des mesures
-                sont réellement fraîches (< STALE_AFTER_MS), sinon signalé */}
+            {/* Indicateur de fraîcheur à 3 paliers — honnête : "En direct"
+                seulement si <3min, sinon signale clairement la dégradation
+                plutôt que de prétendre être live (dataHealth = source unique) */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 5,
-              background: isLive ? '#E8F5E9' : '#FEF2F2',
-              border: `1px solid ${isLive ? '#66BB6A' : '#FCA5A5'}`,
+              background: freshBg,
+              border: `1px solid ${freshBorder}`,
               borderRadius: 20, padding: '2px 9px' }}>
               <span style={{
                 width: 7, height: 7, borderRadius: '50%',
-                background: refreshing ? '#F0AD4E' : (isLive ? '#27AE60' : '#C0392B'),
-                animation: (refreshing || !isLive) ? 'none' : 'fp-live-pulse 2s infinite',
+                background: refreshing ? '#F0AD4E' : dataHealth.color,
+                animation: (refreshing || dataHealth.tier !== 'live') ? 'none' : 'fp-live-pulse 2s infinite',
                 display: 'inline-block',
               }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: isLive ? '#1B5E20' : '#C0392B', letterSpacing: '0.05em' }}>
-                {refreshing ? 'MISE À JOUR...' : isLive ? 'LIVE' : 'DONNÉES ANCIENNES'}
+              <span style={{ fontSize: 10, fontWeight: 700, color: dataHealth.color, letterSpacing: '0.05em' }}>
+                {refreshing ? 'MISE À JOUR...' : dataHealth.label.toUpperCase()}
               </span>
             </div>
           </div>
           <p style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>
             {!lastUpdate
               ? 'Synchronisation en cours — en attente de données...'
-              : isLive
+              : dataHealth.tier === 'live'
                 ? `Mis à jour à ${lastUpdate.toLocaleTimeString('fr-FR')} (${ageLabel})`
-                : `Dernière donnée reçue à ${lastUpdate.toLocaleTimeString('fr-FR')} (${ageLabel}) — synchronisation interrompue`}
+                : `Dernière donnée reçue à ${lastUpdate.toLocaleTimeString('fr-FR')} (${ageLabel}) — synchronisation ${dataHealth.tier === 'lost' ? 'interrompue' : 'ralentie'}`}
           </p>
         </div>
         <button className="fp-btn fp-btn-primary" style={{ fontSize: 12, padding: '0.4rem 0.8rem' }}
@@ -558,25 +570,25 @@ function DashboardPage() {
         flexShrink: 0,
       }}>
         <KPICard icon={Clock} iconColor={C.primary}
-          title="Temps moyen" value={kpis?.tempsGlobal} unit="min" flash={flashKpis} />
+          title="Temps moyen" value={kpis?.tempsGlobal} unit="min" flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={AlertTriangle} iconColor={C.danger}
           title="Tronçon critique"
           value={kpis?.tronconCritique?.nom ?? '—'}
           badge={kpis?.tronconCritique ? `N${kpis.tronconCritique.niveau} — ${levelLabel(kpis.tronconCritique.niveau)}` : null}
-          flash={flashKpis} />
+          flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={CheckCircle2} iconColor={C.success}
           title="Meilleur axe"
           value={kpis?.meilleurAxe?.nom ?? '—'}
           badge={kpis?.meilleurAxe ? `N${kpis.meilleurAxe.niveau} — ${levelLabel(kpis.meilleurAxe.niveau)}` : null}
-          flash={flashKpis} />
+          flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={Users} iconColor="#8E44AD"
           title="Usagers en direct" value={activeUsersCount} unit={activeUsersCount > 1 ? 'connectés' : 'connecté'} />
 
         <KPICard icon={Gauge} iconColor={C.success}
-          title="Vitesse moy." value={kpis?.vitesseMoyenne} unit="km/h" flash={flashKpis} />
+          title="Vitesse moy." value={kpis?.vitesseMoyenne} unit="km/h" flash={flashKpis} freshness={dataHealth} />
       </div>
 
       {/* ── Mon trajet ────────────────────────────────────── */}
