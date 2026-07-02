@@ -40,49 +40,47 @@ export function useAxesFirestore() {
   useEffect(() => { tronconsRef.current = troncons }, [troncons])
 
   useEffect(() => {
-    let unsubA, unsubT, unsubS
     let mounted = true
 
-    async function init() {
-      // 1. Tenter le seed au premier démarrage (silencieux si déjà fait)
-      await seedIfEmpty()
-      // 2. Supprimer les tronçons placeholder si présents (coordonnées fausses)
-      await cleanupPlaceholderTroncons()
-      if (!mounted) return
+    // Abonnements temps réel — démarrent IMMÉDIATEMENT, sans attendre le
+    // seed/nettoyage ci-dessous. seedIfEmpty()/cleanupPlaceholderTroncons()
+    // sont des opérations de maintenance ponctuelles (no-op la quasi-totalité
+    // du temps, une fois les données déjà en place) ; les attendre séquentiellement
+    // avant de s'abonner ajoutait 1-2 allers-retours Firestore de latence à
+    // CHAQUE chargement de page, avant même de voir les données existantes —
+    // ce qui pouvait donner l'impression qu'une modification admin récente
+    // "ne se répercutait pas" alors qu'elle n'avait simplement pas encore eu
+    // le temps de s'afficher.
+    const unsubA = subscribeAxes(
+      data => {
+        if (!mounted) return
+        setAxes(data.length > 0 ? data : DEFAULT_AXES)
+        setLoading(false)
+        setOffline(false)
+      },
+      err => {
+        if (!mounted) return
+        console.warn('Firestore axes inaccessible — mode offline')
+        setAxes(DEFAULT_AXES)
+        setLoading(false)
+        setOffline(true)
+        setError('Firestore inaccessible — données locales utilisées')
+      }
+    )
 
-      // 2. Abonnements temps réel Firestore
-      unsubA = subscribeAxes(
-        data => {
-          if (!mounted) return
-          setAxes(data.length > 0 ? data : DEFAULT_AXES)
-          setLoading(false)
-          setOffline(false)
-        },
-        err => {
-          if (!mounted) return
-          console.warn('Firestore axes inaccessible — mode offline')
-          setAxes(DEFAULT_AXES)
-          setLoading(false)
-          setOffline(true)
-          setError('Firestore inaccessible — données locales utilisées')
-        }
-      )
+    const unsubT = subscribeTroncons(
+      data => { if (mounted) setTroncons(data) },
+      ()   => { if (mounted) setTroncons([]) }
+    )
 
-      unsubT = subscribeTroncons(
-        data => { if (mounted) setTroncons(data) },
-        ()   => { if (mounted) setTroncons([]) }
-      )
+    const unsubS = subscribeSeuils(
+      data => { if (mounted) setSeuils(data.length > 0 ? data : DEFAULT_SEUILS) }
+    )
 
-      unsubS = subscribeSeuils(
-        data => { if (mounted) setSeuils(data.length > 0 ? data : DEFAULT_SEUILS) }
-      )
-    }
-
-    init().catch(err => {
-      console.error('useAxesFirestore init error:', err)
-      setLoading(false)
-      setOffline(true)
-    })
+    // Maintenance en arrière-plan, ne bloque jamais l'affichage des données.
+    seedIfEmpty()
+      .then(() => cleanupPlaceholderTroncons())
+      .catch(err => console.error('useAxesFirestore maintenance error:', err))
 
     return () => {
       mounted = false

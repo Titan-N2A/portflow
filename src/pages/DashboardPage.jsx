@@ -186,9 +186,13 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
           <Polyline
             key={axe.id}
             positions={positions}
-            color={color}
-            weight={isSelected ? 11 : 7}
-            opacity={isSelected ? 1 : opacity}
+            // pathOptions (pas color/weight/opacity en props individuelles) : c'est le
+            // seul prop que react-leaflet observe pour appeler setStyle() sur les
+            // re-rendus (@react-leaflet/core usePathOptions ne compare que
+            // props.pathOptions). Avec des props individuelles, seule la couleur du
+            // TOUT PREMIER rendu s'affichait — jamais mise à jour ensuite malgré un
+            // niveau de congestion recalculé correctement à chaque changement de mesures.
+            pathOptions={{ color, weight: isSelected ? 11 : 7, opacity: isSelected ? 1 : opacity }}
             eventHandlers={{ click: (e) => { e.originalEvent?.stopPropagation?.(); onAxeSelect(axe) } }}
           >
             <Popup>
@@ -343,7 +347,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         )
 
         return [
-          <Polyline key={t.id + '_l'} positions={positions} color={color} weight={5} opacity={0.93}>
+          <Polyline key={t.id + '_l'} positions={positions} pathOptions={{ color, weight: 5, opacity: 0.93 }}>
             {popup}
           </Polyline>,
           <Marker key={t.id + '_s'} position={positions[0]} icon={makeTronconEndIcon(t.code + ' ▶', color)}>
@@ -364,7 +368,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         const color     = niveau > 0 ? levelColor(niveau) : (AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length])
         const opacity   = m ? 0.6 : 0.25
         return (
-          <Polyline key={axe.id + '_retour'} positions={retourPos} color={color} weight={4} opacity={opacity} dashArray="8 6">
+          <Polyline key={axe.id + '_retour'} positions={retourPos} pathOptions={{ color, weight: 4, opacity, dashArray: '8 6' }}>
             <Popup>
               <strong style={{ color }}>{axe.shortNom ?? axe.nom} (retour)</strong><br />
               {m?.tempsRetour ? `Temps retour : ${m.tempsRetour} min` : 'Données retour indisponibles'}
@@ -409,7 +413,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
 
       {/* Trajet utilisateur — tracé + marqueurs position/destination */}
       {routeGeometry?.length > 1 && (
-        <Polyline positions={routeGeometry} color={C.primary} weight={5} opacity={0.85} dashArray="1 10" />
+        <Polyline positions={routeGeometry} pathOptions={{ color: C.primary, weight: 5, opacity: 0.85, dashArray: '1 10' }} />
       )}
       {userPosition && (
         <Marker position={[userPosition.lat, userPosition.lng]} icon={USER_POSITION_ICON}>
