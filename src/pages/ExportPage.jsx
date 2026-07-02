@@ -42,21 +42,37 @@ function getPeriodBounds(periodeId) {
   return { start, end: now }
 }
 
+// d.I1/I2/I3/I5/I7 = ancien schéma d'indicateurs (indicators.js, supprimé) —
+// les documents collecte_auto réels (scripts/collecte.js) n'ont jamais eu
+// ces champs, seulement temps_min/niveau/vitesse/retard. T_ref n'est écrit
+// sur aucun document (ce n'est pas une mesure, c'est une propriété de
+// l'axe) : on le résout depuis AXES_OFFICIELS par axeId, comme le fait déjà
+// buildHistoRows() plus bas.
 function toExportRow(d) {
-  const ts = d.timestamp?.toDate?.() ?? new Date(d.timestamp ?? 0)
+  const ts  = d.timestamp?.toDate?.() ?? new Date(d.timestamp ?? 0)
+  const axe = AXES_OFFICIELS.find(a => a.id === d.axeId)
+  const niveau = d.niveau ?? d.I7 ?? 0
   return {
     Date:            ts.toLocaleDateString('fr-FR'),
     Heure:           ts.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }),
-    Axe:             d.nom ?? d.axeId ?? '—',
+    Axe:             axe?.shortNom ?? d.nom ?? d.axeId ?? '—',
     Sens:            d.sens ?? 'aller',
-    'T_ref (min)':   d.I2 ?? d.tRef ?? '—',
-    'T_live (min)':  d.I1 ?? d.temps_min ?? '—',
-    'Retard (min)':  d.I3 ?? '—',
-    Niveau:          d.I7 ?? d.niveau ?? '—',
-    'Label niveau':  levelLabel(d.I7 ?? d.niveau ?? 0),
-    'Vitesse (km/h)': d.I5 ?? '—',
-    Source:          'GitHub Actions / TomTom',
+    'T_ref (min)':   axe?.tRef ?? d.tRef ?? d.I2 ?? '—',
+    'T_live (min)':  d.temps_min ?? d.I1 ?? '—',
+    'Retard (min)':  d.retard ?? d.I3 ?? '—',
+    Niveau:          niveau || '—',
+    'Label niveau':  levelLabel(niveau),
+    'Vitesse (km/h)': d.vitesse ?? d.I5 ?? '—',
+    Source:          d.source ?? 'GitHub Actions / TomTom',
   }
+}
+
+// Timestamp en ms, quel que soit le type Firestore (Timestamp | ISO string)
+function tsToMillis(ts) {
+  if (!ts) return 0
+  if (typeof ts.toMillis === 'function') return ts.toMillis()
+  if (typeof ts === 'string') return new Date(ts).getTime()
+  return 0
 }
 
 function buildLiveRows(mesures) {
@@ -83,8 +99,14 @@ function buildLiveRows(mesures) {
 function buildHistoRows(data, axeFilter) {
   return data
     .filter(d => axeFilter === 'tous' || d.axeId === axeFilter)
+    // Pas de timestamp unifié sur ce dataset (date + heure séparées), et la
+    // requête Firestore ne trie pas (getDocs sans orderBy dans
+    // useHistoricalData) — l'ordre par défaut n'est pas garanti chronologique.
+    .sort((a, b) => `${b.date}T${String(b.heure).padStart(2, '0')}` .localeCompare(`${a.date}T${String(a.heure).padStart(2, '0')}`))
     .map(d => {
-      const axe = AXES_OFFICIELS.find(a => a.id === d.axeId)
+      const axe     = AXES_OFFICIELS.find(a => a.id === d.axeId)
+      const retard  = axe ? Math.round((d.temps_min - axe.tRef) * 10) / 10 : null
+      const vitesse = axe?.dist ? Math.round((axe.dist / d.temps_min) * 60 * 10) / 10 : null
       return {
         Date:            d.date,
         Heure:           `${d.heure}h00`,
@@ -92,10 +114,10 @@ function buildHistoRows(data, axeFilter) {
         Sens:            d.sens,
         'T_ref (min)':   axe?.tRef ?? '—',
         'T_live (min)':  d.temps_min,
-        'Retard (min)':  axe ? Math.round((d.temps_min - axe.tRef) * 10) / 10 : '—',
+        'Retard (min)':  retard ?? '—',
         Niveau:          '—',
         'Label niveau':  '—',
-        'Vitesse (km/h)': '—',
+        'Vitesse (km/h)': vitesse ?? '—',
         Source:          'Historique fév. 2025',
       }
     })
@@ -144,6 +166,10 @@ function useCollecteData(axeFilter, periodeId, enabled) {
             if (axeFilter !== 'tous' && d.axeId !== axeFilter) return false
             return true
           })
+          // Le filtre préserve l'ordre de la requête (déjà desc), mais on
+          // retrie explicitement — plus récent → plus ancien — pour ne pas
+          // dépendre d'un détail d'implémentation Firestore.
+          .sort((a, b) => tsToMillis(b.timestamp) - tsToMillis(a.timestamp))
         setData(rows)
         setCount(rows.length)
         setLoading(false)
