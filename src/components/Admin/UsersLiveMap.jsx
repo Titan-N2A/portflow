@@ -59,7 +59,7 @@ function UsersLiveMap({ axes = [] }) {
     }, err => {
       console.error('UsersLiveMap — abonnement impossible :', err)
       setError(err.code === 'permission-denied'
-        ? 'Accès refusé par les règles Firestore — vérifiez que firestore.rules a bien été déployé et que votre compte a le rôle "admin".'
+        ? 'Accès refusé par les règles Firestore — vérifiez que firestore.rules a bien été déployé.'
         : 'Impossible de charger les utilisateurs en temps réel.')
     })
     return () => unsub()

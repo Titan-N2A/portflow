@@ -30,6 +30,13 @@ function computeKPIs(mesures, axes) {
   const paires    = axes.map(a => ({ axe: a, m: mesures[a.id] })).filter(({ m }) => m)
   const pireEntry = paires.reduce((best, curr) =>
     curr.m.niveau > (best?.m?.niveau ?? -1) ? curr : best, null)
+  // Meilleur axe : symétrique du pire — le plus fluide parmi ceux mesurés.
+  // En cas d'égalité de niveau, on départage par le ratio le plus bas.
+  const meilleurEntry = paires.reduce((best, curr) => {
+    if (!best) return curr
+    if (curr.m.niveau !== best.m.niveau) return curr.m.niveau < best.m.niveau ? curr : best
+    return curr.m.ratio < best.m.ratio ? curr : best
+  }, null)
   const alertes   = axes
     .map(a => ({ axe: a, mesure: mesures[a.id] }))
     .filter(({ mesure }) => mesure && mesure.niveau >= 3)
@@ -40,6 +47,9 @@ function computeKPIs(mesures, axes) {
     pctCong,
     tronconCritique: pireEntry
       ? { nom: `${pireEntry.axe.shortNom ?? '?'} – ${pireEntry.axe.troncons?.at(-1) ?? '?'}`, niveau: pireEntry.m.niveau }
+      : null,
+    meilleurAxe: meilleurEntry
+      ? { nom: meilleurEntry.axe.shortNom ?? meilleurEntry.axe.nom ?? '?', niveau: meilleurEntry.m.niveau, tempsLive: meilleurEntry.m.tempsLive }
       : null,
     alertes,
   }

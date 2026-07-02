@@ -2,12 +2,13 @@ import { useState, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, Popup, ZoomControl, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Clock, AlertTriangle, BarChart2, Gauge, RefreshCw, Zap, X } from 'lucide-react'
+import { Clock, AlertTriangle, CheckCircle2, Gauge, RefreshCw, Zap, X, Users } from 'lucide-react'
 import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useTrafficData, AXES_OFFICIELS, REFRESH_MS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { usePredictions } from '../hooks/usePredictions'
 import { useGeolocation } from '../hooks/useGeolocation'
+import { useActiveUsersCount } from '../hooks/useActiveUsersCount'
 import AlertesPredictives from '../components/Dashboard/AlertesPredictives'
 import GeocoderSearch from '../components/shared/GeocoderSearch'
 import ETACard from '../components/shared/ETACard'
@@ -424,6 +425,7 @@ function DashboardPage() {
   const { mesures, kpis, loading, lastUpdate, refresh, refreshing } = useTrafficData(axes)
   const { predictions, meta: predMeta } = usePredictions()
   const { position: userPosition } = useGeolocation(axes)
+  const activeUsersCount = useActiveUsersCount()
   const isMobile = useIsMobile()
   const [mapMode,      setMapMode]      = useState('live')
   const [selectedAxe,  setSelectedAxe]  = useState(null)
@@ -560,11 +562,14 @@ function DashboardPage() {
           badge={kpis?.tronconCritique ? `N${kpis.tronconCritique.niveau} — ${levelLabel(kpis.tronconCritique.niveau)}` : null}
           flash={flashKpis} />
 
-        <KPICard icon={Clock} iconColor={C.warning}
-          title="Retard moyen" value={kpis?.retardMoyen} unit="min" flash={flashKpis} />
+        <KPICard icon={CheckCircle2} iconColor={C.success}
+          title="Meilleur axe"
+          value={kpis?.meilleurAxe?.nom ?? '—'}
+          badge={kpis?.meilleurAxe ? `N${kpis.meilleurAxe.niveau} — ${levelLabel(kpis.meilleurAxe.niveau)}` : null}
+          flash={flashKpis} />
 
-        <KPICard icon={BarChart2} iconColor="#8E44AD"
-          title="Axes dégradés" value={kpis?.pctCong} unit="%" flash={flashKpis} />
+        <KPICard icon={Users} iconColor="#8E44AD"
+          title="Usagers en direct" value={activeUsersCount} unit={activeUsersCount > 1 ? 'connectés' : 'connecté'} />
 
         <KPICard icon={Gauge} iconColor={C.success}
           title="Vitesse moy." value={kpis?.vitesseMoyenne} unit="km/h" flash={flashKpis} />
