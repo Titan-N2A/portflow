@@ -215,7 +215,11 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
             pathOptions={{ color, weight: isSelected ? 11 : 7, opacity: isSelected ? 1 : opacity }}
             eventHandlers={{ click: (e) => { e.originalEvent?.stopPropagation?.(); onAxeSelect(axe) } }}
           >
-            <Popup>
+            {/* autoPan désactivé : sinon le popup recentre la carte sur son propre
+                point d'ancrage en concurrence avec le flyToBounds de
+                MapZoomController (déclenché par onAxeSelect), ce qui décale le
+                cadrage final de l'axe sélectionné. */}
+            <Popup autoPan={false}>
               <strong style={{ color }}>{axe.nom}</strong><br />
               {isPrevision ? (
                 pred ? (
@@ -396,7 +400,8 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
             pathOptions={{ color, weight: 4, opacity, dashArray: '8 6' }}
             eventHandlers={{ click: (e) => { e.originalEvent?.stopPropagation?.(); onAxeSelect(axe) } }}
           >
-            <Popup>
+            {/* autoPan désactivé — même raison que le popup aller ci-dessus. */}
+            <Popup autoPan={false}>
               <strong style={{ color }}>{axe.shortNom ?? axe.nom} (retour)</strong><br />
               {m?.tempsRetour != null ? (
                 <>
