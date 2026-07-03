@@ -66,14 +66,26 @@ function computeKPIs(mesures, axes) {
   const degrades  = vals.filter(m => m.niveau >= 3).length
   const pctCong   = Math.round((degrades / vals.length) * 100)
 
-  const pireEntry = paires.reduce((best, curr) =>
-    curr.m.niveau > (best?.m?.niveau ?? -1) ? curr : best, null)
-  // Meilleur axe : symétrique du pire — le plus fluide parmi ceux mesurés.
+  // Tronçon critique / meilleur axe : comparent CHAQUE sens séparément
+  // (aller ET retour), pas seulement l'aller — un axe peut être fluide à
+  // l'aller mais très congestionné au retour, ou l'inverse.
+  const readings = paires.flatMap(({ axe, m }) => {
+    const nom = axe.shortNom ?? axe.nom ?? '?'
+    const list = [{ axe, nom, sens: 'aller', niveau: m.niveau, ratio: m.ratio }]
+    if (m.tempsRetour != null && m.niveauRetour != null) {
+      list.push({ axe, nom, sens: 'retour', niveau: m.niveauRetour, ratio: m.ratioRetour })
+    }
+    return list
+  })
+
+  const pireReading = readings.reduce((best, curr) =>
+    curr.niveau > (best?.niveau ?? -1) ? curr : best, null)
+  // Meilleur : symétrique du pire — le plus fluide parmi tous les sens mesurés.
   // En cas d'égalité de niveau, on départage par le ratio le plus bas.
-  const meilleurEntry = paires.reduce((best, curr) => {
+  const meilleurReading = readings.reduce((best, curr) => {
     if (!best) return curr
-    if (curr.m.niveau !== best.m.niveau) return curr.m.niveau < best.m.niveau ? curr : best
-    return curr.m.ratio < best.m.ratio ? curr : best
+    if (curr.niveau !== best.niveau) return curr.niveau < best.niveau ? curr : best
+    return curr.ratio < best.ratio ? curr : best
   }, null)
 
   const alertes = paires
@@ -85,11 +97,19 @@ function computeKPIs(mesures, axes) {
     retardMoyen:     Math.round(retardMoyen    * 10) / 10,
     vitesseMoyenne:  Math.round(vitesseMoyenne * 10) / 10,
     pctCong,
-    tronconCritique: pireEntry
-      ? { nom: `${pireEntry.axe.shortNom ?? '?'} – ${pireEntry.axe.troncons?.at(-1) ?? '?'}`, niveau: pireEntry.m.niveau }
+    tronconCritique: pireReading
+      ? {
+          nom: `${pireReading.nom}${pireReading.sens === 'retour' ? ' (retour)' : ''} – ${pireReading.axe.troncons?.at(-1) ?? '?'}`,
+          niveau: pireReading.niveau,
+          sens: pireReading.sens,
+        }
       : null,
-    meilleurAxe: meilleurEntry
-      ? { nom: meilleurEntry.axe.shortNom ?? meilleurEntry.axe.nom ?? '?', niveau: meilleurEntry.m.niveau, tempsLive: meilleurEntry.m.tempsLive }
+    meilleurAxe: meilleurReading
+      ? {
+          nom: `${meilleurReading.nom}${meilleurReading.sens === 'retour' ? ' (retour)' : ''}`,
+          niveau: meilleurReading.niveau,
+          sens: meilleurReading.sens,
+        }
       : null,
     alertes,
   }
