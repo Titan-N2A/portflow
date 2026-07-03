@@ -9,7 +9,7 @@ import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useCollecteAuto }   from '../hooks/useCollecteAuto'
 import { useHistoricalData } from '../hooks/useHistoricalData'
 import { useAxesFirestore }  from '../hooks/useAxesFirestore'
-import { AXES_OFFICIELS, AXE_COLORS } from '../hooks/useTrafficData'
+import { AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { computeCourbe24h, computeRepartitionNiveaux } from '../services/aggregations'
 import { computeNiveau } from '../services/indicators'
 import { getReference } from '../data/references'
@@ -164,10 +164,14 @@ function GraphiquesPage() {
   const officialFSAxes = firestoreAxes.filter(a => AXES_OFFICIELS_IDS.has(a.id))
   const baseAxes = officialFSAxes.length > 0 ? officialFSAxes : AXES_OFFICIELS
 
+  // PALETTE (pas AXE_COLORS) pour les graphiques : AXE_COLORS (identité des
+  // axes sur la carte) donne à Toyota CFAO et Agence SODECI deux tons de
+  // jaune/ambre quasi identiques, illisibles une fois superposés sur une
+  // courbe avec légende. PALETTE offre 3 teintes nettement différenciées.
   const axeDefs = baseAxes.map((axe, idx) => ({
     id:    axe.id,
     label: axe.shortNom ?? axe.nom ?? axe.id,
-    color: AXE_COLORS[axe.id] ?? PALETTE[idx % PALETTE.length],
+    color: PALETTE[idx % PALETTE.length],
     dist:  parseFloat(String(axe.dist ?? axe.distance)) || 10,
     tRef:  axe.tRef ?? 20,
   }))
@@ -240,6 +244,18 @@ function GraphiquesPage() {
   }, [data24h, axeDefs.map(a => a.id).join()])
 
   // ── Courbes 24h ─────────────────────────────────────────────
+  // Dégradé vertical (couleur de l'axe → transparent) plutôt qu'un aplat
+  // translucide uni — plus lisible quand plusieurs courbes se chevauchent.
+  function makeFillGradient(context, color) {
+    const { ctx, chartArea } = context.chart
+    if (!chartArea) return `${color}15`
+    const gradient = ctx.createLinearGradient(0, chartArea.top, 0, chartArea.bottom)
+    gradient.addColorStop(0,   `${color}4D`)
+    gradient.addColorStop(0.6, `${color}12`)
+    gradient.addColorStop(1,   `${color}00`)
+    return gradient
+  }
+
   const lineDatasets = useMemo(() => axeDefs.map(axe => {
     const courbe     = computeCourbe24h(data24h, axe.id, lineDir)
     const dataPoints = courbe.map(p => p.temps_moyen)
@@ -247,12 +263,13 @@ function GraphiquesPage() {
       label:                axe.label,
       data:                 dataPoints,
       borderColor:          axe.color,
-      backgroundColor:      `${axe.color}18`,
+      backgroundColor:      context => makeFillGradient(context, axe.color),
       tension:              0.35,
       fill:                 true,
       spanGaps:             true,                            // relie les points au travers des heures sans données
       pointRadius:          dataPoints.map(v => v != null ? 5 : 0),
       pointHoverRadius:     7,
+      pointHitRadius:       12,
       pointBackgroundColor: '#fff',
       pointBorderColor:     axe.color,
       pointBorderWidth:     2,
@@ -447,10 +464,20 @@ function GraphiquesPage() {
             <Line data={lineData} options={{
               ...CHART_OPTIONS_BASE,
               spanGaps: true,
+              // mode 'index' + intersect:false : le tooltip apparaît dès que le
+              // curseur survole n'importe quel point de la tranche horaire, pas
+              // seulement en passant exactement sur un point de la courbe.
+              interaction: { mode: 'index', intersect: false },
+              hover:       { mode: 'index', intersect: false },
               plugins: {
                 ...CHART_OPTIONS_BASE.plugins,
                 legend: { ...CHART_OPTIONS_BASE.plugins.legend, position: 'top' },
                 title: { display: false },
+                tooltip: {
+                  ...CHART_OPTIONS_BASE.plugins.tooltip,
+                  mode: 'index',
+                  intersect: false,
+                },
               },
               scales: {
                 ...CHART_OPTIONS_BASE.scales,
