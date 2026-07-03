@@ -640,9 +640,14 @@ function DashboardPage() {
           title="Vitesse moy." value={kpis?.vitesseMoyenne} unit="km/h" flash={flashKpis} freshness={dataHealth} />
       </div>
 
-      {/* ── Mon trajet ────────────────────────────────────── */}
-      <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: '0.75rem', flexShrink: 0 }}>
-        <div className="fp-card" style={{ padding: '1rem', flex: isMobile ? 'none' : '0 0 300px', display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+      {/* ── Recherche destination — alignée sous le KPI "Vitesse moy." ── */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)',
+        gap: '0.75rem',
+        flexShrink: 0,
+      }}>
+        <div className="fp-card" style={{ gridColumn: isMobile ? 1 : 5, padding: '0.75rem' }}>
           <p style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
             Destination
           </p>
@@ -653,9 +658,11 @@ function DashboardPage() {
             </p>
           )}
         </div>
-        <div style={{ flex: 1 }}>
-          <ETACard eta={eta} loading={etaLoading} />
-        </div>
+      </div>
+
+      {/* ── Mon trajet (ETA) ─────────────────────────────────── */}
+      <div style={{ flexShrink: 0 }}>
+        <ETACard eta={eta} loading={etaLoading} />
       </div>
 
       {/* ── Map + Panneau droit ────────────────────────────── */}
