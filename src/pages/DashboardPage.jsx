@@ -359,19 +359,39 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         ]
       })}
 
-      {/* Trajets retour — tous les axes bidirectionnels, tracé en pointillés */}
+      {/* Trajets retour — tous les axes bidirectionnels, tracé en pointillés.
+          Coloré par le niveau du RETOUR (niveauRetour), pas celui de l'aller —
+          les deux sens peuvent avoir des congestions différentes. */}
       {axes.filter(a => a.bidirectionnel).map((axe, idx) => {
         const m         = mesures[axe.id]
         const retourPos = (m?.geometryRetour?.length > 5) ? m.geometryRetour : (axe.coordinatesRetour ?? [])
         if (retourPos.length < 2) return null
-        const niveau    = m?.niveau ?? 0
-        const color     = niveau > 0 ? levelColor(niveau) : (AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length])
+        const niveauRetour = m?.niveauRetour ?? 0
+        const color     = niveauRetour > 0 ? levelColor(niveauRetour) : (AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length])
         const opacity   = m ? 0.6 : 0.25
         return (
           <Polyline key={axe.id + '_retour'} positions={retourPos} pathOptions={{ color, weight: 4, opacity, dashArray: '8 6' }}>
             <Popup>
               <strong style={{ color }}>{axe.shortNom ?? axe.nom} (retour)</strong><br />
-              {m?.tempsRetour ? `Temps retour : ${m.tempsRetour} min` : 'Données retour indisponibles'}
+              {m?.tempsRetour != null ? (
+                <>
+                  Temps retour : <strong>{m.tempsRetour} min</strong><br />
+                  Retard : <strong style={{ color: m.retardRetour > 0 ? '#C0392B' : '#27AE60' }}>
+                    {m.retardRetour >= 0 ? '+' : ''}{m.retardRetour} min
+                  </strong><br />
+                  Vitesse : {m.vitesseRetour} km/h<br />
+                  {niveauRetour > 0 && (
+                    <span style={{
+                      display: 'inline-block', marginTop: 4,
+                      padding: '2px 8px', borderRadius: 999,
+                      background: levelBg(niveauRetour), color: levelColor(niveauRetour),
+                      fontWeight: 600, fontSize: 11,
+                    }}>
+                      Niveau {niveauRetour} — {levelLabel(niveauRetour)}
+                    </span>
+                  )}
+                </>
+              ) : 'Données retour indisponibles'}
             </Popup>
           </Polyline>
         )
@@ -743,13 +763,47 @@ function DashboardPage() {
                   ))}
                 </div>
 
-                {/* Temps retour si disponible */}
-                {selectedAxe.bidirectionnel && m?.tempsRetour && (
-                  <div style={{ marginTop: 6, padding: '5px 10px', background: '#f8fafc', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 11, color: C.textMuted }}>Retour</span>
-                    <span style={{ fontSize: 14, fontWeight: 700, color: color }}>{m.tempsRetour} min</span>
-                  </div>
-                )}
+                {/* Retour — grille symétrique à l'aller (vitesse/retard/ratio propres
+                    au trajet retour, pas de simples doublons de l'aller) */}
+                {selectedAxe.bidirectionnel && m?.tempsRetour != null && (() => {
+                  const niveauRetour = m.niveauRetour ?? 0
+                  const colorRetour  = niveauRetour > 0 ? levelColor(niveauRetour) : axeColor
+                  return (
+                    <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.borderLight}` }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 5 }}>
+                        <span style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Retour</span>
+                        {niveauRetour > 0 && (
+                          <span style={{
+                            padding: '1px 10px', borderRadius: 999, fontSize: 10, fontWeight: 700,
+                            background: levelBg(niveauRetour), color: colorRetour,
+                            border: `1px solid ${colorRetour}40`,
+                          }}>
+                            N{niveauRetour} — {levelLabel(niveauRetour)}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 5 }}>
+                        {[
+                          { label: 'Temps retour', value: m.tempsRetour, unit: 'min', c: colorRetour },
+                          { label: 'Vitesse',       value: m.vitesseRetour, unit: 'km/h', c: C.success },
+                          {
+                            label: 'Retard',
+                            value: m.retardRetour != null ? (m.retardRetour >= 0 ? `+${m.retardRetour}` : m.retardRetour) : '—',
+                            unit: 'min',
+                            c: m.retardRetour > 0 ? C.danger : C.success,
+                          },
+                          { label: 'Ratio ×', value: m.ratioRetour?.toFixed(2), unit: '', c: colorRetour },
+                        ].map(({ label, value, unit, c }) => (
+                          <div key={label} style={{ background: '#f8fafc', borderRadius: 6, padding: '6px 8px', textAlign: 'center' }}>
+                            <p style={{ fontSize: 9, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>{label}</p>
+                            <p style={{ fontSize: 15, fontWeight: 800, color: c, lineHeight: 1 }}>{value ?? '—'}</p>
+                            {unit && <p style={{ fontSize: 9, color: C.textLight, marginTop: 2 }}>{unit}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )
+                })()}
               </div>
             )
           })()}

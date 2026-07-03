@@ -129,7 +129,18 @@ function buildMesures(snapshot, axes) {
       }
     }
     if (r.sens === 'retour') {
-      data[r.axeId].tempsRetour = tempsLive
+      // Indicateurs synthétiques du retour — jusqu'ici seul tempsRetour était
+      // capturé, vitesse/retard/ratio/niveau du retour étaient perdus alors
+      // que le document Firestore les contient déjà (calculés côté serveur
+      // par scripts/collecte.js pour cette route spécifiquement). Recalculés
+      // ici (pas repris tels quels) pour refléter le tRef courant de l'axe,
+      // comme pour l'aller.
+      const ratioRetour = tempsLive / (axe.tRef ?? 20)
+      data[r.axeId].tempsRetour   = tempsLive
+      data[r.axeId].vitesseRetour = r.vitesse ?? 0
+      data[r.axeId].retardRetour  = Math.round((tempsLive - (axe.tRef ?? 20)) * 10) / 10
+      data[r.axeId].ratioRetour   = ratioRetour
+      data[r.axeId].niveauRetour  = computeNiveau(ratioRetour)
     }
   })
   // Axes absents de Firestore → pas de simulation, ils afficheront "—"
@@ -260,6 +271,11 @@ export function useTrafficData(axes = DEFAULT_AXES) {
         ratio:  Math.round(m.tempsLive / tRef * 100) / 100,
         niveau: computeNiveau(m.tempsLive / tRef),
         retard: Math.round((m.tempsLive - tRef) * 10) / 10,
+        ...(m.tempsRetour != null ? {
+          ratioRetour:  Math.round(m.tempsRetour / tRef * 100) / 100,
+          niveauRetour: computeNiveau(m.tempsRetour / tRef),
+          retardRetour: Math.round((m.tempsRetour - tRef) * 10) / 10,
+        } : {}),
       }
     })
     if (Object.keys(updated).length > 0) applyMesures(updated, null)
@@ -290,16 +306,18 @@ export function useTrafficData(axes = DEFAULT_AXES) {
           niveau: m.niveau, vitesse: m.vitesse, retard: m.retard,
           timestamp: now, source: 'client_manuel',
         })
+        let retourFields = {}
         if (m.tempsRetour != null) {
           const r2 = m.tempsRetour / axe.tRef
+          const vitesseRetour = distKm > 0 ? Math.round((distKm / m.tempsRetour) * 60 * 10) / 10 : 0
+          const retardRetour  = Math.round((m.tempsRetour - axe.tRef) * 10) / 10
           await setDoc(doc(db, 'mesures_live', `${axeId}_retour`), {
             axeId, sens: 'retour', nom: `${axe.shortNom} (retour)`,
             temps_min: m.tempsRetour, dist_km: distKm,
-            niveau: computeNiveau(r2),
-            vitesse: distKm > 0 ? Math.round((distKm / m.tempsRetour) * 60 * 10) / 10 : 0,
-            retard: Math.round((m.tempsRetour - axe.tRef) * 10) / 10,
+            niveau: computeNiveau(r2), vitesse: vitesseRetour, retard: retardRetour,
             timestamp: now, source: 'client_manuel',
           })
+          retourFields = { vitesseRetour, retardRetour, ratioRetour: r2, niveauRetour: computeNiveau(r2) }
         }
 
         localData[axeId] = {
@@ -312,6 +330,7 @@ export function useTrafficData(axes = DEFAULT_AXES) {
           source:      'client_manuel',
           timestamp:   now,
           tempsRetour: m.tempsRetour,
+          ...retourFields,
         }
         if (m.geometryRetour?.length > 5) retours[axeId] = m.geometryRetour
       }))
