@@ -44,3 +44,10 @@ jobs:
           exit $EXIT
         env:
           GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json
+
+      - name: Déployer les règles Firestore
+        run: |
+          echo '${{ secrets.FIREBASE_SERVICE_ACCOUNT_PORTFLOW_46738 }}' > /tmp/sa.json
+          npx firebase-tools deploy --only firestore:rules --project portflow-46738 --non-interactive
+        env:
+          GOOGLE_APPLICATION_CREDENTIALS: /tmp/sa.json

@@ -2,21 +2,42 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // Un utilisateur est admin si son doc users/{uid} existe, role == 'admin'
+    // et actif != false. get()/exists() ici sont des lectures internes au
+    // moteur de règles : elles ne passent pas par la règle "read" ci-dessous
+    // et n'ont donc pas besoin d'un droit de lecture explicite pour l'appelant.
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('role', 'public') == 'admin'
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.get('actif', true) != false;
+    }
+
     // ── Collections de configuration PAA (lecture publique, écriture admin) ──
+    // Lues sans connexion par le dashboard public ET par scripts/collecte.js
+    // (lecture non-authentifiée via clé API) — écrites uniquement depuis
+    // AdminPage (services/axesService.js).
     match /flowport_axes/{doc} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
     match /flowport_troncons/{doc} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
     match /flowport_seuils/{doc} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
-    // ── Données de mesures (lecture/écriture collecte auto + dashboard) ──
+    // ── Données de mesures (lecture dashboard + écriture collecte auto) ────
+    // scripts/collecte.js (GitHub Actions, toutes les 5 min) écrit ici via
+    // l'API REST Firestore avec une clé API — PAS un token d'utilisateur
+    // authentifié (request.auth est null dans ce contexte). Restreindre
+    // l'écriture à isAdmin() couperait la collecte live. Pour verrouiller
+    // ceci il faudrait migrer collecte.js vers l'Admin SDK + un compte de
+    // service (qui contourne ces règles), ce qui est un changement plus
+    // large laissé pour une prochaine passe.
     match /mesures/{doc} {
       allow read: if true;
       allow write: if true;
@@ -29,21 +50,43 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+
+    // Non utilisée par le code actuel (services/seed.js n'est appelé nulle
+    // part) — verrouillée par précaution, aucun lecteur/écrivain à casser.
     match /references/{doc} {
+      allow read: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    // Idem : services/troncons.js#createTroncon n'est appelé nulle part.
+    // useTroncons.js lit en onSnapshot, donc lecture publique conservée.
+    match /troncons/{doc} {
       allow read: if true;
-      allow write: if true;
+      allow write: if isAdmin();
     }
 
     // ── Utilisateurs ──────────────────────────────────────────────────────
+    // - Un utilisateur connecté peut lire son propre doc (rôle) : useAuth.js.
+    // - Seul un admin peut lister tous les users (AdminPage) ou modifier/
+    //   supprimer un doc (updateUser/deleteUserDoc).
+    // - La création est ouverte à soi-même (ensureUserDoc, 1re connexion)
+    //   MAIS seulement avec role == 'public' : impossible de s'auto-
+    //   promouvoir admin en écrivant directement dans Firestore. Un admin
+    //   peut créer un doc pour n'importe quel uid avec n'importe quel rôle
+    //   (flux normal de création d'utilisateur depuis AdminPage).
     match /users/{uid} {
-      allow read: if true;
-      allow write: if true;
+      allow get:    if request.auth != null && (request.auth.uid == uid || isAdmin());
+      allow list:   if isAdmin();
+      allow create: if request.auth != null &&
+                       ((request.auth.uid == uid && request.resource.data.role == 'public') || isAdmin());
+      allow update, delete: if isAdmin();
     }
 
     // ── Config ───────────────────────────────────────────────────────────
+    // Non utilisée par le code actuel — verrouillée par précaution.
     match /config/{doc} {
-      allow read: if true;
-      allow write: if true;
+      allow read: if isAdmin();
+      allow write: if isAdmin();
     }
 
     // ── Positions live utilisateurs (anonymisées) ───────────────────────────
