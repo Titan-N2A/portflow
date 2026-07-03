@@ -92,7 +92,12 @@ const PAA_ICON = L.divIcon({
 })
 
 // ── KPI Card ─────────────────────────────────────────────
-function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge, flash, freshness }) {
+function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge, niveau, flash, freshness }) {
+  // Couleur dépendante du niveau de congestion (N1 vert → N5 rouge), pour les
+  // cartes qui affichent un badge de niveau ("Tronçon critique", "Meilleur
+  // axe") — avant, le badge était toujours rouge et le texte toujours noir,
+  // peu importe le niveau réel.
+  const niveauColor = niveau > 0 ? levelColor(niveau) : null
   return (
     <div className={`fp-card${flash ? ' fp-kpi-flash' : ''}`} style={{ flex: 1, minWidth: 0, transition: 'background 0.3s' }}>
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
@@ -116,8 +121,15 @@ function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge,
       </p>
       {badge ? (
         <>
-          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.3, marginBottom: 4 }}>{value}</p>
-          <span className="fp-badge fp-badge-red">{badge}</span>
+          <p style={{ fontSize: 14, fontWeight: 700, color: niveauColor ?? C.text, lineHeight: 1.3, marginBottom: 4 }}>{value}</p>
+          <span style={{
+            display: 'inline-flex', alignItems: 'center', width: 'fit-content',
+            padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+            background: niveauColor ? levelBg(niveau) : '#fdecea',
+            color:      niveauColor ?? '#C0392B',
+          }}>
+            {badge}
+          </span>
         </>
       ) : (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
@@ -600,12 +612,14 @@ function DashboardPage() {
           title="Tronçon critique"
           value={kpis?.tronconCritique?.nom ?? '—'}
           badge={kpis?.tronconCritique ? `N${kpis.tronconCritique.niveau} — ${levelLabel(kpis.tronconCritique.niveau)}` : null}
+          niveau={kpis?.tronconCritique?.niveau}
           flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={CheckCircle2} iconColor={C.success}
           title="Meilleur axe"
           value={kpis?.meilleurAxe?.nom ?? '—'}
           badge={kpis?.meilleurAxe ? `N${kpis.meilleurAxe.niveau} — ${levelLabel(kpis.meilleurAxe.niveau)}` : null}
+          niveau={kpis?.meilleurAxe?.niveau}
           flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={Users} iconColor="#8E44AD"
