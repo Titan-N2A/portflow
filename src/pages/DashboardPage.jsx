@@ -644,26 +644,6 @@ function DashboardPage() {
           title="Vitesse moy." value={kpis?.vitesseMoyenne} unit="km/h" flash={flashKpis} freshness={dataHealth} />
       </div>
 
-      {/* ── Recherche destination — alignée sous le KPI "Vitesse moy." ── */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: isMobile ? 'repeat(2, 1fr)' : 'repeat(5, 1fr)',
-        gap: '0.75rem',
-        flexShrink: 0,
-      }}>
-        <div className="fp-card" style={{ gridColumn: isMobile ? 1 : 5, padding: '0.75rem' }}>
-          <p style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-            Destination
-          </p>
-          <GeocoderSearch onSelect={handleDestinationSelect} />
-          {!userPosition && (
-            <p style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
-              ETA non disponible — activez la géolocalisation pour estimer votre arrivée.
-            </p>
-          )}
-        </div>
-      </div>
-
       {/* ── Mon trajet (ETA) — masqué tant qu'aucune destination n'est choisie ── */}
       {showEta && (
         <div style={{ flexShrink: 0 }}>
@@ -741,6 +721,19 @@ function DashboardPage() {
           display: 'flex', flexDirection: 'column', gap: '0.75rem',
           overflowY: isMobile ? 'visible' : 'auto',
         }}>
+
+          {/* ── Recherche destination ─────────────────────────── */}
+          <div className="fp-card" style={{ padding: '0.75rem', flexShrink: 0 }}>
+            <p style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
+              Destination
+            </p>
+            <GeocoderSearch onSelect={handleDestinationSelect} />
+            {!userPosition && (
+              <p style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+                ETA non disponible — activez la géolocalisation pour estimer votre arrivée.
+              </p>
+            )}
+          </div>
 
           {/* ── Panneau axe sélectionné ───────────────────────── */}
           {selectedAxe && (() => {
