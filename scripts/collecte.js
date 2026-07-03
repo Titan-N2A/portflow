@@ -13,10 +13,15 @@
 // de bugs de fraîcheur avec l'ex-collector/collecte.js, supprimé).
 // ============================================================
 
-const TOMTOM_KEY   = process.env.TOMTOM_KEY   || 'OKRpdcKYIWdRTpEyr3eHab19LOQizhdZ'
-const FIREBASE_KEY = process.env.FIREBASE_API_KEY || 'AIzaSyAnjGSgFXIB1cSvslFbUdiTjB6zrUmHhwc'
-const GOOGLE_KEY   = process.env.GOOGLE_MATRIX_API_KEY || 'AIzaSyBsm4oMoYDdpfRX6hDQr3lKu5IaJRjlXBo'
+const TOMTOM_KEY   = process.env.TOMTOM_KEY
+const FIREBASE_KEY = process.env.FIREBASE_API_KEY
+const GOOGLE_KEY   = process.env.GOOGLE_MATRIX_API_KEY
 const PROJECT_ID   = 'portflow-46738'
+
+if (!FIREBASE_KEY) {
+  console.error('❌ FIREBASE_API_KEY manquant (secret GitHub Actions non configuré) — collecte annulée.')
+  process.exit(1)
+}
 const FS           = `https://firestore.googleapis.com/v1/projects/${PROJECT_ID}/databases/(default)/documents`
 
 const DEFAULT_AXES = [
