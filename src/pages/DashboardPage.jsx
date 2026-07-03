@@ -14,7 +14,8 @@ import GeocoderSearch from '../components/shared/GeocoderSearch'
 import ETACard from '../components/shared/ETACard'
 import { createETATracker } from '../services/eta'
 import { AXE_COLORS, AXE_PALETTE, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
-import { askGemini, buildTrafficPrompt } from '../services/gemini'
+import { askAI, buildTrafficPrompt } from '../services/ai'
+import { getCachedAI, setCachedAI, clearCachedAI } from '../utils/aiCache'
 import { useIsMobile } from '../hooks/useIsMobile'
 
 const PAA_CENTER = PAA_CENTER_COORDS   // [5.304290, -4.023577]
@@ -545,15 +546,15 @@ function DashboardPage() {
 
   async function loadIA(currentMesures, force = false) {
     if (!force) {
-      const cached = sessionStorage.getItem('fp_ia_dashboard')
+      const cached = getCachedAI('fp_ia_dashboard')
       if (cached) { setIaText(cached); return }
     }
     setIaLoading(true)
     const prompt = buildTrafficPrompt(currentMesures ?? mesures, axes)
-    const resp   = await askGemini(prompt)
+    const resp   = await askAI(prompt)
     const text   = resp ?? 'Service IA temporairement indisponible.'
     setIaText(text)
-    sessionStorage.setItem('fp_ia_dashboard', text)
+    setCachedAI('fp_ia_dashboard', text)
     setIaLoading(false)
   }
 
@@ -606,7 +607,7 @@ function DashboardPage() {
           </p>
         </div>
         <button className="fp-btn fp-btn-primary" style={{ fontSize: 12, padding: '0.4rem 0.8rem' }}
-          onClick={async () => { sessionStorage.removeItem('fp_ia_dashboard'); await refresh(); loadIA(null, true) }}
+          onClick={async () => { clearCachedAI('fp_ia_dashboard'); await refresh(); loadIA(null, true) }}
           disabled={refreshing}>
           <RefreshCw size={13} className={refreshing ? 'fp-spin' : ''} />
           {!isMobile && 'Actualiser'}
@@ -879,7 +880,7 @@ function DashboardPage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
               <Zap size={15} color={C.primary} />
               <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>IA FlowPort</span>
-              <button onClick={() => { sessionStorage.removeItem('fp_ia_dashboard'); loadIA(null, true) }} disabled={iaLoading}
+              <button onClick={() => { clearCachedAI('fp_ia_dashboard'); loadIA(null, true) }} disabled={iaLoading}
                 style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, padding: 2 }}>
                 <RefreshCw size={13} className={iaLoading ? 'fp-spin' : ''} />
               </button>

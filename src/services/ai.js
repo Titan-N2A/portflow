@@ -1,6 +1,19 @@
-const GEMINI_KEY   = import.meta.env.VITE_GEMINI_API_KEY ?? ''
-const GEMINI_MODEL = 'gemini-2.5-flash-lite'
-const GEMINI_URL   = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`
+// ============================================================
+// ai.js — Assistant IA FlowPort (Groq, gratuit)
+// Remplace l'ancienne intégration Gemini : quota gratuit Gemini
+// 2.5 Flash Lite trop faible (1000 req/j, réduit de 50-80% en
+// décembre 2025) pour un dashboard public. Groq offre un tier
+// gratuit largement supérieur, sans carte bancaire.
+//
+// Fallback qualité → volume, même principe que Google Matrix →
+// TomTom dans scripts/collecte.js : on tente d'abord le modèle 70B
+// (meilleure qualité, 1000 req/j) puis, si son quota du jour est
+// atteint (HTTP 429), on bascule sur le 8B (14 400 req/j).
+// ============================================================
+
+const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY ?? ''
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const MODELS   = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
 
 // ── Instruction système — contexte PAA complet ────────────
 const SYSTEM_INSTRUCTION = `Tu es FlowPort IA, l'assistant de surveillance du trafic routier du Port Autonome d'Abidjan (PAA), Côte d'Ivoire. Tu travailles pour la DEESP (Direction des Études et de l'Exploitation du Port).
@@ -38,32 +51,57 @@ COMMENT FORMULER TES RÉPONSES :
 
 Réponds en français professionnel. Sois direct, précis, opérationnel.`
 
-// ── Appel API Gemini (single ou multi-turn) ───────────────
-export async function askGemini(contents, { temperature = 0.85, maxTokens = 1000 } = {}) {
-  if (!GEMINI_KEY) return 'Clé API Gemini non configurée (VITE_GEMINI_API_KEY).'
-  try {
-    const payload = {
-      system_instruction: { parts: [{ text: SYSTEM_INSTRUCTION }] },
-      contents: typeof contents === 'string'
-        ? [{ role: 'user', parts: [{ text: contents }] }]
-        : contents,
-      generationConfig: { temperature, maxOutputTokens: maxTokens },
-    }
-    const res = await fetch(GEMINI_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    })
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}))
-      throw new Error(`HTTP ${res.status} — ${errBody?.error?.message?.slice(0, 120) ?? ''}`)
-    }
-    const data = await res.json()
-    return data?.candidates?.[0]?.content?.parts?.[0]?.text ?? 'Aucune réponse générée.'
-  } catch (err) {
-    console.error('Gemini error:', err)
-    return `Erreur IA : ${err.message}`
+async function callGroq(model, messages, { temperature, maxTokens }) {
+  const res = await fetch(GROQ_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${GROQ_KEY}`,
+    },
+    body: JSON.stringify({
+      model,
+      messages,
+      temperature,
+      max_tokens: maxTokens,
+    }),
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    const err = new Error(`HTTP ${res.status} — ${errBody?.error?.message?.slice(0, 120) ?? ''}`)
+    err.status = res.status
+    throw err
   }
+  const data = await res.json()
+  return data?.choices?.[0]?.message?.content ?? 'Aucune réponse générée.'
+}
+
+// ── Appel API IA (single ou multi-turn) ───────────────────
+// `contents` accepte le même format qu'avant (string, ou tableau
+// [{role:'user'|'model', parts:[{text}]}]) pour ne pas impacter
+// buildTrafficPrompt/buildChatContents ci-dessous.
+export async function askAI(contents, { temperature = 0.85, maxTokens = 1000 } = {}) {
+  if (!GROQ_KEY) return 'Clé API Groq non configurée (VITE_GROQ_API_KEY).'
+
+  const userMessages = typeof contents === 'string'
+    ? [{ role: 'user', content: contents }]
+    : contents.map(c => ({ role: c.role === 'model' ? 'assistant' : c.role, content: c.parts[0].text }))
+  const messages = [{ role: 'system', content: SYSTEM_INSTRUCTION }, ...userMessages]
+
+  let lastErr = null
+  for (const model of MODELS) {
+    try {
+      return await callGroq(model, messages, { temperature, maxTokens })
+    } catch (err) {
+      lastErr = err
+      // 429 = quota/débit dépassé sur CE modèle → on tente le suivant de la
+      // liste. Toute autre erreur (clé invalide, réseau...) affecterait
+      // aussi le modèle suivant, donc inutile d'insister.
+      if (err.status !== 429) break
+      console.warn(`Groq ${model} indisponible (429), fallback sur le modèle suivant...`)
+    }
+  }
+  console.error('Groq error:', lastErr)
+  return `Erreur IA : ${lastErr?.message ?? 'inconnue'}`
 }
 
 // ── Contexte trafic courant (injecté dans chaque prompt) ──

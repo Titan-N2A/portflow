@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, RefreshCw, Zap } from 'lucide-react'
 import { C } from '../styles/tokens'
-import { askGemini, buildTrafficPrompt, buildChatContents } from '../services/gemini'
+import { askAI, buildTrafficPrompt, buildChatContents } from '../services/ai'
+import { getCachedAI, setCachedAI, clearCachedAI } from '../utils/aiCache'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { useIsMobile } from '../hooks/useIsMobile'
@@ -103,15 +104,15 @@ function IAPage() {
 
   async function loadAutoReco(force = false) {
     if (!force) {
-      const cached = sessionStorage.getItem('fp_autoreco')
+      const cached = getCachedAI('fp_autoreco')
       if (cached) { setAutoReco(cached); return }
     }
     setRecoLoad(true)
     const prompt = buildTrafficPrompt(mesures, axes, kpis)
-    const resp   = await askGemini(prompt)
+    const resp   = await askAI(prompt)
     const text   = resp ?? 'Erreur : réponse vide.'
     setAutoReco(text)
-    try { sessionStorage.setItem('fp_autoreco', text) } catch {}
+    setCachedAI('fp_autoreco', text)
     setRecoLoad(false)
   }
 
@@ -131,7 +132,7 @@ function IAPage() {
     // Construit les contents avec historique + données trafic actuelles
     // NB: on passe `history` sans userMsg — buildChatContents l'ajoute lui-même avec le contexte trafic
     const contents = buildChatContents(history, q, mesures, axes, kpis)
-    const resp = await askGemini(contents)
+    const resp = await askAI(contents)
 
     setHistory(prev => [...prev, {
       role: 'model',
@@ -152,7 +153,7 @@ function IAPage() {
       <div style={{ flexShrink: 0 }}>
         <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>IA FlowPort</h1>
         <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
-          Assistant trafic PAA · Gemini 2.5 Flash Lite · données temps réel
+          Assistant trafic PAA · Groq (Llama 3.3) · données temps réel
         </p>
       </div>
 
@@ -164,7 +165,7 @@ function IAPage() {
             <span style={{ fontSize: 12, fontWeight: 700, color: C.primary, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
               Analyse & recommandations automatiques
             </span>
-            <button onClick={() => { sessionStorage.removeItem('fp_autoreco'); loadAutoReco(true) }} disabled={recoLoad}
+            <button onClick={() => { clearCachedAI('fp_autoreco'); loadAutoReco(true) }} disabled={recoLoad}
               style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted }}>
               <RefreshCw size={12} className={recoLoad ? 'fp-spin' : ''} />
             </button>
