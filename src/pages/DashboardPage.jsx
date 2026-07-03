@@ -158,8 +158,14 @@ function MapZoomController({ selectedAxe, mesures }) {
     const raw = (m?.geometry?.length > 5)             ? m.geometry
       : (selectedAxe.geometryRoute?.length > 5)       ? selectedAxe.geometryRoute
       : (selectedAxe.coordinates ?? [])
-    if (raw.length < 2) return
-    const lls = raw.map(p => Array.isArray(p) ? p : [p.lat, p.lng])
+    // Axe bidirectionnel : aller et retour suivent des rues différentes —
+    // le zoom doit cadrer les deux tracés, pas seulement l'aller.
+    const retourRaw = selectedAxe.bidirectionnel
+      ? ((m?.geometryRetour?.length > 5) ? m.geometryRetour : (selectedAxe.coordinatesRetour ?? []))
+      : []
+    const combined = [...raw, ...retourRaw]
+    if (combined.length < 2) return
+    const lls = combined.map(p => Array.isArray(p) ? p : [p.lat, p.lng])
     try { map.flyToBounds(L.latLngBounds(lls), { padding: [60, 60], maxZoom: 15, duration: 0.7 }) } catch {}
   }, [selectedAxe?.id, map])
 
@@ -382,7 +388,12 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         const color     = niveauRetour > 0 ? levelColor(niveauRetour) : (AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length])
         const opacity   = m ? 0.6 : 0.25
         return (
-          <Polyline key={axe.id + '_retour'} positions={retourPos} pathOptions={{ color, weight: 4, opacity, dashArray: '8 6' }}>
+          <Polyline
+            key={axe.id + '_retour'}
+            positions={retourPos}
+            pathOptions={{ color, weight: 4, opacity, dashArray: '8 6' }}
+            eventHandlers={{ click: (e) => { e.originalEvent?.stopPropagation?.(); onAxeSelect(axe) } }}
+          >
             <Popup>
               <strong style={{ color }}>{axe.shortNom ?? axe.nom} (retour)</strong><br />
               {m?.tempsRetour != null ? (
