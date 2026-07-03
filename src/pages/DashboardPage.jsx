@@ -561,6 +561,10 @@ function DashboardPage() {
     if (!loading && Object.keys(mesures).length > 0 && !iaText) loadIA(mesures)
   }, [loading])
 
+  // Contrôle l'affichage de la carte "Mon trajet" ET la hauteur de la carte
+  // mobile — quand elle est masquée, la carte récupère l'espace libéré.
+  const showEta = etaLoading || !!eta
+
   return (
     <div style={{
       display: 'flex', flexDirection: 'column',
@@ -661,7 +665,7 @@ function DashboardPage() {
       </div>
 
       {/* ── Mon trajet (ETA) — masqué tant qu'aucune destination n'est choisie ── */}
-      {(etaLoading || eta) && (
+      {showEta && (
         <div style={{ flexShrink: 0 }}>
           <ETACard eta={eta} loading={etaLoading} />
         </div>
@@ -684,7 +688,7 @@ function DashboardPage() {
         }}>
           <div style={{
             flex: isMobile ? 'none' : 1,
-            height: isMobile ? 220 : undefined,
+            height: isMobile ? (showEta ? 220 : 320) : undefined,
             position: 'relative', borderRadius: '10px', overflow: 'hidden',
             boxShadow: '0 1px 4px rgba(0,0,0,0.1)', minHeight: 0,
           }}>
