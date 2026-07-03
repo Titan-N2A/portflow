@@ -1,20 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
 import { Send, Bot, User, RefreshCw, Zap } from 'lucide-react'
 import { C } from '../styles/tokens'
-import { askAI, buildTrafficPrompt, buildChatContents } from '../services/ai'
+import { askAI, buildTrafficPrompt } from '../services/ai'
 import { getCachedAI, setCachedAI, clearCachedAI } from '../utils/aiCache'
+import { useAIChat } from '../hooks/useAIChat'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { useIsMobile } from '../hooks/useIsMobile'
-
-function makeWelcome(axes) {
-  const names = axes.length > 0 ? axes.map(a => a.shortNom).join(', ') : 'CARENA, Toyota CFAO, SODECI'
-  const count = axes.length > 0 ? axes.length : 3
-  return {
-    role: 'model',
-    parts: [{ text: `Bonjour ! Je suis FlowPort IA, votre assistant de surveillance du trafic au Port Autonome d'Abidjan.\n\nJe dispose des données trafic en temps réel sur les ${count} axes d'accès au port (${names}). Posez-moi vos questions — état actuel, recommandations opérationnelles, prévisions ou analyse d'un axe spécifique.` }],
-  }
-}
 
 const SUGGESTIONS = [
   'Quel est l\'état du trafic en ce moment ?',
@@ -72,31 +64,11 @@ function IAPage() {
   const axes = firestoreAxes.length > 0 ? firestoreAxes : AXES_OFFICIELS
   const { mesures, kpis, loading } = useTrafficData(axes)
 
-  // Historique persisté en sessionStorage entre navigations
-  const [history, setHistory] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('fp_ia_history')
-      if (saved) return JSON.parse(saved)
-    } catch {}
-    return [makeWelcome(AXES_OFFICIELS)]
-  })
-  const [input,    setInput]   = useState('')
-  const [sending,  setSending] = useState(false)
+  const { history, sending, sendMessage } = useAIChat(axes, mesures, kpis)
+  const [input,    setInput]    = useState('')
   const [autoReco, setAutoReco] = useState('')
   const [recoLoad, setRecoLoad] = useState(false)
   const bottomRef = useRef(null)
-
-  // Mise à jour du message d'accueil quand les axes Firestore sont chargés
-  useEffect(() => {
-    if (firestoreAxes.length > 0) {
-      setHistory(prev => [makeWelcome(firestoreAxes), ...prev.slice(1)])
-    }
-  }, [firestoreAxes.length])
-
-  // Persiste l'historique à chaque changement
-  useEffect(() => {
-    try { sessionStorage.setItem('fp_ia_history', JSON.stringify(history)) } catch {}
-  }, [history])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -120,25 +92,9 @@ function IAPage() {
     if (!loading && Object.keys(mesures).length > 0 && !autoReco) loadAutoReco()
   }, [loading])
 
-  async function sendMessage(text) {
-    const q = text.trim()
-    if (!q || sending) return
+  function handleSend(text) {
     setInput('')
-
-    const userMsg = { role: 'user', parts: [{ text: q }] }
-    setHistory(prev => [...prev, userMsg])
-    setSending(true)
-
-    // Construit les contents avec historique + données trafic actuelles
-    // NB: on passe `history` sans userMsg — buildChatContents l'ajoute lui-même avec le contexte trafic
-    const contents = buildChatContents(history, q, mesures, axes, kpis)
-    const resp = await askAI(contents)
-
-    setHistory(prev => [...prev, {
-      role: 'model',
-      parts: [{ text: resp ?? 'Erreur : réponse vide.' }],
-    }])
-    setSending(false)
+    sendMessage(text)
   }
 
   return (
@@ -179,7 +135,7 @@ function IAPage() {
       {/* ── Suggestions ──────────────────────────────────── */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', flexShrink: 0 }}>
         {SUGGESTIONS.map((s, i) => (
-          <button key={i} onClick={() => sendMessage(s)}
+          <button key={i} onClick={() => handleSend(s)}
             style={{
               padding: '0.35rem 0.8rem',
               background: '#EBF2FB', color: C.primary,
@@ -225,13 +181,13 @@ function IAPage() {
           placeholder={isMobile ? 'Votre question...' : 'Posez votre question sur le trafic PAA...'}
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => e.key === 'Enter' && !sending && sendMessage(input)}
+          onKeyDown={e => e.key === 'Enter' && !sending && handleSend(input)}
           disabled={sending}
         />
         <button
           className="fp-btn fp-btn-primary"
           style={{ flexShrink: 0, padding: isMobile ? '0.55rem 0.85rem' : '0.55rem 1.1rem' }}
-          onClick={() => sendMessage(input)}
+          onClick={() => handleSend(input)}
           disabled={sending || !input.trim()}
         >
           <Send size={15} />

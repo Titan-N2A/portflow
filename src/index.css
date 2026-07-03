@@ -55,11 +55,24 @@ body { background: #F4F4F4; color: #2C3E50; }
 @keyframes spin          { to { transform: rotate(360deg); } }
 @keyframes fp-live-pulse { 0%,100% { opacity:1; transform: scale(1); } 50% { opacity:0.3; transform: scale(0.7); } }
 @keyframes fp-kpi-flash  { 0% { background:#fff; } 25% { background:#EBF5FB; } 100% { background:#fff; } }
+@keyframes fp-ai-ring {
+  0%   { box-shadow: 0 4px 20px rgba(27,79,138,0.4), 0 0 0 0 rgba(27,79,138,0.45); }
+  70%  { box-shadow: 0 4px 20px rgba(27,79,138,0.4), 0 0 0 14px rgba(27,79,138,0); }
+  100% { box-shadow: 0 4px 20px rgba(27,79,138,0.4), 0 0 0 0 rgba(27,79,138,0); }
+}
+@keyframes fp-mic-rec { 0%,100% { opacity:1; } 50% { opacity:.35; } }
 
 .fp-fade-in   { animation: fadeIn 0.3s ease both; }
 .fp-pulse     { animation: pulse 2s ease-in-out infinite; }
 .fp-spin      { animation: spin 1s linear infinite; }
 .fp-kpi-flash { animation: fp-kpi-flash 0.8s ease; }
+.fp-mic-rec   { animation: fp-mic-rec 1s ease-in-out infinite; }
+
+.fp-ai-fab {
+  transition: transform 0.18s ease;
+}
+.fp-ai-fab:hover  { transform: scale(1.08); animation: fp-ai-ring 1.4s ease-out infinite; }
+.fp-ai-fab:active { transform: scale(0.92); }
 
 /* ── Composants globaux ─────────────────────────────────── */
 .fp-card {

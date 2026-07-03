@@ -12,6 +12,7 @@ import { useActiveUsersCount } from '../hooks/useActiveUsersCount'
 import AlertesPredictives from '../components/Dashboard/AlertesPredictives'
 import GeocoderSearch from '../components/shared/GeocoderSearch'
 import ETACard from '../components/shared/ETACard'
+import FloatingAIAssistant from '../components/shared/FloatingAIAssistant'
 import { createETATracker } from '../services/eta'
 import { AXE_COLORS, AXE_PALETTE, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { askAI, buildTrafficPrompt } from '../services/ai'
@@ -927,6 +928,8 @@ function DashboardPage() {
           </div>
         </div>
       </div>
+
+      <FloatingAIAssistant axes={axes} mesures={mesures} kpis={kpis} />
     </div>
   )
 }
