@@ -660,10 +660,12 @@ function DashboardPage() {
         </div>
       </div>
 
-      {/* ── Mon trajet (ETA) ─────────────────────────────────── */}
-      <div style={{ flexShrink: 0 }}>
-        <ETACard eta={eta} loading={etaLoading} />
-      </div>
+      {/* ── Mon trajet (ETA) — masqué tant qu'aucune destination n'est choisie ── */}
+      {(etaLoading || eta) && (
+        <div style={{ flexShrink: 0 }}>
+          <ETACard eta={eta} loading={etaLoading} />
+        </div>
+      )}
 
       {/* ── Map + Panneau droit ────────────────────────────── */}
       <div style={{
