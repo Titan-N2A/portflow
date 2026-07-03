@@ -4,12 +4,15 @@ import {
   LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler,
 } from 'chart.js'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
-import { C, levelColor, levelLabel } from '../styles/tokens'
+import { Clock, AlertTriangle, Gauge, CalendarDays } from 'lucide-react'
+import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useCollecteAuto }   from '../hooks/useCollecteAuto'
 import { useHistoricalData } from '../hooks/useHistoricalData'
 import { useAxesFirestore }  from '../hooks/useAxesFirestore'
 import { AXES_OFFICIELS, AXE_COLORS } from '../hooks/useTrafficData'
 import { computeCourbe24h, computeRepartitionNiveaux } from '../services/aggregations'
+import { computeNiveau } from '../services/indicators'
+import { getReference } from '../data/references'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler)
 
@@ -17,14 +20,11 @@ const HEURES_LABELS = Array.from({ length: 24 }, (_, i) => `${i}h`)
 const PALETTE       = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
 const MOIS_COURTS   = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
 
-// Couleur heatmap basée sur le % de retard (vert → jaune → orange → rouge)
-function heatColorRatio(ratio) {
-  const r = ratio - 1
-  if (r <= 0.15) return { bg: '#27AE60', fg: '#fff' }
-  if (r <= 0.30) return { bg: '#F9CF26', fg: '#5a3e00' }
-  if (r <= 0.55) return { bg: '#F0871A', fg: '#fff' }
-  if (r <= 0.85) return { bg: '#E03B1A', fg: '#fff' }
-  return { bg: '#8B1A1A', fg: '#fff' }
+// Couleur heatmap alignée sur l'échelle N1-N5 canonique (styles/tokens.js) —
+// utilisée partout ailleurs dans l'app (carte, badges KPI). Texte clair sur
+// les niveaux foncés (N4/N5), texte sombre sur les niveaux clairs.
+function heatColorNiveau(niveau) {
+  return { bg: levelColor(niveau), fg: niveau >= 4 ? '#fff' : '#1a2e1a' }
 }
 
 const JOURS_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
@@ -107,6 +107,39 @@ function EmptyChart({ height = 280 }) {
   )
 }
 
+// Bandeau de synthèse — même langage visuel que les KPICard du Dashboard
+// (icône, libellé, valeur, badge de niveau coloré).
+function StatTile({ icon: Icon, iconColor, label, value, unit, niveau }) {
+  return (
+    <div className="fp-card" style={{ flex: 1, minWidth: 0, padding: '0.9rem 1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{
+          width: 30, height: 30, borderRadius: 7, flexShrink: 0,
+          background: `${iconColor}18`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <Icon size={15} color={iconColor} />
+        </div>
+        <p style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em', margin: 0 }}>
+          {label}
+        </p>
+      </div>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: 5, flexWrap: 'wrap' }}>
+        <span style={{ fontSize: 20, fontWeight: 800, color: C.text, lineHeight: 1.15 }}>{value ?? '—'}</span>
+        {unit && <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 500 }}>{unit}</span>}
+        {niveau > 0 && (
+          <span style={{
+            padding: '2px 9px', borderRadius: 999, fontSize: 10.5, fontWeight: 700,
+            background: levelBg(niveau), color: levelColor(niveau),
+          }}>
+            N{niveau} — {levelLabel(niveau)}
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function Spinner() {
   return (
     <div style={{ height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -167,6 +200,45 @@ function GraphiquesPage() {
 
   const live24hCount = data24h.filter(d => AXES_OFFICIELS_IDS.has(d.axeId)).length
 
+  // ── Bandeau de synthèse (retard moyen, axe/heure critiques 24h) ──
+  const synthese24h = useMemo(() => {
+    const rows = data24h
+      .filter(d => AXES_OFFICIELS_IDS.has(d.axeId) && d.temps_min > 0 && d.heure != null)
+      .map(d => {
+        const ref = getReference(d.axeId, d.sens, d.heure)
+        return ref ? { ...d, ratio: d.temps_min / ref, retard: d.temps_min - ref } : null
+      })
+      .filter(Boolean)
+    if (!rows.length) return null
+
+    const retardMoyen = rows.reduce((s, r) => s + r.retard, 0) / rows.length
+
+    function topBy(keyFn, label) {
+      const acc = {}
+      rows.forEach(r => {
+        const k = keyFn(r)
+        if (!acc[k]) acc[k] = { sum: 0, count: 0 }
+        acc[k].sum += r.ratio
+        acc[k].count += 1
+      })
+      const best = Object.entries(acc)
+        .map(([k, v]) => ({ key: k, ratioMoy: v.sum / v.count }))
+        .sort((a, b) => b.ratioMoy - a.ratioMoy)[0]
+      return best ? { ...best, niveau: computeNiveau(best.ratioMoy), label } : null
+    }
+
+    const axeImpacte = topBy(r => r.axeId, null)
+    if (axeImpacte) axeImpacte.label = axeDefs.find(a => a.id === axeImpacte.key)?.label ?? axeImpacte.key
+    const heurePointe = topBy(r => r.heure, null)
+    if (heurePointe) heurePointe.label = `${heurePointe.key}h`
+
+    return {
+      retardMoyen: Math.round(retardMoyen * 10) / 10,
+      axeImpacte,
+      heurePointe,
+    }
+  }, [data24h, axeDefs.map(a => a.id).join()])
+
   // ── Courbes 24h ─────────────────────────────────────────────
   const lineDatasets = useMemo(() => axeDefs.map(axe => {
     const courbe     = computeCourbe24h(data24h, axe.id, lineDir)
@@ -212,27 +284,47 @@ function GraphiquesPage() {
     )
     if (!filtered.length) return {}
 
-    // Accumulateur par (jourSemaine, heure)
+    // Référence horaire réelle (getReference) plutôt qu'un T_ref plat unique
+    // par axe : le trafic "normal" varie selon l'heure (pointe vs creux), donc
+    // comparer chaque heure à SA propre référence évite de signaler les heures
+    // de pointe comme "dégradées" alors qu'elles le sont structurellement.
     const acc = {}
     filtered.forEach(d => {
+      const ref = getReference(d.axeId, d.sens, d.heure)
+      if (!ref) return
       const jourJS = new Date(d.date + 'T00:00:00').getDay()
       const key    = `${jourJS}_${d.heure}`
-      if (!acc[key]) acc[key] = { sum: 0, count: 0, sumRef: 0 }
-      acc[key].sum    += d.temps_min
-      acc[key].count  += 1
-      acc[key].sumRef += axeDefs.find(a => a.id === d.axeId)?.tRef ?? 20
+      if (!acc[key]) acc[key] = { sumRatio: 0, sumTemps: 0, count: 0 }
+      acc[key].sumRatio += d.temps_min / ref
+      acc[key].sumTemps += d.temps_min
+      acc[key].count    += 1
     })
 
     const grid = {}
     Object.entries(acc).forEach(([key, c]) => {
-      const moyenne  = c.sum    / c.count
-      const avgRef   = c.sumRef / c.count
-      const ratio    = moyenne  / avgRef
+      const ratio     = c.sumRatio / c.count
       const retardPct = Math.round((ratio - 1) * 100)
-      grid[key] = { moyenne: Math.round(moyenne * 10) / 10, ratio, retardPct }
+      const moyenne   = Math.round((c.sumTemps / c.count) * 10) / 10
+      grid[key] = { moyenne, ratio, retardPct, niveau: computeNiveau(ratio) }
     })
     return grid
-  }, [data, hmAxe, hmSens, axeDefs.map(a => a.id + a.tRef).join(',')])
+  }, [data, hmAxe, hmSens])
+
+  // Jour le plus chargé, dérivé de la heatmap (dataset complet, pas juste 24h)
+  const jourPlusCharge = useMemo(() => {
+    const parJour = {}
+    Object.entries(heatmapGrid).forEach(([key, cell]) => {
+      const jourJS = key.split('_')[0]
+      if (!parJour[jourJS]) parJour[jourJS] = { sum: 0, count: 0 }
+      parJour[jourJS].sum += cell.ratio
+      parJour[jourJS].count += 1
+    })
+    const best = Object.entries(parJour)
+      .map(([j, v]) => ({ jourJS: Number(j), ratioMoy: v.sum / v.count }))
+      .sort((a, b) => b.ratioMoy - a.ratioMoy)[0]
+    if (!best) return null
+    return { label: JOURS_LABELS[JOURS_ORDRE.indexOf(best.jourJS)], niveau: computeNiveau(best.ratioMoy) }
+  }, [heatmapGrid])
 
   // ── Min / Moyen / Max ────────────────────────────────────────
   const minMaxData = useMemo(() => {
@@ -250,13 +342,17 @@ function GraphiquesPage() {
   }, [data24h, axeDefs.map(a => a.id).join(), lineDir])
 
   // ── Donut répartition niveaux ────────────────────────────────
+  // computeRepartitionNiveaux regroupe en 4 catégories (Fluide = N1+N2,
+  // Modéré = N3, Dense = N4, Congestionné = N5) dans cet ordre fixe —
+  // couleurs alignées sur l'échelle N1-N5 canonique (styles/tokens.js)
+  // plutôt qu'une palette recréée à la main.
   const repartition  = useMemo(() => computeRepartitionNiveaux(data24h, periode), [data24h, periode])
   const donutHasData = repartition.some(r => r.count > 0)
   const donutData    = {
     labels:   repartition.map(r => `${r.label} (${r.pct}%)`),
     datasets: [{
       data:            repartition.map(r => r.count),
-      backgroundColor: ['#1E8449', '#27AE60', '#F1C40F', '#C0392B'],
+      backgroundColor: [levelColor(2), levelColor(3), levelColor(4), levelColor(5)],
       borderColor:     '#fff',
       borderWidth:     3,
       hoverOffset:     10,
@@ -297,6 +393,36 @@ function GraphiquesPage() {
           ))}
         </div>
       </div>
+
+      {/* ── Bandeau de synthèse ─────────────────────────────────── */}
+      {synthese24h && (
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', flexShrink: 0 }}>
+          <StatTile
+            icon={Gauge} iconColor={C.primary}
+            label={`Retard moyen${source === 'live' ? ' (24h)' : ''}`}
+            value={synthese24h.retardMoyen >= 0 ? `+${synthese24h.retardMoyen}` : synthese24h.retardMoyen}
+            unit="min"
+          />
+          <StatTile
+            icon={AlertTriangle} iconColor={C.danger}
+            label={`Axe le plus impacté${source === 'live' ? ' (24h)' : ''}`}
+            value={synthese24h.axeImpacte?.label ?? '—'}
+            niveau={synthese24h.axeImpacte?.niveau}
+          />
+          <StatTile
+            icon={Clock} iconColor={C.warning}
+            label={`Heure de pointe${source === 'live' ? ' (24h)' : ''}`}
+            value={synthese24h.heurePointe?.label ?? '—'}
+            niveau={synthese24h.heurePointe?.niveau}
+          />
+          <StatTile
+            icon={CalendarDays} iconColor="#8E44AD"
+            label="Jour le plus chargé"
+            value={jourPlusCharge?.label ?? '—'}
+            niveau={jourPlusCharge?.niveau}
+          />
+        </div>
+      )}
 
       {/* ── G1 — Courbe 24h ───────────────────────────────────── */}
       <div className="fp-card" style={{ flexShrink: 0 }}>
@@ -415,14 +541,16 @@ function GraphiquesPage() {
         <div className="fp-section-header" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span className="fp-section-title">Heatmap congestion — jour × heure</span>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-              {/* légende inline */}
-              <span style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>Fluide</span>
-              {[0.05, 0.22, 0.43, 0.70, 0.95].map((r, i) => {
-                const { bg } = heatColorRatio(1 + r)
-                return <div key={i} style={{ width: 18, height: 18, borderRadius: 4, background: bg }} />
-              })}
-              <span style={{ fontSize: 10, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>Congestionné</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+              {/* légende N1-N5 — même échelle que la carte (styles/tokens.js) */}
+              {[1, 2, 3, 4, 5].map(n => (
+                <div key={n} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <span style={{ width: 12, height: 12, borderRadius: 3, flexShrink: 0, background: levelColor(n) }} />
+                  <span style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600, fontFamily: "'Inter',sans-serif" }}>
+                    {levelLabel(n)}
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -488,18 +616,18 @@ function GraphiquesPage() {
                           </td>
                         )
                       }
-                      const { bg, fg } = heatColorRatio(cell.ratio)
+                      const { bg, fg } = heatColorNiveau(cell.niveau)
                       return (
                         <td key={h} style={{ padding: 0 }}>
                           <div
-                            title={`${JOURS_LABELS[idx]} ${h}h — ${cell.moyenne} min · +${cell.retardPct}% vs référence`}
+                            title={`${JOURS_LABELS[idx]} ${h}h — ${cell.moyenne} min · +${cell.retardPct}% vs référence · ${levelLabel(cell.niveau)}`}
                             style={{
                               height: 38, borderRadius: 6,
                               background: bg,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
                               cursor: 'default',
                               transition: 'filter 0.12s',
-                              boxShadow: cell.ratio >= 1.55 ? `0 2px 8px ${bg}70` : 'none',
+                              boxShadow: cell.niveau >= 4 ? `0 2px 8px ${bg}70` : 'none',
                             }}
                             onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(1.12)' }}
                             onMouseLeave={e => { e.currentTarget.style.filter = 'none' }}
