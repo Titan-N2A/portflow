@@ -1,5 +1,5 @@
 // src/components/shared/ConsentBanner.jsx
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { MapPin } from 'lucide-react'
 import { C } from '../../styles/tokens'
 
@@ -11,13 +11,9 @@ export const CONSENT_KEY   = 'portflow_geoloc_consent' // 'accepted' | 'refused'
 export const CONSENT_EVENT = 'portflow-consent-change'
 
 function ConsentBanner({ onDecision }) {
-  const [visible, setVisible] = useState(false)
-
-  // N'affiche le bandeau que si aucune décision n'a encore été prise cette session
-  useEffect(() => {
-    const decision = sessionStorage.getItem(CONSENT_KEY)
-    if (!decision) setVisible(true)
-  }, [])
+  // N'affiche le bandeau que si aucune décision n'a encore été prise cette
+  // session — lecture au montage via initialiseur paresseux (pas d'effet).
+  const [visible, setVisible] = useState(() => !sessionStorage.getItem(CONSENT_KEY))
 
   function decide(value) {
     sessionStorage.setItem(CONSENT_KEY, value)

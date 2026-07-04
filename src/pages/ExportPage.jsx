@@ -189,7 +189,7 @@ function useCollecteData(axeFilter, periodeId, enabled) {
 }
 
 function ExportPage() {
-  const { mesures, lastUpdate } = useTrafficData()
+  const { mesures } = useTrafficData()
   const { data: histoData, loading: histoLoading } = useHistoricalData()
 
   const [source,  setSource]  = useState('collecte')  // 'collecte' | 'live' | 'historique'
@@ -204,7 +204,7 @@ function ExportPage() {
     setExporting(true)
     const fname = `FlowPort_${source}_${axe}_${periode}_${new Date().toISOString().slice(0,10)}`
     setTimeout(() => {
-      let rows = []
+      let rows
       if (source === 'live') {
         rows = buildLiveRows(mesures).filter(r => axe === 'tous' || AXES_OFFICIELS.find(a => a.shortNom === r.Axe)?.id === axe)
       } else if (source === 'historique') {

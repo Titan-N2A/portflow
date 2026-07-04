@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { FileText, Download, Trash2, FilePlus, Database } from 'lucide-react'
-import { C, levelLabel } from '../styles/tokens'
+import { C } from '../styles/tokens'
 import jsPDF from 'jspdf'
 import logoPAA from '../assets/logo_port.png'
 import * as XLSX from 'xlsx'
 import {
   Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
   WidthType, HeadingLevel, AlignmentType, BorderStyle, ShadingType,
-  VerticalAlign, Header, Footer, PageNumber,
+  Header, Footer, PageNumber,
 } from 'docx'
 import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore'
 import { db } from '../services/firebase'
@@ -135,7 +135,7 @@ function pdfPageHeader(doc, rapport, titre, logo64) {
   doc.setFillColor(27,79,138)
   doc.rect(0,0,210,16,'F')
   if (logo64) {
-    try { doc.addImage(logo64, 'PNG', 191, 0.5, 15, 15) } catch {}
+    try { doc.addImage(logo64, 'PNG', 191, 0.5, 15, 15) } catch { /* logo illisible — en-tête sans logo */ }
   }
   doc.setTextColor(255,255,255)
   doc.setFontSize(9); doc.setFont('helvetica','bold')
@@ -310,7 +310,7 @@ async function telechargerPDF(rapport, rows) {
   y+=2*29+10
 
   y = pdfSectionHeader(doc, 'État de la circulation sur la période', y); y+=4
-  let globalTxt = ''
+  let globalTxt
   if (nGlobal<=2) {
     globalTxt = `Sur la période ${rapport.periodeLabel}, les conditions de circulation sur le réseau du PAA ont été globalement satisfaisantes. Le ratio moyen inter-axes de ${avgRatio.toFixed(2)} classe la situation au niveau ${pdfNiveauLabel(nGlobal)}, ce qui signifie que les temps de parcours observés sont proches des valeurs de référence historiques.`
     globalTxt += nbDeg===0 ? ` Aucun axe n'a atteint le seuil d'alerte (N3 – Ralenti). Les opérations portuaires ont pu se dérouler dans des conditions optimales.` : ` Toutefois, ${nbDeg} axe(s) sur ${rows.length} ont dépassé le seuil N3, nécessitant une surveillance accrue.`
@@ -395,7 +395,7 @@ async function telechargerPDF(rapport, rows) {
   y=pdfSectionHeader(doc,'4.1  Comparaison inter-axes',y); y+=4
   const sorted=[...rows].sort((a,b)=>(b.tMoyen/b.tRef)-(a.tMoyen/a.tRef))
   const best=sorted[sorted.length-1], worst=sorted[0]
-  let cmpTxt = ''
+  let cmpTxt
   if(rows.length>=2){
     const gap=Math.round((worst.tMoyen/worst.tRef - best.tMoyen/best.tRef)*100)
     cmpTxt=`Sur la période ${rapport.periodeLabel}, l'axe le plus performant est l'axe ${best.axe} (temps moyen ${best.tMoyen} min, ratio ${(best.tMoyen/best.tRef).toFixed(2)}). L'axe ${worst.axe} présente le niveau de dégradation le plus élevé (ratio ${(worst.tMoyen/worst.tRef).toFixed(2)}, retard ${pdfFmtRetard(worst.retard)}). L'écart inter-axes de ${gap} points de ratio ${gap>20?'révèle une disparité significative qui plaide pour un rééquilibrage des flux':'indique une relative homogénéité des conditions de circulation sur le réseau PAA'}.`
@@ -534,7 +534,7 @@ function telechargerExcel(rapport, rows) {
     ...rows.map(r => {
       const ratio = r.tRef>0 ? r.tMoyen/r.tRef : 1
       const retardPct = Math.round((ratio-1)*100)
-      let interp = '', reco = ''
+      let interp, reco
       if(ratio<=1.05){interp=`Conditions optimales (+${retardPct}% vs référence)`;reco='Aucune action requise.'}
       else if(ratio<=1.25){interp=`Légère dégradation (+${retardPct}%, retard ${r.retard>=0?'+':''}${r.retard} min)`;reco='Surveillance renforcée aux heures de pointe.'}
       else if(ratio<=1.50){interp=`Ralentissements significatifs (+${retardPct}%, seuil orange)`;reco='Signalisation dynamique + révision des créneaux de rotation.'}

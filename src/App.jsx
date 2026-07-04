@@ -272,7 +272,9 @@ function App() {
   const [currentPage,  setCurrentPage]  = useState('dashboard')
   const [showLogin,    setShowLogin]    = useState(false)
   const [splashDone,   setSplashDone]   = useState(false)
-  const [geoConsent,   setGeoConsent]   = useState(() => sessionStorage.getItem(CONSENT_KEY))
+  // État consentement : seule la MISE À JOUR compte (re-render d'App à la
+  // décision) — la valeur est lue depuis sessionStorage par les consommateurs.
+  const [, setGeoConsent]               = useState(() => sessionStorage.getItem(CONSENT_KEY))
   const { user, isAdmin, loading }      = useAuth()
   const isMobile                        = useIsMobile()
 

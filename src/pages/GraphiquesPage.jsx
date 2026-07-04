@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement,
   LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler,
@@ -18,7 +18,6 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarEleme
 
 const HEURES_LABELS = Array.from({ length: 24 }, (_, i) => `${i}h`)
 const PALETTE       = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
-const MOIS_COURTS   = ['Jan','Fév','Mar','Avr','Mai','Jun','Jul','Aoû','Sep','Oct','Nov','Déc']
 
 // Couleur heatmap alignée sur l'échelle N1-N5 canonique (styles/tokens.js) —
 // utilisée partout ailleurs dans l'app (carte, badges KPI). Texte clair sur
@@ -196,6 +195,9 @@ function GraphiquesPage() {
     return typeof ts.toMillis === 'function' ? ts.toMillis() : new Date(ts).getTime()
   }
 
+  // Clé de dépendance stable pour les useMemo dépendant de la liste d'axes
+  const axeIdsKey = axeDefs.map(a => a.id).join()
+
   const data24h = useMemo(() => {
     if (source !== 'live') return data
     const cutoff = Date.now() - 24 * 60 * 60 * 1000
@@ -241,7 +243,7 @@ function GraphiquesPage() {
       axeImpacte,
       heurePointe,
     }
-  }, [data24h, axeDefs.map(a => a.id).join()])
+  }, [data24h, axeIdsKey])
 
   // ── Courbes 24h ─────────────────────────────────────────────
   // Dégradé vertical (couleur de l'axe → transparent) plutôt qu'un aplat
@@ -275,7 +277,7 @@ function GraphiquesPage() {
       pointBorderWidth:     2,
       borderWidth:          2.5,
     }
-  }), [data24h, axeDefs.map(a => a.id).join(), lineDir])
+  }), [data24h, axeIdsKey, lineDir])
 
   const filteredLineDatasets = axeFilter === 'tous'
     ? lineDatasets
@@ -356,7 +358,7 @@ function GraphiquesPage() {
         { label: 'Max',   data: stats.map(s => s.max), backgroundColor: 'rgba(192,57,43,0.85)',  borderRadius: 6, borderSkipped: false },
       ],
     }
-  }, [data24h, axeDefs.map(a => a.id).join(), lineDir])
+  }, [data24h, axeIdsKey, lineDir])
 
   // ── Donut répartition niveaux ────────────────────────────────
   // computeRepartitionNiveaux regroupe en 4 catégories (Fluide = N1+N2,

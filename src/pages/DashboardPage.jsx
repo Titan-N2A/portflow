@@ -168,7 +168,7 @@ function MapZoomController({ selectedAxe, mesures }) {
     const combined = [...raw, ...retourRaw]
     if (combined.length < 2) return
     const lls = combined.map(p => Array.isArray(p) ? p : [p.lat, p.lng])
-    try { map.flyToBounds(L.latLngBounds(lls), { padding: [60, 60], maxZoom: 15, duration: 0.7 }) } catch {}
+    try { map.flyToBounds(L.latLngBounds(lls), { padding: [60, 60], maxZoom: 15, duration: 0.7 }) } catch { /* bounds invalides — ignoré */ }
   }, [selectedAxe?.id, map])
 
   return null
@@ -542,7 +542,6 @@ function DashboardPage() {
     prevKpisRef.current = kpis.tempsGlobal
   }, [kpis])
 
-  const hasData  = Object.keys(mesures).length > 0
   const dataAge  = lastUpdate ? Math.max(0, Math.floor((nowTick - lastUpdate.getTime()) / 60000)) : null
   const ageLabel = dataAge == null ? null : dataAge <= 0 ? 'à l\'instant' : dataAge === 1 ? 'il y a 1 min' : `il y a ${dataAge} min`
   // 3 paliers de fraîcheur (dataHealth.tier vient du hook, seule source de

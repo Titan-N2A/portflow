@@ -5,7 +5,7 @@
 // ============================================================
 
 import Papa from 'papaparse'
-import { collection, doc, setDoc, writeBatch } from 'firebase/firestore'
+import { doc, setDoc, writeBatch } from 'firebase/firestore'
 import { db }                  from './firebase'
 import { AXES_DATA }           from '../data/axes'
 import { REFERENCES_GLOBALES } from '../data/references'

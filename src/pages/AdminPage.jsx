@@ -369,7 +369,7 @@ function FitBoundsHelper({ positions }) {
   const map = useMap()
   useEffect(() => {
     if (positions.length >= 2) {
-      try { map.fitBounds(positions, { padding: [20, 20], maxZoom: 16 }) } catch {}
+      try { map.fitBounds(positions, { padding: [20, 20], maxZoom: 16 }) } catch { /* bounds invalides — ignoré */ }
     }
   }, [JSON.stringify(positions)])
   return null
@@ -477,7 +477,6 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
     onAddPoint?.(parsed.lat, parsed.lng)
     setGmInput(''); setGmError('')
     setGmSuccess(true)
-    const roadMsg = road?.roadName ? ` (${road.roadName})` : ''
     setTimeout(() => setGmSuccess(false), 2000)
     if (road?.roadName) setGmError('')
   }
@@ -1685,7 +1684,7 @@ function AdminPage() {
   // ── Données Firestore temps réel ───────────────────────
   const {
     axes, troncons, seuils,
-    loading, error, offline,
+    loading, offline,
     saveAxe:      fsSaveAxe,
     deleteAxe:    fsDeleteAxe,
     toggleAxe:    fsToggleAxe,

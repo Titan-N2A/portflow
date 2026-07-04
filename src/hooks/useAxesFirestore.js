@@ -24,7 +24,7 @@ import {
   cleanupPlaceholderTroncons,
 } from '../services/axesService'
 import {
-  DEFAULT_AXES, DEFAULT_TRONCONS, DEFAULT_SEUILS,
+  DEFAULT_AXES, DEFAULT_SEUILS,
 } from '../data/defaultData'
 
 export function useAxesFirestore() {
@@ -60,7 +60,7 @@ export function useAxesFirestore() {
       },
       err => {
         if (!mounted) return
-        console.warn('Firestore axes inaccessible — mode offline')
+        console.warn('Firestore axes inaccessible — mode offline', err)
         setAxes(DEFAULT_AXES)
         setLoading(false)
         setOffline(true)
