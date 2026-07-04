@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement,
   LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler,
@@ -16,8 +16,7 @@ import { getReference } from '../data/references'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler)
 
-const HEURES_LABELS = Array.from({ length: 24 }, (_, i) => `${i}h`)
-const PALETTE       = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
+const PALETTE = ['#1B4F8A', '#E67E22', '#27AE60', '#8E44AD', '#C0392B']
 
 // Couleur heatmap alignée sur l'échelle N1-N5 canonique (styles/tokens.js) —
 // utilisée partout ailleurs dans l'app (carte, badges KPI). Texte clair sur
@@ -245,6 +244,29 @@ function GraphiquesPage() {
     return data.filter(d => tsToMs(d.timestamp) >= cutoff)
   }, [data, source])
 
+  // ── Heure courante (fait avancer l'axe X de la courbe 24h) ──
+  // Vérification chaque minute : l'état ne change qu'au passage d'une
+  // heure pleine, donc un seul re-render par heure au maximum.
+  const [heureActuelle, setHeureActuelle] = useState(() => new Date().getHours())
+  useEffect(() => {
+    const t = setInterval(() => {
+      const h = new Date().getHours()
+      setHeureActuelle(prev => (prev === h ? prev : h))
+    }, 60 * 1000)
+    return () => clearInterval(t)
+  }, [])
+
+  // En mode live, l'axe X est une fenêtre glissante chronologique :
+  // il se termine à l'heure présente (dernier point = maintenant) et
+  // remonte 24 h en arrière. En mode historique (agrégat multi-jours),
+  // l'axe fixe 0h → 23h reste le bon repère.
+  const heuresFenetre = useMemo(() =>
+    source === 'live'
+      ? Array.from({ length: 24 }, (_, i) => (heureActuelle + 1 + i) % 24)
+      : Array.from({ length: 24 }, (_, i) => i),
+  [source, heureActuelle])
+  const lineLabels = heuresFenetre.map(h => `${h}h`)
+
   const live24hCount = data24h.filter(d => AXES_OFFICIELS_IDS.has(d.axeId)).length
 
   // ── Bandeau de synthèse (retard moyen, axe/heure critiques 24h) ──
@@ -301,7 +323,9 @@ function GraphiquesPage() {
 
   const lineDatasets = useMemo(() => axeDefs.map(axe => {
     const courbe     = computeCourbe24h(data24h, axe.id, lineDir)
-    const dataPoints = courbe.map(p => p.temps_moyen)
+    // Points réordonnés selon la fenêtre glissante (le dernier = maintenant)
+    const dataPoints = heuresFenetre.map(h => courbe[h].temps_moyen)
+    const iPresent   = dataPoints.length - 1
     return {
       label:                axe.label,
       data:                 dataPoints,
@@ -310,21 +334,22 @@ function GraphiquesPage() {
       tension:              0.35,
       fill:                 true,
       spanGaps:             true,                            // relie les points au travers des heures sans données
-      pointRadius:          dataPoints.map(v => v != null ? 5 : 0),
+      // le point de l'heure courante est légèrement accentué (mode live)
+      pointRadius:          dataPoints.map((v, i) => v != null ? (source === 'live' && i === iPresent ? 6.5 : 5) : 0),
       pointHoverRadius:     7,
       pointHitRadius:       12,
-      pointBackgroundColor: '#fff',
+      pointBackgroundColor: dataPoints.map((v, i) => source === 'live' && i === iPresent ? axe.color : '#fff'),
       pointBorderColor:     axe.color,
       pointBorderWidth:     2,
       borderWidth:          2.5,
     }
-  }), [data24h, axeIdsKey, lineDir])
+  }), [data24h, axeIdsKey, lineDir, heuresFenetre, source])
 
   const filteredLineDatasets = axeFilter === 'tous'
     ? lineDatasets
     : lineDatasets.filter((_, i) => i === parseInt(axeFilter))
 
-  const lineData    = { labels: HEURES_LABELS, datasets: filteredLineDatasets }
+  const lineData    = { labels: lineLabels, datasets: filteredLineDatasets }
   const lineHasData = filteredLineDatasets.some(ds => ds.data.some(v => v != null))
 
   // ── Heatmap : jours × heures, palette vert→rouge ────────────
@@ -516,6 +541,11 @@ function GraphiquesPage() {
         <div className="fp-section-header" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <span className="fp-section-title">Temps de traversée moyen par heure</span>
+            {source === 'live' && (
+              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
+                Fenêtre glissante sur 24 h — le graphe avance avec le temps et se termine à l'heure actuelle ({heureActuelle}h)
+              </span>
+            )}
             <div style={{ display: 'flex', gap: 4 }}>
               <Pill active={lineDir === 'aller'}  onClick={() => setLineDir('aller')}>Aller</Pill>
               <Pill active={lineDir === 'retour'} onClick={() => setLineDir('retour')}>Retour</Pill>
@@ -555,7 +585,9 @@ function GraphiquesPage() {
                   ...CHART_OPTIONS_BASE.scales.x,
                   ticks: {
                     ...CHART_OPTIONS_BASE.scales.x.ticks,
-                    callback: (_, i) => i % 3 === 0 ? HEURES_LABELS[i] : '',
+                    // graduations ancrées sur la droite : l'heure présente
+                    // (dernier point) est toujours affichée
+                    callback: (_, i) => (lineLabels.length - 1 - i) % 3 === 0 ? lineLabels[i] : '',
                   },
                 },
                 y: {
