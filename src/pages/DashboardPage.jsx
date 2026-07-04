@@ -616,7 +616,12 @@ function DashboardPage() {
       // Fond identitaire PAA (carte de Côte d'Ivoire en scène portuaire) —
       // remplace uniquement le fond de page : les cartes (KPI, carte
       // Leaflet, panneaux) gardent leur fond blanc par-dessus.
-      backgroundImage: `url(${dashboardBg})`,
+      // Voile navy par-dessus l'image : le fond n'apparaît que dans les
+      // interstices entre cartes, et sans voile ce sont les lumières orange
+      // du port (partie la plus vive) qui ressortent — trop de contraste,
+      // et l'orange se confond avec le code couleur congestion. Tamisé, le
+      // fond devient une texture d'ambiance qui ne rivalise pas avec les KPI.
+      backgroundImage: `linear-gradient(rgba(10,26,44,0.62), rgba(10,26,44,0.62)), url(${dashboardBg})`,
       backgroundSize: 'cover',
       backgroundPosition: 'center',
       backgroundAttachment: isMobile ? 'scroll' : 'fixed',
