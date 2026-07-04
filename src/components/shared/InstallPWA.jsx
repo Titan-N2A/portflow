@@ -17,17 +17,20 @@ const estIOS = () =>
   /iphone|ipad|ipod/i.test(window.navigator.userAgent)
 
 export default function InstallPWA({ variant = 'sidebar' }) {
-  const [invite,    setInvite]    = useState(null)   // beforeinstallprompt capté
+  // L'événement beforeinstallprompt est capté par le script inline
+  // d'index.html (window.__fpInstallEvent) : Chrome l'émet souvent
+  // avant le montage de React. Ici on ne fait que le récupérer.
+  const [invite,    setInvite]    = useState(() => window.__fpInstallEvent ?? null)
   const [installee, setInstallee] = useState(() => estStandalone())
   const [aideIOS,   setAideIOS]   = useState(false)
 
   useEffect(() => {
-    const surInvite = (e) => { e.preventDefault(); setInvite(e) }
-    const surInstall = () => { setInvite(null); setInstallee(true) }
-    window.addEventListener('beforeinstallprompt', surInvite)
+    const surInvite  = () => setInvite(window.__fpInstallEvent ?? null)
+    const surInstall = () => { setInvite(null); setInstallee(true); window.__fpInstallEvent = null }
+    window.addEventListener('fp-install-ready', surInvite)
     window.addEventListener('appinstalled', surInstall)
     return () => {
-      window.removeEventListener('beforeinstallprompt', surInvite)
+      window.removeEventListener('fp-install-ready', surInvite)
       window.removeEventListener('appinstalled', surInstall)
     }
   }, [])

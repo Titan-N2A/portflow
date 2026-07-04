@@ -12,6 +12,17 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="FlowPort" />
+    <script>
+      // Capture AU PLUS TÔT de l'invite d'installation PWA : Chrome peut
+      // l'émettre avant que React ait monté ses écouteurs — sans cette
+      // capture précoce, le bouton « Installer l'application » ne
+      // s'affichait jamais (événement déjà passé).
+      window.addEventListener('beforeinstallprompt', function (e) {
+        e.preventDefault()
+        window.__fpInstallEvent = e
+        window.dispatchEvent(new Event('fp-install-ready'))
+      })
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
