@@ -38,11 +38,12 @@ function computeMinMaxParAxe(data, axeDefs, sens) {
       .filter(d => d.axeId === axe.id && d.sens === sens)
       .map(d => d.temps_min)
       .filter(v => v != null)
-    if (!vals.length) return { min: 0, moy: 0, max: 0 }
+    if (!vals.length) return { min: 0, moy: 0, max: 0, n: 0 }
     return {
       min: Math.round(Math.min(...vals) * 10) / 10,
       moy: Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10,
       max: Math.round(Math.max(...vals) * 10) / 10,
+      n:   vals.length,
     }
   })
 }
@@ -76,6 +77,45 @@ const CHART_OPTIONS_BASE = {
       ticks: { font: BASE_FONT, color: C.textMuted },
       border: { display: false },
     },
+  },
+}
+
+// Étiquettes directes du graphe de plage min–max : max au-dessus de la barre,
+// min en dessous, moyenne en gras à droite du trait — le graphe se lit sans
+// tooltip (obligation de relief : l'orange/vert de la palette passe sous 3:1
+// de contraste sur fond blanc, la valeur écrite compense).
+const minMaxLabelsPlugin = {
+  id: 'minMaxLabels',
+  afterDatasetsDraw(chart) {
+    const stats = chart.options.plugins?.minMaxLabels?.stats
+    if (!stats) return
+    const { ctx, chartArea } = chart
+    const barMeta = chart.getDatasetMeta(0)
+    const ptMeta  = chart.getDatasetMeta(1)
+    ctx.save()
+    stats.forEach((s, i) => {
+      const bar = barMeta.data[i]
+      const pt  = ptMeta.data[i]
+      if (!bar || s.n === 0) return
+      const halfW = (bar.width ?? 28) / 2
+
+      // min / max — encre atténuée, centrés sur la barre
+      ctx.font      = `600 10px Inter, sans-serif`
+      ctx.fillStyle = C.textMuted
+      ctx.textAlign = 'center'
+      ctx.fillText(String(s.max), bar.x, bar.y - 6)
+      ctx.fillText(String(s.min), bar.x, Math.min(bar.base + 13, chartArea.bottom - 2))
+
+      // moyenne — en gras à côté du trait (à gauche si bord droit trop proche)
+      if (pt) {
+        const fitsRight = bar.x + halfW + 34 < chartArea.right
+        ctx.font      = `800 11px Inter, sans-serif`
+        ctx.fillStyle = C.text
+        ctx.textAlign = fitsRight ? 'left' : 'right'
+        ctx.fillText(String(s.moy), bar.x + (fitsRight ? halfW + 6 : -halfW - 6), pt.y + 3.5)
+      }
+    })
+    ctx.restore()
   },
 }
 
@@ -346,18 +386,45 @@ function GraphiquesPage() {
     return { label: JOURS_LABELS[JOURS_ORDRE.indexOf(best.jourJS)], niveau: computeNiveau(best.ratioMoy) }
   }, [heatmapGrid])
 
-  // ── Min / Moyen / Max ────────────────────────────────────────
+  // ── Min / Moyen / Max — barre de plage + trait de moyenne ────
+  // Min/Moyen/Max ne sont pas 3 séries indépendantes mais les bornes d'une
+  // même mesure : une barre flottante [min, max] par axe (couleur de l'axe,
+  // cohérente avec la courbe 24h) + un trait épais sur la moyenne remplace
+  // les 3 barres groupées bleu/orange/rouge (qui suggéraient un statut).
   const minMaxData = useMemo(() => {
     const stats  = computeMinMaxParAxe(data24h, axeDefs, lineDir)
     const hasAny = stats.some(s => s.moy > 0)
     if (!hasAny) return null
     return {
-      labels: axeDefs.map(a => a.label),
-      datasets: [
-        { label: 'Min',   data: stats.map(s => s.min), backgroundColor: 'rgba(27,79,138,0.80)',  borderRadius: 6, borderSkipped: false },
-        { label: 'Moyen', data: stats.map(s => s.moy), backgroundColor: 'rgba(230,126,34,0.85)', borderRadius: 6, borderSkipped: false },
-        { label: 'Max',   data: stats.map(s => s.max), backgroundColor: 'rgba(192,57,43,0.85)',  borderRadius: 6, borderSkipped: false },
-      ],
+      stats,
+      chart: {
+        labels: axeDefs.map(a => a.label),
+        datasets: [
+          {
+            label:           'Plage min–max',
+            data:            stats.map(s => s.n > 0 ? [s.min, s.max] : null),
+            backgroundColor: axeDefs.map(a => `${a.color}2E`),
+            borderColor:     axeDefs.map(a => a.color),
+            borderWidth:     1.5,
+            borderRadius:    6,
+            borderSkipped:   false,
+            barPercentage:      0.5,
+            categoryPercentage: 0.8,
+          },
+          {
+            label:                'Moyenne',
+            type:                 'line',
+            showLine:             false,
+            data:                 stats.map(s => s.n > 0 ? s.moy : null),
+            pointStyle:           'line',
+            pointRadius:          16,
+            pointHoverRadius:     16,
+            pointBorderWidth:     3.5,
+            pointBorderColor:     axeDefs.map(a => a.color),
+            pointBackgroundColor: axeDefs.map(a => a.color),
+          },
+        ],
+      },
     }
   }, [data24h, axeIdsKey, lineDir])
 
@@ -507,25 +574,55 @@ function GraphiquesPage() {
       {/* ── G2 + G4 — côte à côte sur desktop, empilés sur mobile ── */}
       <div style={{ display: 'flex', gap: '1rem', flexShrink: 0, flexWrap: 'wrap' }}>
 
-        {/* G2 — Histogramme Min/Moyen/Max */}
+        {/* G2 — Plage min–max + moyenne par axe */}
         <div className="fp-card" style={{ flex: '1 1 300px', minWidth: 0 }}>
           <div className="fp-section-header">
-            <span className="fp-section-title">Min / Moyen / Max par axe ({lineDir === 'aller' ? 'Aller' : 'Retour'})</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span className="fp-section-title">Temps de traversée par axe ({lineDir === 'aller' ? 'Aller' : 'Retour'})</span>
+              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
+                Barre = plage min–max · trait épais = moyenne
+              </span>
+            </div>
           </div>
           {minMaxData ? (
             <div style={{ height: 240 }}>
-              <Bar data={minMaxData} options={{
+              <Bar data={minMaxData.chart} plugins={[minMaxLabelsPlugin]} options={{
                 ...CHART_OPTIONS_BASE,
+                layout: { padding: { top: 16 } },
+                // tooltip sur toute la colonne, pas seulement au survol du trait
+                interaction: { mode: 'index', intersect: false },
                 plugins: {
                   ...CHART_OPTIONS_BASE.plugins,
-                  legend: { ...CHART_OPTIONS_BASE.plugins.legend, position: 'top' },
-                  title: { display: false },
+                  legend: { display: false }, // identité portée par l'axe X + caption
+                  title:  { display: false },
+                  minMaxLabels: { stats: minMaxData.stats },
+                  tooltip: {
+                    ...CHART_OPTIONS_BASE.plugins.tooltip,
+                    mode: 'index', intersect: false,
+                    callbacks: {
+                      label: ctx => {
+                        const s = minMaxData.stats[ctx.dataIndex]
+                        if (!s || s.n === 0) return null
+                        if (ctx.datasetIndex === 1) return ` Moyenne : ${s.moy} min`
+                        return [` Plage : ${s.min} – ${s.max} min`, ` Mesures : ${s.n}`]
+                      },
+                      afterBody: items => {
+                        const i   = items[0]?.dataIndex
+                        const axe = axeDefs[i]
+                        const s   = minMaxData.stats[i]
+                        if (!axe?.tRef || !s || s.n === 0) return ''
+                        const pct = Math.round((s.moy / axe.tRef - 1) * 100)
+                        return `\nRéférence PAA : ${axe.tRef} min (${pct >= 0 ? '+' : ''}${pct}% en moyenne)`
+                      },
+                    },
+                  },
                 },
                 scales: {
                   ...CHART_OPTIONS_BASE.scales,
                   y: {
                     ...CHART_OPTIONS_BASE.scales.y,
-                    beginAtZero: true,
+                    beginAtZero: false,
+                    grace: '12%', // marge pour les étiquettes min/max hors de la barre
                     title: { display: true, text: 'minutes', font: BASE_FONT, color: C.textMuted },
                   },
                 },
