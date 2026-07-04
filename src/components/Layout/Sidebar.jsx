@@ -1,6 +1,7 @@
 import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Lock } from 'lucide-react'
 import { C } from '../../styles/tokens'
 import logoPAA from '../../assets/logo_port.png'
+import InstallPWA from '../shared/InstallPWA'
 
 // Grand public : Dashboard + IA uniquement
 const NAV_PUBLIC = [
@@ -127,6 +128,10 @@ function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, 
         padding:   '0.9rem 1rem',
         borderTop: `1px solid ${C.sidebarBorder}`,
       }}>
+        {/* Installation PWA (masqué si déjà installée) */}
+        <div style={{ marginBottom: '0.75rem' }}>
+          <InstallPWA />
+        </div>
         {user ? (
           <>
             {/* Avatar utilisateur connecté */}

@@ -13,6 +13,7 @@ import { useIsMobile } from './hooks/useIsMobile'
 import { logOut, signIn } from './services/auth'
 import { C }          from './styles/tokens'
 import ConsentBanner, { CONSENT_KEY } from './components/shared/ConsentBanner'
+import InstallPWA from './components/shared/InstallPWA'
 
 const PAGES = {
   dashboard:  DashboardPage,
@@ -177,33 +178,36 @@ function MobileShell({ page, onNavigate, user, isAdmin, onLogin, children }) {
           <span style={{ color: C.sidebarMuted, fontSize: 11, fontFamily: "'Inter',sans-serif" }}>· PAA</span>
         </div>
 
-        {user ? (
-          <button
-            onClick={logOut}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              background: 'rgba(192,57,43,0.2)', border: '1px solid rgba(192,57,43,0.35)',
-              borderRadius: '6px', color: '#e57373', fontSize: 11, padding: '5px 10px',
-              cursor: 'pointer', fontFamily: "'Inter',sans-serif",
-            }}
-          >
-            <LogOut size={11} />
-            {isAdmin ? 'Admin' : 'Déconnexion'}
-          </button>
-        ) : (
-          <button
-            onClick={onLogin}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5,
-              background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
-              borderRadius: '6px', color: '#fff', fontSize: 11, padding: '5px 10px',
-              cursor: 'pointer', fontFamily: "'Inter',sans-serif",
-            }}
-          >
-            <Lock size={11} />
-            Connexion
-          </button>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+          <InstallPWA variant="mobile" />
+          {user ? (
+            <button
+              onClick={logOut}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'rgba(192,57,43,0.2)', border: '1px solid rgba(192,57,43,0.35)',
+                borderRadius: '6px', color: '#e57373', fontSize: 11, padding: '5px 10px',
+                cursor: 'pointer', fontFamily: "'Inter',sans-serif",
+              }}
+            >
+              <LogOut size={11} />
+              {isAdmin ? 'Admin' : 'Déconnexion'}
+            </button>
+          ) : (
+            <button
+              onClick={onLogin}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)',
+                borderRadius: '6px', color: '#fff', fontSize: 11, padding: '5px 10px',
+                cursor: 'pointer', fontFamily: "'Inter',sans-serif",
+              }}
+            >
+              <Lock size={11} />
+              Connexion
+            </button>
+          )}
+        </div>
       </header>
 
       {/* Contenu scrollable */}
