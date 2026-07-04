@@ -16,6 +16,7 @@ import FloatingAIAssistant from '../components/shared/FloatingAIAssistant'
 import { createETATracker } from '../services/eta'
 import { AXE_COLORS, AXE_PALETTE, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { useIsMobile } from '../hooks/useIsMobile'
+import dashboardBg from '../assets/dashboard_bg.webp'
 
 const PAA_CENTER = PAA_CENTER_COORDS   // [5.304290, -4.023577]
 const PALM_BEACH = PALM_BEACH_COORDS   // [5.258715, -3.982088]
@@ -612,13 +613,21 @@ function DashboardPage() {
       overflow: isMobile ? 'visible' : 'hidden',
       padding: isMobile ? '0.85rem' : '1.1rem',
       gap: '0.85rem',
+      // Fond identitaire PAA (carte de Côte d'Ivoire en scène portuaire) —
+      // remplace uniquement le fond de page : les cartes (KPI, carte
+      // Leaflet, panneaux) gardent leur fond blanc par-dessus.
+      backgroundImage: `url(${dashboardBg})`,
+      backgroundSize: 'cover',
+      backgroundPosition: 'center',
+      backgroundAttachment: isMobile ? 'scroll' : 'fixed',
     }}>
 
       {/* ── Header ────────────────────────────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>Dashboard</h1>
+            {/* Posé directement sur le fond image sombre → blanc */}
+            <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: '#fff', textShadow: '0 1px 8px rgba(0,0,0,0.45)' }}>Dashboard</h1>
             {/* Indicateur de fraîcheur à 3 paliers — honnête : "En direct"
                 seulement si <3min, sinon signale clairement la dégradation
                 plutôt que de prétendre être live (dataHealth = source unique) */}
@@ -637,7 +646,7 @@ function DashboardPage() {
               </span>
             </div>
           </div>
-          <p style={{ fontSize: 11, color: C.textMuted, marginTop: 3 }}>
+          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.82)', marginTop: 3, textShadow: '0 1px 6px rgba(0,0,0,0.45)' }}>
             {!lastUpdate
               ? 'Synchronisation en cours — en attente de données...'
               : dataHealth.tier === 'live'
