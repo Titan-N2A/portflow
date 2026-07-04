@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, Lock, X, LogOut } from 'lucide-react'
+import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, Lock, X, LogOut, Eye, EyeOff } from 'lucide-react'
 import logoPAA from './assets/logo_port.png'
 import Sidebar        from './components/Layout/Sidebar'
 import DashboardPage  from './pages/DashboardPage'
@@ -55,6 +55,7 @@ const MOB_ADMIN = [
 function LoginModal({ onClose }) {
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
+  const [showPwd,  setShowPwd]  = useState(false)
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
 
@@ -107,8 +108,24 @@ function LoginModal({ onClose }) {
             </div>
             <div>
               <label className="fp-label">Mot de passe</label>
-              <input type="password" className="fp-input" placeholder="••••••••"
-                value={password} onChange={e => setPassword(e.target.value)} required />
+              <div style={{ position: 'relative' }}>
+                <input type={showPwd ? 'text' : 'password'} className="fp-input" placeholder="••••••••"
+                  value={password} onChange={e => setPassword(e.target.value)} required
+                  style={{ paddingRight: '2.6rem' }} />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(v => !v)}
+                  aria-label={showPwd ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  title={showPwd ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  style={{
+                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', padding: 4, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', color: C.textMuted,
+                  }}
+                >
+                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
             {error && (
               <div style={{ padding: '0.65rem 0.9rem', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: '8px' }}>
