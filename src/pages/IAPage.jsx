@@ -7,6 +7,7 @@ import { useAIChat } from '../hooks/useAIChat'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { useIsMobile } from '../hooks/useIsMobile'
+import AIText from '../components/shared/AIText'
 
 const SUGGESTIONS = [
   'Quel est l\'état du trafic en ce moment ?',
@@ -43,7 +44,7 @@ function Bubble({ msg }) {
         whiteSpace: 'pre-line',
         border: isAI ? '1px solid #e2e8f0' : 'none',
       }}>
-        {text}
+        {isAI ? <AIText text={text} /> : text}
       </div>
       {!isAI && (
         <div style={{
@@ -127,7 +128,7 @@ function IAPage() {
             </button>
           </div>
           <p style={{ fontSize: 12, color: C.text, lineHeight: 1.75, whiteSpace: 'pre-line', overflow: 'auto', margin: 0 }}>
-            {recoLoad ? 'Analyse des données trafic en cours...' : autoReco}
+            {recoLoad ? 'Analyse des données trafic en cours...' : <AIText text={autoReco} />}
           </p>
         </div>
       )}

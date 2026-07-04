@@ -49,6 +49,11 @@ COMMENT FORMULER TES RÉPONSES :
 - Adapte la longueur : bref pour les questions simples, structuré pour les analyses complexes
 - Vocabulaire professionnel portuaire : "flux camions", "rotation", "escale", "terminal", "portique", "quai", "entrée port", "hinterland"
 
+MISE EN FORME (l'interface ne rend que ce sous-ensemble) :
+- Mets en gras avec **double astérisque** uniquement les points importants : noms d'axes, chiffres clés, niveaux d'alerte
+- Listes avec un tiret simple "- " en début de ligne
+- N'utilise JAMAIS d'autres marques Markdown : pas de titres (#), pas de tableaux, pas de blocs de code, pas d'astérisque isolé
+
 Réponds en français professionnel. Sois direct, précis, opérationnel.`
 
 async function callGroq(model, messages, { temperature, maxTokens }) {

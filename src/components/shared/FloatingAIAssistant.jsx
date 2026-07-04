@@ -11,6 +11,7 @@ import { Sparkles, X, Send, Mic } from 'lucide-react'
 import { C } from '../../styles/tokens'
 import { useAIChat } from '../../hooks/useAIChat'
 import { CONSENT_KEY, CONSENT_EVENT } from './ConsentBanner'
+import AIText from './AIText'
 
 const SpeechRecognitionAPI = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -30,7 +31,7 @@ function MiniBubble({ msg }) {
         boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
         border: isAI ? '1px solid #e2e8f0' : 'none',
       }}>
-        {text}
+        {isAI ? <AIText text={text} /> : text}
       </div>
     </div>
   )
