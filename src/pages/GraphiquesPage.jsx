@@ -110,7 +110,8 @@ function EmptyChart({ height = 280 }) {
 // (icône, libellé, valeur, badge de niveau coloré).
 function StatTile({ icon: Icon, iconColor, label, value, unit, niveau }) {
   return (
-    <div className="fp-card" style={{ flex: 1, minWidth: 0, padding: '0.9rem 1rem' }}>
+    // flex-basis 150px : 4 tuiles par ligne sur desktop, 2 par ligne sur mobile
+    <div className="fp-card" style={{ flex: '1 1 150px', minWidth: 0, padding: '0.9rem 1rem' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
         <div style={{
           width: 30, height: 30, borderRadius: 7, flexShrink: 0,
@@ -503,11 +504,11 @@ function GraphiquesPage() {
         )}
       </div>
 
-      {/* ── G2 + G4 ───────────────────────────────────────────── */}
-      <div style={{ display: 'flex', gap: '1rem', flexShrink: 0 }}>
+      {/* ── G2 + G4 — côte à côte sur desktop, empilés sur mobile ── */}
+      <div style={{ display: 'flex', gap: '1rem', flexShrink: 0, flexWrap: 'wrap' }}>
 
         {/* G2 — Histogramme Min/Moyen/Max */}
-        <div className="fp-card" style={{ flex: 1, minWidth: 0 }}>
+        <div className="fp-card" style={{ flex: '1 1 300px', minWidth: 0 }}>
           <div className="fp-section-header">
             <span className="fp-section-title">Min / Moyen / Max par axe ({lineDir === 'aller' ? 'Aller' : 'Retour'})</span>
           </div>
@@ -536,7 +537,7 @@ function GraphiquesPage() {
         </div>
 
         {/* G4 — Donut répartition niveaux */}
-        <div className="fp-card" style={{ flex: 1, minWidth: 0 }}>
+        <div className="fp-card" style={{ flex: '1 1 300px', minWidth: 0 }}>
           <div className="fp-section-header">
             <span className="fp-section-title">Répartition par niveau</span>
             <select className="fp-select" style={{ width: 'auto' }} value={periode} onChange={e => setPeriode(e.target.value)}>
@@ -599,10 +600,13 @@ function GraphiquesPage() {
         {Object.keys(heatmapGrid).length === 0 ? (
           <EmptyChart height={260} />
         ) : (
-          <div ref={heatScrollRef} style={{ overflowX: 'auto', width: '100%' }}>
+          <div ref={heatScrollRef} style={{ overflowX: 'auto', width: '100%', WebkitOverflowScrolling: 'touch' }}>
             <table style={{
               borderCollapse: 'separate', borderSpacing: '4px',
               width: '100%', tableLayout: 'fixed',
+              // largeur plancher : sous ~640px (mobile) le tableau garde des
+              // cellules lisibles et défile horizontalement au lieu de s'écraser
+              minWidth: 640,
             }}>
               <colgroup>
                 <col style={{ width: 52 }} />

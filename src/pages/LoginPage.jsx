@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Activity, Lock } from 'lucide-react'
+import { Activity, Lock, Eye, EyeOff } from 'lucide-react'
 import { signIn } from '../services/auth'
 import { C } from '../styles/tokens'
 
@@ -13,6 +13,7 @@ const AUTH_ERRORS = {
 function LoginPage() {
   const [email,    setEmail]    = useState('')
   const [password, setPassword] = useState('')
+  const [showPwd,  setShowPwd]  = useState(false)
   const [error,    setError]    = useState('')
   const [loading,  setLoading]  = useState(false)
 
@@ -80,14 +81,30 @@ function LoginPage() {
 
             <div>
               <label className="fp-label">Mot de passe</label>
-              <input
-                type="password"
-                className="fp-input"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPwd ? 'text' : 'password'}
+                  className="fp-input"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  style={{ paddingRight: '2.6rem' }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPwd(v => !v)}
+                  aria-label={showPwd ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  title={showPwd ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                  style={{
+                    position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)',
+                    background: 'none', border: 'none', padding: 4, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', color: C.textMuted,
+                  }}
+                >
+                  {showPwd ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
 
             {error && (
