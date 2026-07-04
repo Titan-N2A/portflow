@@ -125,14 +125,14 @@ function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge,
   // peu importe le niveau réel.
   const niveauColor = niveau > 0 ? levelColor(niveau) : null
   return (
-    <div className={`fp-card${flash ? ' fp-kpi-flash' : ''}`} style={{ flex: 1, minWidth: 0, transition: 'background 0.3s' }}>
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
+    <div className={`fp-card${flash ? ' fp-kpi-flash' : ''}`} style={{ flex: 1, minWidth: 0, transition: 'background 0.3s', padding: '0.7rem 0.9rem' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
         <div style={{
-          width: 36, height: 36, borderRadius: '8px',
+          width: 30, height: 30, borderRadius: '8px',
           background: `${iconColor}18`,
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
-          <Icon size={18} color={iconColor} />
+          <Icon size={15} color={iconColor} />
         </div>
         {freshness && (
           <span title={freshness.label} style={{
@@ -142,15 +142,15 @@ function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge,
           }} />
         )}
       </div>
-      <p style={{ fontSize: 11, color: C.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+      <p style={{ fontSize: 10.5, color: C.textMuted, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 3 }}>
         {title}
       </p>
       {badge ? (
         <>
-          <p style={{ fontSize: 14, fontWeight: 700, color: niveauColor ?? C.text, lineHeight: 1.3, marginBottom: 4 }}>{value}</p>
+          <p style={{ fontSize: 13, fontWeight: 700, color: niveauColor ?? C.text, lineHeight: 1.25, marginBottom: 3 }}>{value}</p>
           <span style={{
             display: 'inline-flex', alignItems: 'center', width: 'fit-content',
-            padding: '2px 10px', borderRadius: 999, fontSize: 11, fontWeight: 700,
+            padding: '1px 9px', borderRadius: 999, fontSize: 10.5, fontWeight: 700,
             background: niveauColor ? levelBg(niveau) : '#fdecea',
             color:      niveauColor ?? '#C0392B',
           }}>
@@ -159,8 +159,8 @@ function KPICard({ icon: Icon, iconColor = C.primary, title, value, unit, badge,
         </>
       ) : (
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 4 }}>
-          <span style={{ fontSize: 26, fontWeight: 800, color: C.text, lineHeight: 1 }}>{value ?? '—'}</span>
-          {unit && <span style={{ fontSize: 13, color: C.textMuted, fontWeight: 500 }}>{unit}</span>}
+          <span style={{ fontSize: 22, fontWeight: 800, color: C.text, lineHeight: 1 }}>{value ?? '—'}</span>
+          {unit && <span style={{ fontSize: 12, color: C.textMuted, fontWeight: 500 }}>{unit}</span>}
         </div>
       )}
     </div>
