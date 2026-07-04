@@ -13,6 +13,8 @@
 // de bugs de fraîcheur avec l'ex-collector/collecte.js, supprimé).
 // ============================================================
 
+import { gererAlertes } from './notifs.js'
+
 const TOMTOM_KEY   = process.env.TOMTOM_KEY
 const FIREBASE_KEY = process.env.FIREBASE_API_KEY
 const GOOGLE_KEY   = process.env.GOOGLE_MATRIX_API_KEY
@@ -207,6 +209,7 @@ async function main() {
   }
 
   let ok = 0, erreurs = 0
+  const resultats = []   // alimenté pour les alertes email (notifs.js)
 
   for (const route of routeList) {
     try {
@@ -242,11 +245,22 @@ async function main() {
       })
 
       console.log(`  ✓ ${route.shortNom} ${route.sens} : ${tempsMin} min (N${niveau}, +${retard} min) [${source}]`)
+      resultats.push({
+        docId: route.docId, axeId: route.axeId, shortNom: route.shortNom,
+        sens: route.sens, tempsMin, tRef: route.tRef, niveau, retard, vitesse,
+      })
       ok++
     } catch (err) {
       console.error(`  ✗ ${route.shortNom} ${route.sens} : ${err.message}`)
       erreurs++
     }
+  }
+
+  // Alertes congestion par email — ne doit JAMAIS faire échouer la collecte
+  try {
+    await gererAlertes(resultats)
+  } catch (err) {
+    console.warn(`⚠ Alertes email : ${err.message}`)
   }
 
   console.log(`\n✅ Terminé — ${ok} routes collectées, ${erreurs} erreur(s)\n`)

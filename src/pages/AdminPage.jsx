@@ -7,9 +7,10 @@ import {
   Plus, Pencil, Ban, Trash2, Save, X,
   Users, AlertOctagon, MapPin, Layers, RefreshCw,
   CheckCircle, AlertCircle, Eye, EyeOff,
-  Navigation, Copy, ChevronDown, ChevronUp, Radio,
+  Navigation, Copy, ChevronDown, ChevronUp, Radio, Mail,
 } from 'lucide-react'
 import { C } from '../styles/tokens'
+import NotificationsConfig from '../components/Admin/NotificationsConfig'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { syncDefaultAxes } from '../services/axesService'
 import { AXE_COLORS as DEFAULT_AXE_COLORS, AXE_PALETTE } from '../data/defaultData'
@@ -1838,6 +1839,7 @@ function AdminPage() {
     { id: 'troncons', icon: Layers,       label: 'Tronçons'         },
     { id: 'seuils',   icon: AlertOctagon, label: 'Seuils d\'alerte' },
     { id: 'users',    icon: Users,        label: 'Utilisateurs'     },
+    { id: 'notifications', icon: Mail,    label: 'Notifications'    },
     { id: 'live',     icon: Radio,        label: 'Utilisateurs en temps réel' },
   ]
 
@@ -2070,6 +2072,11 @@ function AdminPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* ── NOTIFICATIONS EMAIL ─────────────────────────────── */}
+      {tab === 'notifications' && (
+        <NotificationsConfig onToast={showToast} />
       )}
 
       {/* ── UTILISATEURS EN TEMPS RÉEL ──────────────────────── */}

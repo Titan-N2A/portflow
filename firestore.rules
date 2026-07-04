@@ -50,6 +50,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if true;
     }
+    // État anti-spam des alertes email (scripts/notifs.js, non authentifié
+    // comme la collecte) — ne contient que niveaux/horodatages, rien de
+    // sensible. Même compromis que mesures/collecte_auto ci-dessus.
+    match /alertes_etat/{doc} {
+      allow read: if true;
+      allow write: if true;
+    }
 
     // Non utilisée par le code actuel (services/seed.js n'est appelé nulle
     // part) — verrouillée par précaution, aucun lecteur/écrivain à casser.

@@ -25,4 +25,9 @@ jobs:
           TOMTOM_KEY: ${{ secrets.TOMTOM_KEY }}
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
           GOOGLE_MATRIX_API_KEY: ${{ secrets.GOOGLE_MATRIX_API_KEY }}
+          # Alertes congestion par email (optionnel — désactivé si absent)
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          FLOWPORT_BOT_EMAIL: ${{ secrets.FLOWPORT_BOT_EMAIL }}
+          FLOWPORT_BOT_PASSWORD: ${{ secrets.FLOWPORT_BOT_PASSWORD }}
         run: node scripts/collecte.js

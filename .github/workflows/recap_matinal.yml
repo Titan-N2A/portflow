@@ -1,0 +1,27 @@
+name: Récap matinal FlowPort — email
+
+on:
+  schedule:
+    # 6h30 heure d'Abidjan (= UTC). Le scheduler GitHub peut décaler de
+    # quelques minutes sous charge — acceptable pour un point du matin.
+    - cron: '30 6 * * *'
+  workflow_dispatch: # test manuel depuis GitHub
+
+jobs:
+  recap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Envoyer le récapitulatif
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          FLOWPORT_BOT_EMAIL: ${{ secrets.FLOWPORT_BOT_EMAIL }}
+          FLOWPORT_BOT_PASSWORD: ${{ secrets.FLOWPORT_BOT_PASSWORD }}
+        run: node scripts/recap.js
