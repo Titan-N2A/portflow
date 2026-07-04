@@ -17,6 +17,14 @@ dist-ssr
 .env.*
 !.env.example
 
+# Fichiers de travail locaux (captures d'écran, brouillons, données brutes)
+_local/
+~$*
+PortFlow_Troncons (1).docx
+
+# Claude Code (préférences locales de session)
+.claude/settings.local.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

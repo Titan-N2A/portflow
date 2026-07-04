@@ -9,8 +9,8 @@ Dashboard de monitoring du trafic du Port Autonome d'Abidjan (PAA) — visualisa
 - **Leaflet / react-leaflet** — cartographie des axes du port
 - **Chart.js / react-chartjs-2** — graphiques d'indicateurs
 - **Firebase** — backend (auth, données)
-- **TomTom API** — données de trafic
-- **Gemini API** — fonctionnalités IA
+- **TomTom API / Google Distance Matrix** — données de trafic (collecte auto toutes les 5 min via GitHub Actions)
+- **Groq API** — assistant IA FlowPort (Llama 3.3 70B, fallback 8B)
 - **xlsx / docx / jspdf** — export de rapports
 
 ## Structure du projet
@@ -40,3 +40,10 @@ npm run build     # build de production
 npm run preview   # prévisualiser le build
 npm run lint      # lint ESLint
 ```
+
+## Documentation
+
+- `docs/livrables/PortFlow_Guide_Utilisateur.docx` — guide utilisateur
+- `docs/livrables/PortFlow_Rapport_Technique.docx` — rapport technique
+- `docs/PortFlow_Troncons.docx` — définition des tronçons PAA
+- `ml/` — entraînement du modèle prédictif (Random Forest, voir `ml/train_model.py`)
