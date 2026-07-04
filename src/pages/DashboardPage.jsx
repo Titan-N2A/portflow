@@ -17,6 +17,8 @@ import { createETATracker } from '../services/eta'
 import { AXE_COLORS, AXE_PALETTE, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
 import { useIsMobile } from '../hooks/useIsMobile'
 import dashboardBg from '../assets/dashboard_bg.webp'
+import heroTerminal from '../assets/port/hero_terminal.webp'
+import heroAerien from '../assets/port/hero_aerien.webp'
 
 const PAA_CENTER = PAA_CENTER_COORDS   // [5.304290, -4.023577]
 const PALM_BEACH = PALM_BEACH_COORDS   // [5.258715, -3.982088]
@@ -534,6 +536,110 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
   )
 }
 
+// ── Bandeau héro (diaporama photos du port) ───────────────
+// Remplace l'ancien en-tête (titre + badge + Actualiser) : tout est
+// fusionné dans le bandeau pour ne coûter que ~100 px de plus que
+// l'en-tête — la carte Leaflet garde l'essentiel de sa hauteur.
+const HERO_IMAGES = [heroTerminal, heroAerien, dashboardBg]
+
+function HeroBanner({ isMobile, mesures, dataHealth, refreshing, lastUpdate, ageLabel, onRefresh }) {
+  const [slide, setSlide] = useState(0)
+
+  useEffect(() => {
+    const t = setInterval(() => setSlide(s => (s + 1) % HERO_IMAGES.length), 8000)
+    return () => clearInterval(t)
+  }, [])
+
+  // Niveau global du réseau (moyenne des niveaux live, sens confondus)
+  const niveaux = Object.values(mesures ?? {}).map(m => m?.niveau).filter(n => n > 0)
+  const nGlobal = niveaux.length ? Math.round(niveaux.reduce((a, b) => a + b, 0) / niveaux.length) : 0
+
+  const freshBg = { live: '#E8F5E9', maybe: '#FEF3E0', lost: '#FEF2F2', none: '#F1F1F1' }[dataHealth.tier] ?? '#F1F1F1'
+
+  return (
+    <div style={{
+      position: 'relative', flexShrink: 0,
+      height: isMobile ? 118 : 150,
+      borderRadius: 14, overflow: 'hidden',
+      boxShadow: '0 4px 18px rgba(0,0,0,0.25)',
+    }}>
+      {/* Diaporama en fondu enchaîné */}
+      {HERO_IMAGES.map((img, i) => (
+        <div key={i} style={{
+          position: 'absolute', inset: 0,
+          backgroundImage: `url(${img})`, backgroundSize: 'cover', backgroundPosition: 'center',
+          opacity: i === slide ? 1 : 0, transition: 'opacity 1.6s ease',
+        }} />
+      ))}
+      {/* Voile de lisibilité */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        background: 'linear-gradient(90deg, rgba(7,26,48,0.92) 0%, rgba(7,26,48,0.55) 55%, rgba(7,26,48,0.22) 100%)',
+      }} />
+
+      {/* Bouton Actualiser (en haut à droite) */}
+      <button className="fp-btn fp-btn-primary"
+        onClick={onRefresh} disabled={refreshing}
+        style={{ position: 'absolute', top: 10, right: 12, fontSize: 12, padding: '0.4rem 0.8rem', zIndex: 2 }}>
+        <RefreshCw size={13} className={refreshing ? 'fp-spin' : ''} />
+        {!isMobile && 'Actualiser'}
+      </button>
+
+      {/* Contenu */}
+      <div style={{
+        position: 'relative', height: '100%',
+        display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
+        padding: isMobile ? '0.6rem 0.9rem' : '0.8rem 1.4rem',
+        gap: isMobile ? 2 : 4,
+      }}>
+        <p style={{
+          fontSize: isMobile ? 8.5 : 10, fontWeight: 700, letterSpacing: '0.18em',
+          color: '#8CBFE8', margin: 0,
+        }}>
+          PORT AUTONOME D&apos;ABIDJAN
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          <h1 style={{ fontSize: isMobile ? 16 : 21, fontWeight: 800, color: '#fff', margin: 0, lineHeight: 1.15 }}>
+            {isMobile ? 'FlowPort' : 'FlowPort — Surveillance du trafic routier'}
+          </h1>
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            background: freshBg, borderRadius: 20, padding: '2px 9px',
+          }}>
+            <span style={{
+              width: 7, height: 7, borderRadius: '50%',
+              background: refreshing ? '#F0AD4E' : dataHealth.color,
+              animation: (refreshing || dataHealth.tier !== 'live') ? 'none' : 'fp-live-pulse 2s infinite',
+              display: 'inline-block',
+            }} />
+            <span style={{ fontSize: 10, fontWeight: 700, color: dataHealth.color, letterSpacing: '0.05em' }}>
+              {refreshing ? 'MISE À JOUR...' : dataHealth.label.toUpperCase()}
+            </span>
+          </div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <p style={{ fontSize: isMobile ? 10 : 11.5, color: 'rgba(255,255,255,0.85)', margin: 0, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {!lastUpdate
+              ? 'Synchronisation en cours...'
+              : `Mis à jour à ${lastUpdate.toLocaleTimeString('fr-FR')} (${ageLabel})`}
+            {nGlobal > 0 && <> · Réseau : <strong style={{ color: levelColor(nGlobal) === '#E6B00F' ? '#FFD54F' : nGlobal <= 2 ? '#7BE3A2' : '#FF9E7A' }}>{levelLabel(nGlobal)}</strong></>}
+          </p>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
+            {HERO_IMAGES.map((_, i) => (
+              <button key={i} onClick={() => setSlide(i)} aria-label={`Photo ${i + 1}`} style={{
+                width: i === slide ? 9 : 7, height: i === slide ? 9 : 7,
+                borderRadius: '50%', border: 'none', padding: 0, cursor: 'pointer',
+                background: i === slide ? '#fff' : 'rgba(255,255,255,0.42)',
+                transition: 'all 0.3s',
+              }} />
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Dashboard Page ────────────────────────────────────────
 function DashboardPage() {
   const { axes: firestoreAxes, troncons } = useAxesFirestore()
@@ -597,11 +703,6 @@ function DashboardPage() {
 
   const dataAge  = lastUpdate ? Math.max(0, Math.floor((nowTick - lastUpdate.getTime()) / 60000)) : null
   const ageLabel = dataAge == null ? null : dataAge <= 0 ? 'à l\'instant' : dataAge === 1 ? 'il y a 1 min' : `il y a ${dataAge} min`
-  // 3 paliers de fraîcheur (dataHealth.tier vient du hook, seule source de
-  // vérité) : 'live' < 3min, 'maybe' 3-10min, 'lost' > 10min, 'none' jamais reçu.
-  const freshBg = { live: '#E8F5E9', maybe: '#FEF3E0', lost: '#FEF2F2', none: '#F1F1F1' }[dataHealth.tier] ?? '#F1F1F1'
-  const freshBorder = `${dataHealth.color}55`
-
   // Contrôle l'affichage de la carte "Mon trajet" ET la hauteur de la carte
   // mobile — quand elle est masquée, la carte récupère l'espace libéré.
   const showEta = etaLoading || !!eta
@@ -627,45 +728,16 @@ function DashboardPage() {
       backgroundAttachment: isMobile ? 'scroll' : 'fixed',
     }}>
 
-      {/* ── Header ────────────────────────────────────────── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            {/* Posé directement sur le fond image sombre → blanc */}
-            <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: '#fff', textShadow: '0 1px 8px rgba(0,0,0,0.45)' }}>Dashboard</h1>
-            {/* Indicateur de fraîcheur à 3 paliers — honnête : "En direct"
-                seulement si <3min, sinon signale clairement la dégradation
-                plutôt que de prétendre être live (dataHealth = source unique) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5,
-              background: freshBg,
-              border: `1px solid ${freshBorder}`,
-              borderRadius: 20, padding: '2px 9px' }}>
-              <span style={{
-                width: 7, height: 7, borderRadius: '50%',
-                background: refreshing ? '#F0AD4E' : dataHealth.color,
-                animation: (refreshing || dataHealth.tier !== 'live') ? 'none' : 'fp-live-pulse 2s infinite',
-                display: 'inline-block',
-              }} />
-              <span style={{ fontSize: 10, fontWeight: 700, color: dataHealth.color, letterSpacing: '0.05em' }}>
-                {refreshing ? 'MISE À JOUR...' : dataHealth.label.toUpperCase()}
-              </span>
-            </div>
-          </div>
-          <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.82)', marginTop: 3, textShadow: '0 1px 6px rgba(0,0,0,0.45)' }}>
-            {!lastUpdate
-              ? 'Synchronisation en cours — en attente de données...'
-              : dataHealth.tier === 'live'
-                ? `Mis à jour à ${lastUpdate.toLocaleTimeString('fr-FR')} (${ageLabel})`
-                : `Dernière donnée reçue à ${lastUpdate.toLocaleTimeString('fr-FR')} (${ageLabel}) — synchronisation ${dataHealth.tier === 'lost' ? 'interrompue' : 'ralentie'}`}
-          </p>
-        </div>
-        <button className="fp-btn fp-btn-primary" style={{ fontSize: 12, padding: '0.4rem 0.8rem' }}
-          onClick={refresh}
-          disabled={refreshing}>
-          <RefreshCw size={13} className={refreshing ? 'fp-spin' : ''} />
-          {!isMobile && 'Actualiser'}
-        </button>
-      </div>
+      {/* ── Bandeau héro (remplace l'ancien en-tête) ───────── */}
+      <HeroBanner
+        isMobile={isMobile}
+        mesures={mesures}
+        dataHealth={dataHealth}
+        refreshing={refreshing}
+        lastUpdate={lastUpdate}
+        ageLabel={ageLabel}
+        onRefresh={refresh}
+      />
 
       {/* ── KPI Cards — 2 colonnes sur mobile, 5 en ligne sur desktop ── */}
       <div style={{
