@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, ZoomControl, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-import { Clock, AlertTriangle, CheckCircle2, Gauge, RefreshCw, Zap, X, Users } from 'lucide-react'
+import { Clock, AlertTriangle, CheckCircle2, Gauge, RefreshCw, X, Users } from 'lucide-react'
 import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
@@ -15,8 +15,6 @@ import ETACard from '../components/shared/ETACard'
 import FloatingAIAssistant from '../components/shared/FloatingAIAssistant'
 import { createETATracker } from '../services/eta'
 import { AXE_COLORS, AXE_PALETTE, PALM_BEACH_COORDS, PAA_CENTER_COORDS } from '../data/defaultData'
-import { askAI, buildTrafficPrompt } from '../services/ai'
-import { getCachedAI, setCachedAI, clearCachedAI } from '../utils/aiCache'
 import { useIsMobile } from '../hooks/useIsMobile'
 
 const PAA_CENTER = PAA_CENTER_COORDS   // [5.304290, -4.023577]
@@ -540,15 +538,13 @@ function DashboardPage() {
   const { axes: firestoreAxes, troncons } = useAxesFirestore()
   const axes = firestoreAxes.length > 0 ? firestoreAxes : AXES_OFFICIELS
 
-  const { mesures, kpis, loading, lastUpdate, refresh, refreshing, dataHealth } = useTrafficData(axes)
+  const { mesures, kpis, lastUpdate, refresh, refreshing, dataHealth } = useTrafficData(axes)
   const { predictions, meta: predMeta } = usePredictions()
   const { position: userPosition } = useGeolocation(axes)
   const activeUsersCount = useActiveUsersCount()
   const isMobile = useIsMobile()
   const [mapMode,      setMapMode]      = useState('live')
   const [selectedAxe,  setSelectedAxe]  = useState(null)
-  const [iaText,       setIaText]       = useState('')
-  const [iaLoading,    setIaLoading]    = useState(false)
   const [nowTick,      setNowTick]      = useState(() => Date.now())
   const [flashKpis,    setFlashKpis]    = useState(false)
   const [destination,  setDestination]  = useState(null)
@@ -605,24 +601,6 @@ function DashboardPage() {
   const freshBg = { live: '#E8F5E9', maybe: '#FEF3E0', lost: '#FEF2F2', none: '#F1F1F1' }[dataHealth.tier] ?? '#F1F1F1'
   const freshBorder = `${dataHealth.color}55`
 
-  async function loadIA(currentMesures, force = false) {
-    if (!force) {
-      const cached = getCachedAI('fp_ia_dashboard')
-      if (cached) { setIaText(cached); return }
-    }
-    setIaLoading(true)
-    const prompt = buildTrafficPrompt(currentMesures ?? mesures, axes)
-    const resp   = await askAI(prompt)
-    const text   = resp ?? 'Service IA temporairement indisponible.'
-    setIaText(text)
-    setCachedAI('fp_ia_dashboard', text)
-    setIaLoading(false)
-  }
-
-  useEffect(() => {
-    if (!loading && Object.keys(mesures).length > 0 && !iaText) loadIA(mesures)
-  }, [loading])
-
   // Contrôle l'affichage de la carte "Mon trajet" ET la hauteur de la carte
   // mobile — quand elle est masquée, la carte récupère l'espace libéré.
   const showEta = etaLoading || !!eta
@@ -668,7 +646,7 @@ function DashboardPage() {
           </p>
         </div>
         <button className="fp-btn fp-btn-primary" style={{ fontSize: 12, padding: '0.4rem 0.8rem' }}
-          onClick={async () => { clearCachedAI('fp_ia_dashboard'); await refresh(); loadIA(null, true) }}
+          onClick={refresh}
           disabled={refreshing}>
           <RefreshCw size={13} className={refreshing ? 'fp-spin' : ''} />
           {!isMobile && 'Actualiser'}
@@ -935,25 +913,6 @@ function DashboardPage() {
               )}
             </div>
           )}
-
-          {/* IA FlowPort */}
-          <div className="fp-card" style={{ padding: '1rem', flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '0.75rem' }}>
-              <Zap size={15} color={C.primary} />
-              <span style={{ fontWeight: 700, fontSize: 14, color: C.text }}>IA FlowPort</span>
-              <button onClick={() => { clearCachedAI('fp_ia_dashboard'); loadIA(null, true) }} disabled={iaLoading}
-                style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: C.textMuted, padding: 2 }}>
-                <RefreshCw size={13} className={iaLoading ? 'fp-spin' : ''} />
-              </button>
-            </div>
-            {iaLoading ? (
-              <div style={{ fontSize: 12, color: C.textMuted }}>Génération en cours...</div>
-            ) : iaText ? (
-              <p style={{ fontSize: 12, color: C.text, lineHeight: 1.7, whiteSpace: 'pre-line' }}>{iaText}</p>
-            ) : (
-              <p style={{ fontSize: 12, color: C.textMuted }}>Cliquez sur ↺ pour générer.</p>
-            )}
-          </div>
 
           {/* État des axes */}
           <div className="fp-card" style={{ padding: '1rem' }}>
