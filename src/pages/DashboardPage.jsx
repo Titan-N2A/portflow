@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { MapContainer, TileLayer, Polyline, Marker, Popup, ZoomControl, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, ZoomControl, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import { Clock, AlertTriangle, CheckCircle2, Gauge, RefreshCw, Zap, X, Users } from 'lucide-react'
@@ -45,6 +45,29 @@ function makeNumIcon(num, color = C.primary) {
       box-shadow:0 2px 8px rgba(0,0,0,0.3);border:2px solid rgba(255,255,255,0.9)
     ">${num}</div>`,
     className: '', iconSize: [26, 26], iconAnchor: [13, 13],
+  })
+}
+
+// ── Marqueur de départ d'axe (pastille + nom, cliquable) ──
+// Les tronçons recouvrent le tracé de l'axe : ce marqueur, posé au
+// point de départ, reste le point d'entrée pour sélectionner l'axe
+// COMPLET (panneau d'indicateurs + centrage), malgré la superposition.
+function makeAxeStartIcon(nom, color) {
+  return L.divIcon({
+    html: `<div style="
+      display:flex;align-items:center;gap:5px;
+      background:#fff;border:2px solid ${color};border-radius:999px;
+      padding:3px 10px 3px 4px;font-family:Inter,sans-serif;
+      box-shadow:0 2px 10px rgba(0,0,0,0.35);cursor:pointer;white-space:nowrap;
+    ">
+      <div style="
+        width:16px;height:16px;border-radius:50%;background:${color};
+        display:flex;align-items:center;justify-content:center;
+        color:#fff;font-size:9px;font-weight:800;
+      ">▶</div>
+      <span style="font-size:10.5px;font-weight:800;color:${color};letter-spacing:0.02em;">${nom}</span>
+    </div>`,
+    className: '', iconSize: [null, 26], iconAnchor: [13, 13],
   })
 }
 
@@ -381,6 +404,39 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
             {popup}
           </Marker>,
         ]
+      })}
+
+      {/* Départs d'axe — les tronçons recouvrent les polylines d'axe et
+          interceptent leurs clics ; ce marqueur au point de départ reste
+          l'accès direct à l'axe COMPLET : clic → panneau d'indicateurs
+          + centrage de la carte (MapZoomController). */}
+      {axes.map((axe, idx) => {
+        const m         = mesures[axe.id]
+        const positions = (m?.geometry?.length > 5)  ? m.geometry
+          : (axe.geometryRoute?.length > 5)          ? axe.geometryRoute
+          : (axe.coordinates ?? [])
+        if (positions.length < 2) return null
+        const niveau    = mapMode === 'prevision'
+          ? (getPredForAxe(predictions, axe.id)?.niveau_prevu ?? 0)
+          : (m?.niveau ?? 0)
+        const baseColor = AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length]
+        const color     = niveau > 0 ? levelColor(niveau) : baseColor
+        const depart    = Array.isArray(positions[0]) ? positions[0] : [positions[0].lat, positions[0].lng]
+        return (
+          <Marker
+            key={axe.id + '_depart'}
+            position={depart}
+            icon={makeAxeStartIcon(axe.shortNom ?? axe.nom, color)}
+            zIndexOffset={1000}
+            eventHandlers={{ click: (e) => { e.originalEvent?.stopPropagation?.(); onAxeSelect(axe) } }}
+          >
+            <Tooltip direction="top" offset={[0, -12]} opacity={0.95}>
+              {selectedAxe?.id === axe.id
+                ? 'Masquer les indicateurs de cet axe'
+                : `Axe ${axe.shortNom ?? axe.nom} — afficher les indicateurs de l'axe complet`}
+            </Tooltip>
+          </Marker>
+        )
       })}
 
       {/* Trajets retour — tous les axes bidirectionnels, tracé en pointillés.
