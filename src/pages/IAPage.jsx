@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Send, Bot, User, RefreshCw, Zap } from 'lucide-react'
 import { C } from '../styles/tokens'
 import { askAI, buildTrafficPrompt } from '../services/ai'
@@ -9,12 +9,29 @@ import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { useIsMobile } from '../hooks/useIsMobile'
 import AIText from '../components/shared/AIText'
 
-const SUGGESTIONS = [
-  'Quel est l\'état du trafic en ce moment ?',
-  'Quel axe dois-je emprunter pour rejoindre le port rapidement ?',
-  'Y a-t-il des alertes à signaler à la direction ?',
-  'Analyse la congestion sur l\'axe CARENA.',
-]
+// Suggestions adaptées à l'état live du réseau : un axe dégradé fait
+// surgir des questions ciblées sur lui, un réseau fluide oriente vers
+// l'anticipation (prévisions, comparaison à la normale récente).
+function suggestionsContextuelles(axes, mesures) {
+  const sugg = []
+  const lectures = axes.map(a => ({ a, m: mesures[a.id] })).filter(({ m }) => m)
+  const pire = [...lectures].sort((x, y) => (y.m.niveau ?? 0) - (x.m.niveau ?? 0))[0]
+
+  if (pire && pire.m.niveau >= 3) {
+    sugg.push(`Pourquoi l'axe ${pire.a.shortNom} est-il en N${pire.m.niveau} en ce moment ?`)
+    sugg.push(`Quel itinéraire alternatif à ${pire.a.shortNom} recommander aux camions ?`)
+  } else {
+    sugg.push('Quel est l\'état du trafic en ce moment ?')
+    sugg.push('Quel axe emprunter pour rejoindre le port rapidement ?')
+  }
+  const retourCharge = lectures.find(({ m }) => (m.niveauRetour ?? 0) >= 3)
+  if (retourCharge) {
+    sugg.push(`Le retour ${retourCharge.a.shortNom} est chargé — quelles actions immédiates ?`)
+  }
+  sugg.push('Quels créneaux éviter aujourd\'hui selon les prévisions ?')
+  sugg.push('Compare le trafic actuel à la normale des 7 derniers jours.')
+  return sugg.slice(0, 4)
+}
 
 function Bubble({ msg }) {
   const isAI  = msg.role === 'model'
@@ -81,7 +98,7 @@ function IAPage() {
       if (cached) { setAutoReco(cached); return }
     }
     setRecoLoad(true)
-    const prompt = buildTrafficPrompt(mesures, axes, kpis)
+    const prompt = await buildTrafficPrompt(mesures, axes, kpis)
     const resp   = await askAI(prompt)
     const text   = resp ?? 'Erreur : réponse vide.'
     setAutoReco(text)
@@ -97,6 +114,8 @@ function IAPage() {
     setInput('')
     sendMessage(text)
   }
+
+  const suggestions = useMemo(() => suggestionsContextuelles(axes, mesures), [axes, mesures])
 
   return (
     <div style={{
@@ -135,7 +154,7 @@ function IAPage() {
 
       {/* ── Suggestions ──────────────────────────────────── */}
       <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', flexShrink: 0 }}>
-        {SUGGESTIONS.map((s, i) => (
+        {suggestions.map((s, i) => (
           <button key={i} onClick={() => handleSend(s)}
             style={{
               padding: '0.35rem 0.8rem',

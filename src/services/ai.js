@@ -11,9 +11,62 @@
 // atteint (HTTP 429), on bascule sur le 8B (14 400 req/j).
 // ============================================================
 
+import { collection, query, where, getDocs } from 'firebase/firestore'
+import { db } from './firebase'
+
 const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY ?? ''
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 const MODELS   = ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']
+
+// ── Contexte enrichi : historique 7 j + prévisions ML ────────
+// Chargé paresseusement et mis en cache 10 min : ~40 lectures
+// Firestore (agrégats quotidiens) + un fetch statique, par session.
+let _extras = null
+let _extrasTs = 0
+async function chargerExtras() {
+  if (_extras && Date.now() - _extrasTs < 10 * 60e3) return _extras
+  const extras = { agregats: [], predictions: null }
+  try {
+    const depuis = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10)
+    const snap = await getDocs(query(collection(db, 'agregats_quotidiens'), where('date', '>=', depuis)))
+    extras.agregats = snap.docs.map(d => d.data())
+  } catch { /* agrégats indisponibles — le bloc sera simplement omis */ }
+  try {
+    const rep = await fetch(`${import.meta.env.BASE_URL}predictions.json`)
+    if (rep.ok) extras.predictions = await rep.json()
+  } catch { /* prévisions indisponibles — idem */ }
+  _extras = extras
+  _extrasTs = Date.now()
+  return extras
+}
+
+function blocHistorique(agregats, axes) {
+  if (!agregats.length) return ''
+  const lignes = axes.map(a => {
+    const rs = agregats.filter(x => x.axeId === a.id && x.sens === 'aller')
+    if (!rs.length) return null
+    const n   = rs.reduce((s, x) => s + (x.n ?? 0), 0)
+    const moy = rs.reduce((s, x) => s + x.moy * (x.n ?? 0), 0) / (n || 1)
+    const n3p = rs.reduce((s, x) => s + ((x.niveaux?.[3] ?? 0) + (x.niveaux?.[4] ?? 0) + (x.niveaux?.[5] ?? 0)), 0)
+    return `• ${a.shortNom} : moy ${moy.toFixed(1)} min · plage ${Math.min(...rs.map(x => x.min)).toFixed(1)}–${Math.max(...rs.map(x => x.max)).toFixed(1)} min · ${Math.round(n3p / (n || 1) * 100)}% du temps en N3+ (${n} relevés)`
+  }).filter(Boolean)
+  if (!lignes.length) return ''
+  return `\n[HISTORIQUE 7 JOURS (relevés réels, sens aller)]\n${lignes.join('\n')}`
+}
+
+function blocPrevisions(predictions, axes) {
+  const pred = predictions?.predictions
+  if (!pred) return ''
+  const jour = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi'][new Date().getDay()]
+  const nomParAxe = Object.fromEntries(axes.map(a => [a.id, a.shortNom]))
+  const risques = Object.entries(pred)
+    .filter(([k, v]) => k.includes(`_${jour}_`) && v.niveau_prevu >= 3)
+    .map(([k, v]) => {
+      const [axeId, sens, , heure] = k.split('_')
+      return `• ${nomParAxe[axeId] ?? axeId} ${sens} ${heure} : N${v.niveau_prevu} prévu (${v.temps_prevu_min} min, confiance ${v.confiance_pct}%)`
+    })
+  return `\n[PRÉVISIONS ML AUJOURD'HUI (${jour})]\n${risques.length ? risques.join('\n') : 'Aucun créneau à risque (N3+) prévu par le modèle.'}`
+}
 
 // ── Instruction système — contexte PAA complet ────────────
 const SYSTEM_INSTRUCTION = `Tu es FlowPort IA, l'assistant de surveillance du trafic routier du Port Autonome d'Abidjan (PAA), Côte d'Ivoire. Tu travailles pour la DEESP (Direction des Études et de l'Exploitation du Port).
@@ -48,6 +101,8 @@ COMMENT FORMULER TES RÉPONSES :
 - Ne formule jamais de recommandations génériques qui s'appliqueraient sans les données — chaque réponse doit être ancrée dans les chiffres fournis
 - Adapte la longueur : bref pour les questions simples, structuré pour les analyses complexes
 - Vocabulaire professionnel portuaire : "flux camions", "rotation", "escale", "terminal", "portique", "quai", "entrée port", "hinterland"
+
+Selon la question, tu peux recevoir en plus des données temps réel : un bloc [HISTORIQUE 7 JOURS] (statistiques réelles récentes) et un bloc [PRÉVISIONS ML AUJOURD'HUI] (créneaux à risque anticipés par le modèle prédictif). Exploite-les pour contextualiser (comparer le présent à la normale récente, anticiper les heures à venir) — et cite tes sources ("sur les 7 derniers jours…", "le modèle prévoit…").
 
 MISE EN FORME (l'interface ne rend que ce sous-ensemble) :
 - Mets en gras avec **double astérisque** uniquement les points importants : noms d'axes, chiffres clés, niveaux d'alerte
@@ -110,7 +165,9 @@ export async function askAI(contents, { temperature = 0.85, maxTokens = 1000 } =
 }
 
 // ── Contexte trafic courant (injecté dans chaque prompt) ──
-function buildDataContext(mesures, axes, kpis) {
+// Async : ajoute l'historique 7 j (agrégats réels) et les prévisions
+// ML du jour au bloc temps réel — voir chargerExtras().
+async function buildDataContext(mesures, axes, kpis) {
   const now   = new Date()
   const heure = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
   const jour  = now.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })
@@ -130,12 +187,15 @@ function buildDataContext(mesures, axes, kpis) {
     ? `KPIs : temps moyen ${kpis.tempsGlobal} min · retard moyen +${kpis.retardMoyen} min · vitesse ${kpis.vitesseMoyenne} km/h · axes dégradés ${kpis.pctCong}%${kpis.tronconCritique ? ` · tronçon critique : ${kpis.tronconCritique.nom}` : ''}`
     : ''
 
+  const extras = await chargerExtras()
   return `[DONNÉES TEMPS RÉEL — ${heure}, ${jour}${isPointe ? ' — ⚠ HEURE DE POINTE' : ''}]\n${lignes}\n${kpiBlock}`
+    + blocHistorique(extras.agregats, axes)
+    + blocPrevisions(extras.predictions, axes)
 }
 
 // ── Prompt auto-recommandations (widget dashboard + IA) ───
-export function buildTrafficPrompt(mesures, axes, kpis) {
-  const ctx = buildDataContext(mesures, axes, kpis)
+export async function buildTrafficPrompt(mesures, axes, kpis) {
+  const ctx = await buildDataContext(mesures, axes, kpis)
   return `${ctx}
 
 Sur la base de ces données précises, formule 3 recommandations opérationnelles prioritaires pour la DEESP. Pour chaque recommandation : cite l'axe concerné, le niveau de congestion, et l'action concrète à mener maintenant. Sois spécifique aux valeurs observées, pas générique.`
@@ -144,8 +204,8 @@ Sur la base de ces données précises, formule 3 recommandations opérationnelle
 // ── Construction des messages multi-tour pour le chat ─────
 // history = tableau [{role: 'user'|'model', parts: [{text}]}]
 // newQuestion = string
-export function buildChatContents(history, newQuestion, mesures, axes, kpis) {
-  const dataCtx = buildDataContext(mesures, axes, kpis)
+export async function buildChatContents(history, newQuestion, mesures, axes, kpis) {
+  const dataCtx = await buildDataContext(mesures, axes, kpis)
 
   // Historique existant (sans le message d'accueil initial)
   const turns = history.slice(1).map(msg => ({

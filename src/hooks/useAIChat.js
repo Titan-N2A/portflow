@@ -54,7 +54,7 @@ export function useAIChat(axes, mesures, kpis) {
     setSending(true)
 
     // NB: on passe `history` sans userMsg — buildChatContents l'ajoute lui-même avec le contexte trafic
-    const contents = buildChatContents(history, q, mesures, axes, kpis)
+    const contents = await buildChatContents(history, q, mesures, axes, kpis)
     const resp = await askAI(contents)
 
     setHistory(prev => [...prev, {
