@@ -71,9 +71,11 @@ export function computeHeatmap(data, axeId, sens) {
  * filtrée éventuellement par type de jour.
  * @param {Array} data
  * @param {string} filtrePeriode — 'tous' | 'ouvrable' | 'weekend'
+ * @param {Object|null} refsDynamiques — références horaires recalibrées
+ *   (voir getReference), prioritaires sur la base statique si fournies
  * @returns {Array} [{ label, count, pct }]
  */
-export function computeRepartitionNiveaux(data, filtrePeriode = 'tous') {
+export function computeRepartitionNiveaux(data, filtrePeriode = 'tous', refsDynamiques = null) {
   const filtree = data.filter(d => {
     if (filtrePeriode === 'tous') return true
     const jour      = new Date(d.date + 'T00:00:00').getDay()
@@ -85,7 +87,7 @@ export function computeRepartitionNiveaux(data, filtrePeriode = 'tous') {
   let total = 0
 
   filtree.forEach(d => {
-    const ref = getReference(d.axeId, d.sens, d.heure)
+    const ref = getReference(d.axeId, d.sens, d.heure, refsDynamiques)
     if (!ref) return
     const niveau = computeNiveau(d.temps_min / ref)
     total++

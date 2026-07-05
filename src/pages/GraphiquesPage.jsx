@@ -14,6 +14,7 @@ import { computeCourbe24h, computeRepartitionNiveaux } from '../services/aggrega
 import { computeNiveau } from '../services/indicators'
 import { getReference } from '../data/references'
 import { useReferencesHoraires } from '../hooks/useReferencesHoraires'
+import { useAgregats } from '../hooks/useAgregats'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler)
 
@@ -228,6 +229,12 @@ function GraphiquesPage() {
   const [periode,   setPeriode]   = useState('tous')
   const [hmAxe,     setHmAxe]     = useState('axe1')
   const [hmSens,    setHmSens]    = useState('aller')
+  // Fenêtre des cartes Min/Moy/Max et Répartition : 24 h (relevés bruts)
+  // ou 7 j / 30 j (agrégats quotidiens — lectures minimes)
+  const [periodeStats, setPeriodeStats] = useState('24h')
+
+  const nbJoursAgregats = periodeStats === '7j' ? 7 : periodeStats === '30j' ? 30 : 0
+  const { rows: agregats, loading: agregatsLoading } = useAgregats(nbJoursAgregats)
 
   const data    = source === 'live' ? collecteData : histoData
   const loading = source === 'live' ? collecteLoading : histoLoading
@@ -427,8 +434,22 @@ function GraphiquesPage() {
   // ── Min / Moyen / Max — barre de plage + trait de moyenne ────
   // Trois barres groupées par axe — Minimum / Moyenne / Maximum des relevés,
   // rampe monochrome (même mesure, intensité croissante) + légende explicite.
+  // 24 h : relevés bruts de la fenêtre glissante ; 7 j / 30 j : agrégats
+  // quotidiens combinés (min des min, max des max, moyenne pondérée).
   const minMaxData = useMemo(() => {
-    const stats  = computeMinMaxParAxe(data24h, axeDefs, lineDir)
+    const stats = periodeStats === '24h'
+      ? computeMinMaxParAxe(data24h, axeDefs, lineDir)
+      : axeDefs.map(axe => {
+          const rs = agregats.filter(a => a.axeId === axe.id && a.sens === lineDir)
+          if (!rs.length) return { min: 0, moy: 0, max: 0, n: 0 }
+          const n = rs.reduce((s, a) => s + (a.n ?? 0), 0)
+          return {
+            min: Math.round(Math.min(...rs.map(a => a.min)) * 10) / 10,
+            max: Math.round(Math.max(...rs.map(a => a.max)) * 10) / 10,
+            moy: Math.round(rs.reduce((s, a) => s + a.moy * (a.n ?? 0), 0) / (n || 1) * 10) / 10,
+            n,
+          }
+        })
     const hasAny = stats.some(s => s.moy > 0)
     if (!hasAny) return null
     const serie = (label, cle, couleur) => ({
@@ -450,14 +471,34 @@ function GraphiquesPage() {
         ],
       },
     }
-  }, [data24h, axeIdsKey, lineDir])
+  }, [data24h, axeIdsKey, lineDir, periodeStats, agregats])
 
   // ── Donut répartition niveaux ────────────────────────────────
   // computeRepartitionNiveaux regroupe en 4 catégories (Fluide = N1+N2,
   // Modéré = N3, Dense = N4, Congestionné = N5) dans cet ordre fixe —
   // couleurs alignées sur l'échelle N1-N5 canonique (styles/tokens.js)
   // plutôt qu'une palette recréée à la main.
-  const repartition  = useMemo(() => computeRepartitionNiveaux(data24h, periode), [data24h, periode])
+  const repartition  = useMemo(() => {
+    if (periodeStats === '24h') return computeRepartitionNiveaux(data24h, periode, refsHoraires)
+    // 7 j / 30 j : compte des niveaux stockés dans les agrégats quotidiens,
+    // filtré jours ouvrables / week-end par la date de chaque agrégat
+    const cats = { 'Fluide': 0, 'Modéré': 0, 'Dense': 0, 'Congestionné': 0 }
+    let total = 0
+    agregats.forEach(a => {
+      if (periode !== 'tous') {
+        const j = new Date(a.date + 'T00:00:00').getDay()
+        const we = j === 0 || j === 6
+        if (periode === 'weekend' ? !we : we) return
+      }
+      const nv = a.niveaux ?? {}
+      const f = (nv[1] ?? 0) + (nv[2] ?? 0)
+      cats['Fluide'] += f; cats['Modéré'] += nv[3] ?? 0; cats['Dense'] += nv[4] ?? 0; cats['Congestionné'] += nv[5] ?? 0
+      total += f + (nv[3] ?? 0) + (nv[4] ?? 0) + (nv[5] ?? 0)
+    })
+    return Object.entries(cats).map(([label, count]) => ({
+      label, count, pct: total ? Math.round((count / total) * 1000) / 10 : 0,
+    }))
+  }, [data24h, periode, periodeStats, agregats, refsHoraires])
   const donutHasData = repartition.some(r => r.count > 0)
   const donutData    = {
     labels:   repartition.map(r => `${r.label} (${r.pct}%)`),
@@ -614,8 +655,14 @@ function GraphiquesPage() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
               <span className="fp-section-title">Temps de traversée par axe ({lineDir === 'aller' ? 'Aller' : 'Retour'})</span>
               <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
-                Minimum · Moyenne · Maximum des relevés (24 h)
+                Minimum · Moyenne · Maximum des relevés
+                {agregatsLoading && ' — chargement…'}
               </span>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {['24h', '7j', '30j'].map(p => (
+                  <Pill key={p} active={periodeStats === p} onClick={() => setPeriodeStats(p)}>{p === '24h' ? '24 h' : p === '7j' ? '7 jours' : '30 jours'}</Pill>
+                ))}
+              </div>
             </div>
             <BtnPNG chartRef={barRef} nom="FlowPort_min_moy_max" />
           </div>
@@ -674,7 +721,12 @@ function GraphiquesPage() {
         {/* G4 — Donut répartition niveaux */}
         <div className="fp-card" style={{ flex: '1 1 300px', minWidth: 0 }}>
           <div className="fp-section-header">
-            <span className="fp-section-title">Répartition par niveau</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+              <span className="fp-section-title">Répartition par niveau</span>
+              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
+                Fenêtre : {periodeStats === '24h' ? '24 h' : periodeStats === '7j' ? '7 jours' : '30 jours'} (réglable sur la carte voisine)
+              </span>
+            </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <select className="fp-select" style={{ width: 'auto' }} value={periode} onChange={e => setPeriode(e.target.value)}>
                 <option value="tous">Tous les jours</option>

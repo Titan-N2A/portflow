@@ -36,6 +36,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    // Agrégats quotidiens par axe/sens (scripts/agreger_quotidien.js via
+    // bot) — vues 7 j / 30 j de la page Graphiques à ~180 lectures au
+    // lieu des dizaines de milliers de relevés bruts.
+    match /agregats_quotidiens/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // ── Données de mesures (lecture dashboard + écriture collecte auto) ────
     // scripts/collecte.js (GitHub Actions, toutes les 5 min) écrit ici via

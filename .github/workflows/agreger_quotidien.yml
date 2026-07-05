@@ -1,0 +1,27 @@
+name: Agréger la collecte quotidienne
+
+# Compacte chaque nuit la journée de collecte écoulée en agrégats
+# par axe/sens (min/moy/max/niveaux) — la page Graphiques lit ces
+# agrégats pour ses vues 7 j / 30 j au lieu des relevés bruts.
+# Rattrapage automatique des jours manquants (max 6 par run).
+on:
+  schedule:
+    - cron: '0 2 * * *'   # tous les jours à 2h UTC (= 2h Abidjan)
+  workflow_dispatch:
+
+jobs:
+  agreger:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Agréger les journées manquantes
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FLOWPORT_BOT_EMAIL: ${{ secrets.FLOWPORT_BOT_EMAIL }}
+          FLOWPORT_BOT_PASSWORD: ${{ secrets.FLOWPORT_BOT_PASSWORD }}
+        run: node scripts/agreger_quotidien.js
