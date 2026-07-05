@@ -137,15 +137,15 @@ function BtnPNG({ chartRef, nom }) {
   )
 }
 
-function EmptyChart({ height = 280 }) {
+function EmptyChart({ height = 280, message = 'Données insuffisantes', hint = 'Les mesures s’accumulent toutes les 5 min' }) {
   return (
     <div style={{ height, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
         <circle cx="20" cy="20" r="19" stroke="#e2e8f0" strokeWidth="2"/>
         <path d="M12 28 L17 20 L22 23 L27 14" stroke="#cbd5e1" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
       </svg>
-      <p style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, margin: 0 }}>Données insuffisantes</p>
-      <p style={{ fontSize: 11, color: C.textLight, margin: 0 }}>Les mesures s&apos;accumulent toutes les 10 min</p>
+      <p style={{ fontSize: 13, fontWeight: 600, color: C.textMuted, margin: 0 }}>{message}</p>
+      <p style={{ fontSize: 11, color: C.textLight, margin: 0, textAlign: 'center', maxWidth: 280 }}>{hint}</p>
     </div>
   )
 }
@@ -765,7 +765,13 @@ function GraphiquesPage() {
               }} />
             </div>
           ) : (
-            <EmptyChart height={220} />
+            <EmptyChart
+              height={220}
+              message="Aucun relevé pour ce filtre"
+              hint={periode !== 'tous'
+                ? 'La fenêtre choisie ne contient aucun jour de ce type — élargissez à 7 ou 30 jours, ou repassez sur « Tous les jours ». (Un dimanche, la fenêtre 24 h est 100 % week-end.)'
+                : 'Les mesures s’accumulent toutes les 5 min'}
+            />
           )}
         </div>
       </div>

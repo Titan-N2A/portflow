@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { FileText, Download, Trash2, FilePlus, Database } from 'lucide-react'
 import { C } from '../styles/tokens'
 import {
@@ -117,6 +117,10 @@ function RapportsPage() {
   const [rapports, setRapports] = useState([])
   const [loading,  setLoading]  = useState(false)
   const [dlEnCours, setDlEnCours] = useState(null)   // id du rapport en cours de téléchargement
+  // Cache par rapport : les relevés sont téléchargés UNE fois, pas à
+  // chaque clic PDF/Excel/Word (jusqu'à 5 000 lectures Firestore économisées
+  // par clic — le quota gratuit est précieux).
+  const contenuCache = useRef(new Map())
 
   // ── Registre persistant : les rapports générés survivent au rechargement ──
   // (métadonnées dans rapports_generes ; le contenu est régénéré à la
@@ -158,9 +162,13 @@ function RapportsPage() {
     try {
       // Contenu régénéré depuis les relevés archivés (déterministe pour
       // une période close), puis modèle unique partagé par les 3 formats
-      const records = rapport.records ?? await fetchPeriodData(rapport.type, rapport.periode)
-      const rows    = rapport.rows ?? aggregerParAxe(records, mesures, axes)
-      const complet = { ...rapport, records, rows }
+      let contenu = contenuCache.current.get(rapport.id)
+      if (!contenu) {
+        const records = await fetchPeriodData(rapport.type, rapport.periode)
+        contenu = { records, rows: aggregerParAxe(records, mesures, axes) }
+        contenuCache.current.set(rapport.id, contenu)
+      }
+      const complet = { ...rapport, ...contenu }
       const ml      = await chargerMetaML()
       const modele  = construireModele(complet, ml)
       if (fmt === 'pdf')        await telechargerPDF(complet, modele)
