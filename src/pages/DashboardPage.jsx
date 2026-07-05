@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { MapContainer, TileLayer, Polyline, Marker, Popup, Tooltip, ZoomControl, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
@@ -703,6 +703,35 @@ function DashboardPage() {
 
   const dataAge  = lastUpdate ? Math.max(0, Math.floor((nowTick - lastUpdate.getTime()) / 60000)) : null
   const ageLabel = dataAge == null ? null : dataAge <= 0 ? 'à l\'instant' : dataAge === 1 ? 'il y a 1 min' : `il y a ${dataAge} min`
+  // ── Tronçon critique : calculé depuis les tronçons Firestore RÉELS ──
+  // (kpis.tronconCritique du hook prenait le dernier code de la liste
+  // statique defaultData de l'axe — d'où des codes fantômes type "T1E"
+  // qui n'existent plus dans l'Admin.) Ici : axe le plus dégradé (aller
+  // ou retour), et son tronçon réel le plus long comme segment
+  // représentatif — les tronçons héritent du niveau live de leur axe.
+  const tronconCritique = useMemo(() => {
+    let pire = null
+    for (const axe of axes) {
+      const m = mesures[axe.id]
+      if (!m) continue
+      const candidats = [
+        { sens: 'aller', ratio: m.ratio, niveau: m.niveau },
+        ...(m.tempsRetour != null ? [{ sens: 'retour', ratio: m.ratioRetour, niveau: m.niveauRetour }] : []),
+      ]
+      for (const c of candidats) {
+        if (!c.ratio || !c.niveau) continue
+        if (!pire || c.ratio > pire.ratio) pire = { axe, ...c }
+      }
+    }
+    if (!pire) return null
+    const tronconsAxe = (troncons ?? []).filter(t => t.axeId === pire.axe.id)
+    const plusLong = [...tronconsAxe].sort((a, b) => (parseFloat(b.dist) || 0) - (parseFloat(a.dist) || 0))[0]
+    return {
+      nom: `${pire.axe.shortNom ?? pire.axe.nom}${pire.sens === 'retour' ? ' (retour)' : ''}${plusLong ? ` – ${plusLong.code ?? plusLong.nom}` : ''}`,
+      niveau: pire.niveau,
+    }
+  }, [axes, mesures, troncons])
+
   // Contrôle l'affichage de la carte "Mon trajet" ET la hauteur de la carte
   // mobile — quand elle est masquée, la carte récupère l'espace libéré.
   const showEta = etaLoading || !!eta
@@ -754,9 +783,9 @@ function DashboardPage() {
 
         <KPICard icon={AlertTriangle} iconColor={C.danger}
           title="Tronçon critique"
-          value={kpis?.tronconCritique?.nom ?? '—'}
-          badge={kpis?.tronconCritique ? `N${kpis.tronconCritique.niveau} — ${levelLabel(kpis.tronconCritique.niveau)}` : null}
-          niveau={kpis?.tronconCritique?.niveau}
+          value={tronconCritique?.nom ?? '—'}
+          badge={tronconCritique ? `N${tronconCritique.niveau} — ${levelLabel(tronconCritique.niveau)}` : null}
+          niveau={tronconCritique?.niveau}
           flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={CheckCircle2} iconColor={C.success}
