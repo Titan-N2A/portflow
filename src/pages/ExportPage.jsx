@@ -197,22 +197,25 @@ function ExportPage() {
   const [axe,     setAxe]     = useState('tous')
   const [format,  setFormat]  = useState('excel')
   const [exporting, setExporting] = useState(false)
+  const [showApercu, setShowApercu] = useState(false)
 
   const { data: collecteData, loading: collecteLoading, count } = useCollecteData(axe, periode, source === 'collecte')
+
+  // Lignes d'export (mêmes pour le téléchargement et l'aperçu — aucune
+  // lecture supplémentaire, tout est déjà en mémoire)
+  const rowsExport = useMemo(() => {
+    if (source === 'live') {
+      return buildLiveRows(mesures).filter(r => axe === 'tous' || AXES_OFFICIELS.find(a => a.shortNom === r.Axe)?.id === axe)
+    }
+    if (source === 'historique') return buildHistoRows(histoData, axe)
+    return collecteData.map(toExportRow)
+  }, [source, mesures, histoData, collecteData, axe])
 
   function telecharger() {
     setExporting(true)
     const fname = `FlowPort_${source}_${axe}_${periode}_${new Date().toISOString().slice(0,10)}`
     setTimeout(() => {
-      let rows
-      if (source === 'live') {
-        rows = buildLiveRows(mesures).filter(r => axe === 'tous' || AXES_OFFICIELS.find(a => a.shortNom === r.Axe)?.id === axe)
-      } else if (source === 'historique') {
-        rows = buildHistoRows(histoData, axe)
-      } else {
-        rows = collecteData.map(toExportRow)
-      }
-      downloadRows(rows, format, fname)
+      downloadRows(rowsExport, format, fname)
       setExporting(false)
     }, 300)
   }
@@ -273,7 +276,7 @@ function ExportPage() {
               ))}
             </div>
             <p style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
-              {source === 'collecte' && 'Données collectées automatiquement par GitHub Actions (toutes les 15 min) depuis le déploiement.'}
+              {source === 'collecte' && 'Données collectées automatiquement par GitHub Actions (toutes les 5 min) depuis le déploiement.'}
               {source === 'live' && 'Snapshot TomTom de l\'instant présent — 3 mesures.'}
               {source === 'historique' && '2016 mesures réelles PAA de février 2025.'}
             </p>
@@ -328,7 +331,7 @@ function ExportPage() {
             </div>
           </div>
 
-          {/* Preview */}
+          {/* Compteur + bascule d'aperçu */}
           <div style={{
             display: 'flex', alignItems: 'center', gap: '8px',
             padding: '0.65rem 1rem',
@@ -342,7 +345,55 @@ function ExportPage() {
             <span style={{ fontSize: 12, color: isLoading ? C.textMuted : C.success, fontWeight: 500 }}>
               {previewLabel}
             </span>
+            {!isLoading && rowsExport.length > 0 && (
+              <button
+                onClick={() => setShowApercu(v => !v)}
+                style={{
+                  marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
+                  fontSize: 11.5, fontWeight: 600, color: C.primary, fontFamily: "'Inter',sans-serif",
+                  textDecoration: 'underline', padding: 0,
+                }}
+              >
+                {showApercu ? 'Masquer l\'aperçu' : 'Aperçu des données'}
+              </button>
+            )}
           </div>
+
+          {/* Aperçu : 8 premières lignes, colonnes réelles de l'export */}
+          {showApercu && rowsExport.length > 0 && (
+            <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, fontFamily: "'Inter',sans-serif" }}>
+                  <thead>
+                    <tr>
+                      {Object.keys(rowsExport[0]).map(col => (
+                        <th key={col} style={{
+                          background: C.primary, color: '#fff', padding: '5px 8px',
+                          textAlign: 'left', whiteSpace: 'nowrap', fontWeight: 600,
+                        }}>{col}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rowsExport.slice(0, 8).map((r, i) => (
+                      <tr key={i} style={{ background: i % 2 ? '#f8fafc' : '#fff' }}>
+                        {Object.keys(rowsExport[0]).map(col => (
+                          <td key={col} style={{ padding: '4px 8px', whiteSpace: 'nowrap', color: C.text, borderTop: '1px solid #eef2f6' }}>
+                            {String(r[col] ?? '')}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {rowsExport.length > 8 && (
+                <p style={{ fontSize: 10.5, color: C.textMuted, padding: '5px 10px', margin: 0, background: '#f8fafc', borderTop: '1px solid #eef2f6' }}>
+                  … et {rowsExport.length - 8} autres lignes dans le fichier
+                </p>
+              )}
+            </div>
+          )}
 
           <button
             className="fp-btn fp-btn-primary"
