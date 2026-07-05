@@ -67,26 +67,6 @@ function axeFromFs(data, id) {
 }
 
 // ══════════════════════════════════════════════════════════
-// SYNC — réécrit les axes PAA officiels dans Firestore
-// ══════════════════════════════════════════════════════════
-export async function syncDefaultAxes() {
-  const batch = writeBatch(db)
-  DEFAULT_AXES.forEach(axe => {
-    const { id } = axe
-    // Pour les axes PAA officiels, coordinates = géométrie TomTom déjà calculée
-    // On la réutilise comme geometryRoute pour l'affichage sur la carte
-    const enriched = { ...axe, geometryRoute: axe.coordinates }
-    batch.set(
-      doc(db, COL_AXES, id),
-      { ...axeToFs(enriched), updatedAt: serverTimestamp() },
-      { merge: false },
-    )
-  })
-  await batch.commit()
-  console.log('✅ Axes PAA synchronisés avec defaultData.js')
-}
-
-// ══════════════════════════════════════════════════════════
 // SEED — initialise si vide (premier démarrage)
 // ══════════════════════════════════════════════════════════
 export async function seedIfEmpty() {

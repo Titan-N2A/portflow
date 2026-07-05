@@ -181,13 +181,13 @@ function MapZoomController({ selectedAxe, mesures }) {
       return
     }
     const m   = mesRef.current[selectedAxe.id]
-    const raw = (m?.geometry?.length > 5)             ? m.geometry
-      : (selectedAxe.geometryRoute?.length > 5)       ? selectedAxe.geometryRoute
+    const raw = (selectedAxe.geometryRoute?.length > 5) ? selectedAxe.geometryRoute
+      : (m?.geometry?.length > 5)                       ? m.geometry
       : (selectedAxe.coordinates ?? [])
     // Axe bidirectionnel : aller et retour suivent des rues différentes —
     // le zoom doit cadrer les deux tracés, pas seulement l'aller.
     const retourRaw = selectedAxe.bidirectionnel
-      ? ((m?.geometryRetour?.length > 5) ? m.geometryRetour : (selectedAxe.coordinatesRetour ?? []))
+      ? ((selectedAxe.coordinatesRetour?.length > 5) ? selectedAxe.coordinatesRetour : (m?.geometryRetour ?? []))
       : []
     const combined = [...raw, ...retourRaw]
     if (combined.length < 2) return
@@ -217,9 +217,11 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         const niveau    = isPrevision ? (pred?.niveau_prevu ?? 0) : (m?.niveau ?? 0)
         const baseColor = AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length]
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
-        // Priorité : géométrie TomTom live > géométrie pré-calculée Firestore > waypoints admin
-        const positions = (m?.geometry?.length > 5)        ? m.geometry
-          : (axe.geometryRoute?.length > 5)                ? axe.geometryRoute
+        // Priorité : tracé ENREGISTRÉ (Admin/Firestore) > aperçu TomTom de
+        // session > waypoints bruts. Le tracé officiel sauvegardé fait foi —
+        // l'itinéraire ne doit plus changer au gré du recalcul TomTom.
+        const positions = (axe.geometryRoute?.length > 5)  ? axe.geometryRoute
+          : (m?.geometry?.length > 5)                      ? m.geometry
           : (axe.coordinates ?? [])
         if (positions.length < 2) return null
         // Opacité en 3 paliers : donnée fraîche (0.95) > mesure présente mais
@@ -413,8 +415,8 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
           + centrage de la carte (MapZoomController). */}
       {axes.map((axe, idx) => {
         const m         = mesures[axe.id]
-        const positions = (m?.geometry?.length > 5)  ? m.geometry
-          : (axe.geometryRoute?.length > 5)          ? axe.geometryRoute
+        const positions = (axe.geometryRoute?.length > 5)  ? axe.geometryRoute
+          : (m?.geometry?.length > 5)                      ? m.geometry
           : (axe.coordinates ?? [])
         if (positions.length < 2) return null
         const niveau    = mapMode === 'prevision'
@@ -445,7 +447,8 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
           les deux sens peuvent avoir des congestions différentes. */}
       {axes.filter(a => a.bidirectionnel).map((axe, idx) => {
         const m         = mesures[axe.id]
-        const retourPos = (m?.geometryRetour?.length > 5) ? m.geometryRetour : (axe.coordinatesRetour ?? [])
+        // Tracé retour ENREGISTRÉ d'abord (même règle que l'aller)
+        const retourPos = (axe.coordinatesRetour?.length > 5) ? axe.coordinatesRetour : (m?.geometryRetour ?? [])
         if (retourPos.length < 2) return null
         const niveauRetour = m?.niveauRetour ?? 0
         const color     = niveauRetour > 0 ? levelColor(niveauRetour) : (AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length])

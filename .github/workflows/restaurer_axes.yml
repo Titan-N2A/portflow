@@ -1,0 +1,25 @@
+name: Restaurer les itinéraires officiels des axes
+
+# Action manuelle uniquement — remplace l'ancien bouton « Synchroniser
+# les axes » de l'Admin (qui écrasait TOUT l'axe, merge:false). Ici,
+# seuls les champs de tracé sont réécrits, depuis le document officiel
+# PortFlow_Troncons ; tronçons, tRef, noms et seuils sont préservés.
+on:
+  workflow_dispatch:
+
+jobs:
+  restaurer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Restaurer les tracés officiels
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FLOWPORT_BOT_EMAIL: ${{ secrets.FLOWPORT_BOT_EMAIL }}
+          FLOWPORT_BOT_PASSWORD: ${{ secrets.FLOWPORT_BOT_PASSWORD }}
+        run: node scripts/restaurer_axes.js

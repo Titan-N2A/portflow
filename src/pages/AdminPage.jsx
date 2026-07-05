@@ -5,14 +5,13 @@ import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 import {
   Plus, Pencil, Ban, Trash2, Save, X,
-  Users, AlertOctagon, MapPin, Layers, RefreshCw,
+  Users, AlertOctagon, MapPin, Layers,
   CheckCircle, AlertCircle, Eye, EyeOff,
   Navigation, Copy, ChevronDown, ChevronUp, Radio, Mail,
 } from 'lucide-react'
 import { C } from '../styles/tokens'
 import NotificationsConfig from '../components/Admin/NotificationsConfig'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
-import { syncDefaultAxes } from '../services/axesService'
 import { AXE_COLORS as DEFAULT_AXE_COLORS, AXE_PALETTE } from '../data/defaultData'
 import UsersLiveMap from '../components/Admin/UsersLiveMap'
 
@@ -1708,16 +1707,6 @@ function AdminPage() {
 
   function showToast(msg, type = 'success') { setToast({ msg, type }) }
 
-  async function handleSyncDefaults() {
-    setSaving(true)
-    try {
-      await syncDefaultAxes()
-      showToast('Axes PAA officiels synchronisés — Dashboard mis à jour')
-    } catch (err) {
-      showToast('Erreur synchronisation : ' + err.message, 'error')
-    } finally { setSaving(false) }
-  }
-
   // ── Wrappers avec feedback ─────────────────────────────
   async function saveAxe(axe) {
     setSaving(true)
@@ -1909,16 +1898,12 @@ function AdminPage() {
               {axes.length} axe(s) · {axes.filter(a => a.actif).length} actif(s)
             </span>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
-              <button
-                className="fp-btn fp-btn-ghost"
-                onClick={handleSyncDefaults}
-                disabled={saving}
-                title="Réinitialise les 3 axes PAA officiels depuis defaultData.js"
-                style={{ fontSize: 12 }}
-              >
-                <RefreshCw size={13} className={saving ? 'fp-spin' : ''} />
-                Sync axes PAA
-              </button>
+              {/* Le bouton « Sync axes PAA » a été retiré (05/07/2026) : il
+                  écrasait TOUS les axes Firestore avec defaultData.js
+                  (merge:false), détruisant les modifications de l'Admin.
+                  La restauration des tracés officiels passe désormais par
+                  l'action GitHub « Restaurer les itinéraires officiels »
+                  (workflow manuel, ne touche que les champs de tracé). */}
               <button className="fp-btn fp-btn-primary" onClick={() => setModal({ type: 'axe', data: null })}>
                 <Plus size={14} /> Ajouter un axe
               </button>
