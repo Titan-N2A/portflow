@@ -11,19 +11,23 @@ const NAV_PUBLIC = [
 ]
 
 // Utilisateurs connectés : + Graphiques, Rapports, Export
-const NAV_USER = [
+// (Méthodologie toujours en dernier — après Administration chez les admins)
+const NAV_BASE = [
   { id: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard'   },
   { id: 'graphiques', icon: BarChart2,        label: 'Graphiques'  },
   { id: 'rapports',   icon: FileText,         label: 'Rapports'    },
   { id: 'export',     icon: Download,         label: 'Export'      },
   { id: 'ia',         icon: Bot,              label: 'IA FlowPort' },
-  { id: 'methodologie', icon: BookOpen,       label: 'Méthodologie' },
 ]
+const NAV_METHODO = { id: 'methodologie', icon: BookOpen, label: 'Méthodologie' }
 
-// Administrateurs : + Administration
+const NAV_USER = [...NAV_BASE, NAV_METHODO]
+
+// Administrateurs : + Administration (Méthodologie après)
 const NAV_ADMIN = [
-  ...NAV_USER,
+  ...NAV_BASE,
   { id: 'admin', icon: Settings, label: 'Administration' },
+  NAV_METHODO,
 ]
 
 function NavItem({ item, active, onClick }) {
