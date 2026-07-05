@@ -174,7 +174,7 @@ function MobileShell({ page, onNavigate, user, isAdmin, onLogin, children }) {
           }}>
             <img src={logoPAA} alt="PAA" style={{ width: 27, height: 27, objectFit: 'contain' }} />
           </div>
-          <span style={{ color: '#fff', fontWeight: 800, fontSize: 15, fontFamily: "'Inter',sans-serif" }}>FlowPort</span>
+          <span style={{ color: '#fff', fontWeight: 800, fontSize: 15, fontFamily: "'Sora','Inter',sans-serif" }}>FlowPort</span>
           <span style={{ color: C.sidebarMuted, fontSize: 11, fontFamily: "'Inter',sans-serif" }}>· PAA</span>
         </div>
 
@@ -274,7 +274,7 @@ function SplashScreen() {
         <img src={logoPAA} alt="Port Autonome d'Abidjan" style={{ width: 112, height: 112, objectFit: 'contain' }} />
       </div>
       <div style={{ textAlign: 'center' }}>
-        <p style={{ color:'#fff', fontWeight:800, fontSize:22, fontFamily:"'Inter',sans-serif", letterSpacing:'-0.5px', margin:0 }}>FlowPort</p>
+        <p style={{ color:'#fff', fontWeight:800, fontSize:22, fontFamily:"'Sora','Inter',sans-serif", letterSpacing:'-0.5px', margin:0 }}>FlowPort</p>
         <p style={{ color:'rgba(255,255,255,0.5)', fontSize:11, fontFamily:"'Inter',sans-serif", marginTop:4 }}>Port Autonome d'Abidjan · Système de Trafic Routier</p>
       </div>
       <div style={{ display:'flex', gap:6, marginTop:4 }}>

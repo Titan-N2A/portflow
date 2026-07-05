@@ -112,7 +112,7 @@ function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, 
             fontWeight:    800,
             fontSize:      '15px',
             letterSpacing: '-0.3px',
-            fontFamily:    "'Inter', sans-serif",
+            fontFamily:    "'Sora', 'Inter', sans-serif",
             display:       'block',
           }}>
             FlowPort
