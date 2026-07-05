@@ -1,0 +1,27 @@
+name: Bilan hebdomadaire FlowPort — email
+
+# Chaque lundi à 6h45 (après le récap matinal de 6h30) : bilan chiffré
+# de la semaine écoulée vs la précédente, depuis les agrégats quotidiens.
+on:
+  schedule:
+    - cron: '45 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  bilan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Envoyer le bilan hebdomadaire
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          BREVO_API_KEY: ${{ secrets.BREVO_API_KEY }}
+          MAIL_FROM: ${{ secrets.MAIL_FROM }}
+          FLOWPORT_BOT_EMAIL: ${{ secrets.FLOWPORT_BOT_EMAIL }}
+          FLOWPORT_BOT_PASSWORD: ${{ secrets.FLOWPORT_BOT_PASSWORD }}
+        run: node scripts/bilan_hebdo.js
