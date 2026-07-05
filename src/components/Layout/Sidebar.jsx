@@ -1,4 +1,4 @@
-import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Lock } from 'lucide-react'
+import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Lock, X } from 'lucide-react'
 import { C } from '../../styles/tokens'
 import logoPAA from '../../assets/logo_port.png'
 import InstallPWA from '../shared/InstallPWA'
@@ -55,7 +55,7 @@ function NavItem({ item, active, onClick }) {
   )
 }
 
-function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, user = null }) {
+function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, user = null, onClose = null }) {
   const NAV = isAdmin ? NAV_ADMIN : user ? NAV_USER : NAV_PUBLIC
   return (
     <aside style={{
@@ -71,6 +71,23 @@ function Sidebar({ currentPage, onNavigate, onLogout, onLogin, isAdmin = false, 
       flexShrink:    0,
       zIndex:        100,
     }}>
+
+      {/* Fermeture du tiroir (mode hamburger) */}
+      {onClose && (
+        <button
+          onClick={onClose}
+          aria-label="Fermer le menu"
+          style={{
+            position: 'absolute', top: 10, right: 10,
+            width: 28, height: 28, borderRadius: 7,
+            background: 'rgba(255,255,255,0.08)', border: 'none',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: C.sidebarMuted,
+          }}
+        >
+          <X size={15} />
+        </button>
+      )}
 
       {/* ── Logo ─────────────────────────────────────────── */}
       <div style={{

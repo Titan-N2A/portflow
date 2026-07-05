@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, Lock, X, LogOut, Eye, EyeOff } from 'lucide-react'
+import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, Lock, X, LogOut, Eye, EyeOff, Menu } from 'lucide-react'
 import logoPAA from './assets/logo_port.png'
 import Sidebar        from './components/Layout/Sidebar'
 import DashboardPage  from './pages/DashboardPage'
@@ -292,6 +292,7 @@ function SplashScreen() {
 function App() {
   const [currentPage,  setCurrentPage]  = useState('dashboard')
   const [showLogin,    setShowLogin]    = useState(false)
+  const [sidebarOpen,  setSidebarOpen]  = useState(false)
   const [splashDone,   setSplashDone]   = useState(false)
   // État consentement : seule la MISE À JOUR compte (re-render d'App à la
   // décision) — la valeur est lue depuis sessionStorage par les consommateurs.
@@ -334,14 +335,60 @@ function App() {
     <div style={{ display: 'flex', minHeight: '100vh', background: '#F4F4F4' }}>
       {showLogin && <LoginModal onClose={() => setShowLogin(false)} />}
       <ConsentBanner onDecision={setGeoConsent} />
-      <Sidebar
-        currentPage={page}
-        onNavigate={setCurrentPage}
-        isAdmin={isAdmin}
-        onLogout={logOut}
-        onLogin={() => setShowLogin(true)}
-        user={user}
-      />
+
+      {/* ── Rail fin permanent : hamburger + logo ─────────────
+          La sidebar complète ne s'affiche plus en continu ; elle
+          s'ouvre en tiroir par-dessus le contenu. */}
+      <div style={{
+        width: 52, minWidth: 52, height: '100vh',
+        position: 'sticky', top: 0, zIndex: 900,
+        background: C.sidebar,
+        display: 'flex', flexDirection: 'column', alignItems: 'center',
+        paddingTop: 12, gap: 12, flexShrink: 0,
+      }}>
+        <button
+          onClick={() => setSidebarOpen(true)}
+          title="Ouvrir le menu"
+          aria-label="Ouvrir le menu"
+          style={{
+            width: 36, height: 36, borderRadius: 9,
+            background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', color: '#fff',
+          }}
+        >
+          <Menu size={18} />
+        </button>
+        <div style={{
+          width: 34, height: 34, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.93)', overflow: 'hidden',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <img src={logoPAA} alt="PAA" style={{ width: 31, height: 31, objectFit: 'contain' }} />
+        </div>
+      </div>
+
+      {/* ── Tiroir : sidebar complète par-dessus le contenu ── */}
+      {sidebarOpen && (
+        <>
+          <div
+            onClick={() => setSidebarOpen(false)}
+            style={{ position: 'fixed', inset: 0, zIndex: 1500, background: 'rgba(8,20,38,0.5)', backdropFilter: 'blur(2px)' }}
+          />
+          <div style={{ position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 1600, boxShadow: '6px 0 30px rgba(0,0,0,0.35)' }}>
+            <Sidebar
+              currentPage={page}
+              onNavigate={(id) => { setCurrentPage(id); setSidebarOpen(false) }}
+              isAdmin={isAdmin}
+              onLogout={logOut}
+              onLogin={() => { setShowLogin(true); setSidebarOpen(false) }}
+              user={user}
+              onClose={() => setSidebarOpen(false)}
+            />
+          </div>
+        </>
+      )}
+
       <main style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
         <Page />
       </main>
