@@ -12,6 +12,8 @@
 // jamais faire échouer la collecte.
 // ============================================================
 
+import { readFileSync } from 'fs'
+
 const PROJECT_ID   = 'portflow-46738'
 const FIREBASE_KEY = process.env.FIREBASE_API_KEY
 const BREVO_KEY    = process.env.BREVO_API_KEY
@@ -95,13 +97,19 @@ export async function lireDestinataires() {
 // ── État des alertes : collection alertes_etat (clé API) ─────
 export async function lireEtatAlerte(docId) {
   const res = await fetch(`${FS}/alertes_etat/${docId}?key=${FIREBASE_KEY}`)
-  if (res.status === 404) return { enAlerte: false, pending: 0, derniereAlerteTs: null }
+  if (res.status === 404) {
+    return { enAlerte: false, pending: 0, derniereAlerteTs: null, historiqueTemps: [], enPrealerte: false, prealerteTs: null, dernierSlotML: null }
+  }
   if (!res.ok) throw new Error(`Lecture alertes_etat ${res.status}`)
   const doc = await res.json()
   return {
     enAlerte:         fromField(doc.fields?.enAlerte) ?? false,
     pending:          fromField(doc.fields?.pending) ?? 0,
     derniereAlerteTs: fromField(doc.fields?.derniereAlerteTs) ?? null,
+    historiqueTemps:  fromField(doc.fields?.historiqueTemps) ?? [],
+    enPrealerte:      fromField(doc.fields?.enPrealerte) ?? false,
+    prealerteTs:      fromField(doc.fields?.prealerteTs) ?? null,
+    dernierSlotML:    fromField(doc.fields?.dernierSlotML) ?? null,
   }
 }
 export async function ecrireEtatAlerte(docId, etat) {
@@ -157,8 +165,60 @@ export function badgeNiveau(niveau) {
 }
 
 // ── Alertes congestion (appelé par collecte.js à chaque run) ──
-const COOLDOWN_MIN  = 60   // pas de re-alerte sur le même axe avant 60 min
-const CONFIRMATIONS = 2    // relevés consécutifs N4+ requis (anti faux positif)
+const COOLDOWN_MIN           = 60   // pas de re-alerte sur le même axe avant 60 min
+const CONFIRMATIONS          = 2    // relevés consécutifs N4+ requis (anti faux positif)
+const PREALERTE_COOLDOWN_MIN = 120  // pas de re-pré-alerte sur le même axe avant 2 h
+const PREALERTE_HAUSSE_MIN   = 0.15 // hausse cumulée minimale sur 3 relevés (15 %)
+
+// Prévisions ML (ml/predictions.json, présent dans le checkout du workflow)
+const JOURS_FR = ['dimanche', 'lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi']
+let _predictions
+function chargerPredictions() {
+  if (_predictions !== undefined) return _predictions
+  try {
+    _predictions = JSON.parse(readFileSync(new URL('../ml/predictions.json', import.meta.url), 'utf8')).predictions ?? null
+  } catch {
+    _predictions = null
+  }
+  return _predictions
+}
+
+// Pré-alerte ML : le créneau HORAIRE SUIVANT est prévu N3+ par le modèle.
+// Une seule pré-alerte par créneau et par route (dernierSlotML).
+// getDest : chargement paresseux des destinataires (1 lecture Firestore,
+// uniquement si un envoi est réellement nécessaire).
+async function gererPrealerteML(r, etat, getDest, maintenant) {
+  const pred = chargerPredictions()
+  if (!pred) return null
+  const dans1h = new Date(maintenant.getTime() + 3600e3)
+  const heure  = dans1h.getUTCHours()
+  const cle    = `${r.axeId}_${r.sens}_${JOURS_FR[dans1h.getUTCDay()]}_${heure}h`
+  const p      = pred[cle]
+  if (!p || p.niveau_prevu < 3) return null
+  const slot = `${dans1h.toISOString().slice(0, 10)}_${heure}h`
+  if (etat.dernierSlotML === slot) return null              // déjà signalé
+  if (etat.enAlerte || r.niveau >= 4) return slot           // déjà en alerte réelle : inutile
+  await envoyerMail({
+    destinataires: await getDest(),
+    sujet: `🔮 Congestion prévue vers ${heure}h — ${r.shortNom} (${r.sens})`,
+    html: gabarit({
+      titre: 'Congestion prévue (modèle prédictif)',
+      sousTitre: `Axe ${r.shortNom} — sens ${r.sens} — créneau ${heure}h00–${heure + 1}h00`,
+      corps: `
+        <p style="margin:0 0 12px;">Le modèle prédictif FlowPort anticipe ${badgeNiveau(p.niveau_prevu)} sur l'axe
+        <strong>${r.shortNom}</strong> (sens ${r.sens}) pour le créneau <strong>${heure}h00–${heure + 1}h00</strong>.</p>
+        <table style="width:100%;border-collapse:collapse;font-size:13px;">
+          <tr><td style="padding:6px 10px;background:${CH.clair};">Temps de traversée prévu</td><td style="padding:6px 10px;background:${CH.clair};text-align:right;"><strong>${p.temps_prevu_min} min</strong></td></tr>
+          <tr><td style="padding:6px 10px;">Temps de référence</td><td style="padding:6px 10px;text-align:right;">${r.tRef} min</td></tr>
+          <tr><td style="padding:6px 10px;background:${CH.clair};">Confiance du modèle</td><td style="padding:6px 10px;background:${CH.clair};text-align:right;">${p.confiance_pct} %</td></tr>
+          <tr><td style="padding:6px 10px;">Situation actuelle</td><td style="padding:6px 10px;text-align:right;">${r.tempsMin} min (N${r.niveau})</td></tr>
+        </table>
+        <p style="font-size:12px;color:${CH.gris};margin:12px 0 0;">Anticipation à 1 h — planifiez les rotations sensibles avant ou après ce créneau. Vous serez alerté séparément si la congestion se confirme en temps réel.</p>`,
+    }),
+  })
+  console.log(`  🔮 Pré-alerte ML ${r.shortNom} ${r.sens} (créneau ${heure}h) envoyée`)
+  return slot
+}
 
 export async function gererAlertes(resultats) {
   // resultats : [{ docId, axeId, shortNom, sens, tempsMin, tRef, niveau, retard, vitesse }]
@@ -173,37 +233,42 @@ export async function gererAlertes(resultats) {
       const etat = await lireEtatAlerte(r.docId)
       const maintenant = new Date()
 
+      // Historique glissant des 3 derniers temps (détection de tendance)
+      const historique = [...(etat.historiqueTemps ?? []), r.tempsMin].slice(-3)
+      let { enAlerte, pending, derniereAlerteTs, enPrealerte, prealerteTs, dernierSlotML } = etat
+
       if (r.niveau >= 4) {
-        if (etat.enAlerte) continue   // déjà signalé, pas de spam
-        const pending = etat.pending + 1
-        const horsCooldown = !etat.derniereAlerteTs ||
-          (maintenant - new Date(etat.derniereAlerteTs)) / 60000 >= COOLDOWN_MIN
-        if (pending >= CONFIRMATIONS && horsCooldown) {
-          destinataires ??= (await lireDestinataires()).filter(d => d.alertes)
-          const n = await envoyerMail({
-            destinataires,
-            sujet: `🔴 ALERTE trafic — ${r.shortNom} (${r.sens}) ${NIVEAU_LABELS[r.niveau].toLowerCase()}`,
-            html: gabarit({
-              titre: 'Alerte congestion',
-              sousTitre: `Axe ${r.shortNom} — sens ${r.sens} — ${maintenant.toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' })}`,
-              corps: `
-                <p style="margin:0 0 12px;">L'axe <strong>${r.shortNom}</strong> (sens ${r.sens}) est passé en ${badgeNiveau(r.niveau)}, confirmé sur ${CONFIRMATIONS} relevés consécutifs.</p>
-                <table style="width:100%;border-collapse:collapse;font-size:13px;">
-                  <tr><td style="padding:6px 10px;background:${CH.clair};">Temps de traversée mesuré</td><td style="padding:6px 10px;background:${CH.clair};text-align:right;"><strong>${r.tempsMin} min</strong></td></tr>
-                  <tr><td style="padding:6px 10px;">Temps de référence</td><td style="padding:6px 10px;text-align:right;">${r.tRef} min</td></tr>
-                  <tr><td style="padding:6px 10px;background:${CH.clair};">Retard</td><td style="padding:6px 10px;background:${CH.clair};text-align:right;color:#C0392B;"><strong>+${r.retard} min</strong></td></tr>
-                  <tr><td style="padding:6px 10px;">Vitesse estimée</td><td style="padding:6px 10px;text-align:right;">${r.vitesse} km/h</td></tr>
-                </table>
-                <p style="font-size:12px;color:${CH.gris};margin:12px 0 0;">Vous recevrez un message de retour à la normale. Pas de nouvelle alerte sur cet axe avant ${COOLDOWN_MIN} min.</p>`,
-            }),
-          })
-          console.log(`  📧 Alerte ${r.shortNom} ${r.sens} envoyée à ${n} destinataire(s)`)
-          await ecrireEtatAlerte(r.docId, { enAlerte: true, pending: 0, derniereAlerteTs: maintenant.toISOString(), dernierNiveau: r.niveau })
-        } else {
-          await ecrireEtatAlerte(r.docId, { enAlerte: false, pending, derniereAlerteTs: etat.derniereAlerteTs, dernierNiveau: r.niveau })
+        // ── Alerte congestion confirmée ──
+        if (!enAlerte) {
+          pending = etat.pending + 1
+          const horsCooldown = !derniereAlerteTs ||
+            (maintenant - new Date(derniereAlerteTs)) / 60000 >= COOLDOWN_MIN
+          if (pending >= CONFIRMATIONS && horsCooldown) {
+            destinataires ??= (await lireDestinataires()).filter(d => d.alertes)
+            const n = await envoyerMail({
+              destinataires,
+              sujet: `🔴 ALERTE trafic — ${r.shortNom} (${r.sens}) ${NIVEAU_LABELS[r.niveau].toLowerCase()}`,
+              html: gabarit({
+                titre: 'Alerte congestion',
+                sousTitre: `Axe ${r.shortNom} — sens ${r.sens} — ${maintenant.toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' })}`,
+                corps: `
+                  <p style="margin:0 0 12px;">L'axe <strong>${r.shortNom}</strong> (sens ${r.sens}) est passé en ${badgeNiveau(r.niveau)}, confirmé sur ${CONFIRMATIONS} relevés consécutifs.</p>
+                  <table style="width:100%;border-collapse:collapse;font-size:13px;">
+                    <tr><td style="padding:6px 10px;background:${CH.clair};">Temps de traversée mesuré</td><td style="padding:6px 10px;background:${CH.clair};text-align:right;"><strong>${r.tempsMin} min</strong></td></tr>
+                    <tr><td style="padding:6px 10px;">Temps de référence</td><td style="padding:6px 10px;text-align:right;">${r.tRef} min</td></tr>
+                    <tr><td style="padding:6px 10px;background:${CH.clair};">Retard</td><td style="padding:6px 10px;background:${CH.clair};text-align:right;color:#C0392B;"><strong>+${r.retard} min</strong></td></tr>
+                    <tr><td style="padding:6px 10px;">Vitesse estimée</td><td style="padding:6px 10px;text-align:right;">${r.vitesse} km/h</td></tr>
+                  </table>
+                  <p style="font-size:12px;color:${CH.gris};margin:12px 0 0;">Vous recevrez un message de retour à la normale. Pas de nouvelle alerte sur cet axe avant ${COOLDOWN_MIN} min.</p>`,
+              }),
+            })
+            console.log(`  📧 Alerte ${r.shortNom} ${r.sens} envoyée à ${n} destinataire(s)`)
+            enAlerte = true; pending = 0; derniereAlerteTs = maintenant.toISOString(); enPrealerte = false
+          }
         }
       } else if (r.niveau <= 2) {
-        if (etat.enAlerte) {
+        // ── Retour à la normale ──
+        if (enAlerte) {
           destinataires ??= (await lireDestinataires()).filter(d => d.alertes)
           await envoyerMail({
             destinataires,
@@ -216,13 +281,50 @@ export async function gererAlertes(resultats) {
           })
           console.log(`  📧 Levée d'alerte ${r.shortNom} ${r.sens} envoyée`)
         }
-        if (etat.enAlerte || etat.pending > 0) {
-          await ecrireEtatAlerte(r.docId, { enAlerte: false, pending: 0, derniereAlerteTs: etat.derniereAlerteTs, dernierNiveau: r.niveau })
+        enAlerte = false; pending = 0; enPrealerte = false
+      } else {
+        // ── N3 : hystérésis pour l'alerte, zone de PRÉ-ALERTE tendance ──
+        pending = 0
+        const [a, b, c] = historique
+        const enHausse = historique.length === 3 && a < b && b < c && (c - a) / a >= PREALERTE_HAUSSE_MIN
+        const horsCooldown = !prealerteTs ||
+          (maintenant - new Date(prealerteTs)) / 60000 >= PREALERTE_COOLDOWN_MIN
+        if (enHausse && !enAlerte && !enPrealerte && horsCooldown) {
+          destinataires ??= (await lireDestinataires()).filter(d => d.alertes)
+          const seuilN4 = Math.round(r.tRef * 1.5 * 10) / 10
+          await envoyerMail({
+            destinataires,
+            sujet: `🟠 Pré-alerte trafic — ${r.shortNom} (${r.sens}) : congestion probable`,
+            html: gabarit({
+              titre: 'Congestion probable (tendance)',
+              sousTitre: `Axe ${r.shortNom} — sens ${r.sens} — ${maintenant.toLocaleString('fr-FR', { timeZone: 'Africa/Abidjan' })}`,
+              corps: `
+                <p style="margin:0 0 12px;">L'axe <strong>${r.shortNom}</strong> (sens ${r.sens}) est en ${badgeNiveau(3)} avec un temps de traversée
+                <strong>en hausse continue</strong> sur les 3 derniers relevés : <strong>${a} → ${b} → ${c} min</strong>
+                (+${Math.round((c - a) / a * 100)} % en ~15 min).</p>
+                <p style="margin:0 0 12px;">Au rythme actuel, le seuil de congestion (N4, ${seuilN4} min) pourrait être atteint prochainement.
+                C'est le moment d'anticiper : rotations à avancer ou reporter, signalisation, information des transporteurs.</p>
+                <p style="font-size:12px;color:${CH.gris};margin:0;">Vous serez alerté si la congestion se confirme (N4), ou plus rien si la situation se stabilise. Pas de nouvelle pré-alerte sur cet axe avant ${PREALERTE_COOLDOWN_MIN / 60} h.</p>`,
+            }),
+          })
+          console.log(`  🟠 Pré-alerte tendance ${r.shortNom} ${r.sens} envoyée (${a}→${b}→${c} min)`)
+          enPrealerte = true; prealerteTs = maintenant.toISOString()
         }
-      } else if (etat.pending > 0) {
-        // N3 : zone d'hystérésis — on annule le compteur, on ne lève pas l'alerte
-        await ecrireEtatAlerte(r.docId, { enAlerte: etat.enAlerte, pending: 0, derniereAlerteTs: etat.derniereAlerteTs, dernierNiveau: r.niveau })
       }
+
+      // ── Pré-alerte ML : créneau suivant prévu N3+ par le modèle ──
+      try {
+        const getDest = async () => (destinataires ??= (await lireDestinataires()).filter(d => d.alertes))
+        const slot = await gererPrealerteML(r, { ...etat, enAlerte, dernierSlotML }, getDest, maintenant)
+        if (slot) dernierSlotML = slot
+      } catch (err) {
+        console.warn(`  ⚠ Pré-alerte ML ${r.docId} : ${err.message}`)
+      }
+
+      await ecrireEtatAlerte(r.docId, {
+        enAlerte, pending, derniereAlerteTs, enPrealerte, prealerteTs,
+        dernierSlotML, dernierNiveau: r.niveau, historiqueTemps: historique,
+      })
     } catch (err) {
       console.warn(`  ⚠ Alerte ${r.docId} : ${err.message}`)
     }

@@ -78,6 +78,9 @@ export default function NotificationsConfig({ onToast }) {
         <p style={{ fontSize: 12, color: C.textMuted, lineHeight: 1.6, margin: 0 }}>
           <BellRing size={11} style={{ verticalAlign: '-1px' }} /> <strong>Alertes congestion</strong> : envoyées quand un axe passe
           au niveau N4+ (confirmé sur 2 relevés consécutifs, au plus une alerte par heure et par axe), avec message de retour à la normale.<br />
+          <BellRing size={11} style={{ verticalAlign: '-1px' }} /> <strong>Pré-alertes</strong> (mêmes destinataires) : congestion
+          <em> probable</em> quand un axe N3 voit son temps grimper sur 3 relevés consécutifs (+15 %), et congestion <em>prévue</em> quand
+          le modèle prédictif anticipe un créneau N3+ dans l&apos;heure qui suit.<br />
           <Sunrise size={11} style={{ verticalAlign: '-1px' }} /> <strong>Récap matinal</strong> : tous les jours vers 6h30 — état
           live des axes, bilan de la veille et créneaux à risque du jour selon le modèle prédictif.
         </p>
