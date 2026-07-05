@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, Lock, X, LogOut, Eye, EyeOff, Menu } from 'lucide-react'
+import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, Lock, X, LogOut, Eye, EyeOff, Menu, BookOpen } from 'lucide-react'
 import logoPAA from './assets/logo_port.png'
 import Sidebar        from './components/Layout/Sidebar'
 import DashboardPage  from './pages/DashboardPage'
@@ -8,6 +8,7 @@ import RapportsPage   from './pages/RapportsPage'
 import AdminPage      from './pages/AdminPage'
 import IAPage         from './pages/IAPage'
 import ExportPage     from './pages/ExportPage'
+import MethodologiePage from './pages/MethodologiePage'
 import { useAuth }    from './hooks/useAuth'
 import { useIsMobile } from './hooks/useIsMobile'
 import { logOut, signIn } from './services/auth'
@@ -22,6 +23,7 @@ const PAGES = {
   admin:      AdminPage,
   ia:         IAPage,
   export:     ExportPage,
+  methodologie: MethodologiePage,
 }
 
 // Pages interdites sans connexion
@@ -37,8 +39,9 @@ const AUTH_ERRORS = {
 
 // ── Navigation mobile (labels courts) ────────────────────
 const MOB_PUBLIC = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Accueil' },
-  { id: 'ia',        icon: Bot,             label: 'IA'      },
+  { id: 'dashboard',    icon: LayoutDashboard, label: 'Accueil' },
+  { id: 'ia',           icon: Bot,             label: 'IA'      },
+  { id: 'methodologie', icon: BookOpen,        label: 'Méthodo' },
 ]
 const MOB_USER = [
   { id: 'dashboard',  icon: LayoutDashboard, label: 'Accueil' },

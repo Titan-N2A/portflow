@@ -1,12 +1,13 @@
-import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Lock, X } from 'lucide-react'
+import { LayoutDashboard, BarChart2, FileText, Settings, Bot, Download, LogOut, Lock, X, BookOpen } from 'lucide-react'
 import { C } from '../../styles/tokens'
 import logoPAA from '../../assets/logo_port.png'
 import InstallPWA from '../shared/InstallPWA'
 
 // Grand public : Dashboard + IA uniquement
 const NAV_PUBLIC = [
-  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'   },
-  { id: 'ia',        icon: Bot,             label: 'IA FlowPort' },
+  { id: 'dashboard',    icon: LayoutDashboard, label: 'Dashboard'    },
+  { id: 'ia',           icon: Bot,             label: 'IA FlowPort'  },
+  { id: 'methodologie', icon: BookOpen,        label: 'Méthodologie' },
 ]
 
 // Utilisateurs connectés : + Graphiques, Rapports, Export
@@ -16,6 +17,7 @@ const NAV_USER = [
   { id: 'rapports',   icon: FileText,         label: 'Rapports'    },
   { id: 'export',     icon: Download,         label: 'Export'      },
   { id: 'ia',         icon: Bot,              label: 'IA FlowPort' },
+  { id: 'methodologie', icon: BookOpen,       label: 'Méthodologie' },
 ]
 
 // Administrateurs : + Administration
