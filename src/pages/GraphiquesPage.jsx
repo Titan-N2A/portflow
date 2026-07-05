@@ -4,7 +4,7 @@ import {
   LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler,
 } from 'chart.js'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
-import { Clock, AlertTriangle, Gauge, CalendarDays } from 'lucide-react'
+import { Clock, AlertTriangle, Gauge, CalendarDays, ImageDown } from 'lucide-react'
 import { C, levelColor, levelLabel, levelBg } from '../styles/tokens'
 import { useCollecteAuto }   from '../hooks/useCollecteAuto'
 import { useHistoricalData } from '../hooks/useHistoricalData'
@@ -94,6 +94,43 @@ function Pill({ active, onClick, children }) {
       transition: 'all 0.15s',
     }}>
       {children}
+    </button>
+  )
+}
+
+// Export PNG d'un graphe Chart.js (fond blanc forcé : le canvas est
+// transparent, un PNG transparent est illisible sur visionneuse sombre).
+function telechargerGraphePNG(chartRef, nomFichier) {
+  const chart = chartRef.current
+  if (!chart?.canvas) return
+  const src = chart.canvas
+  const c = document.createElement('canvas')
+  c.width = src.width
+  c.height = src.height
+  const ctx = c.getContext('2d')
+  ctx.fillStyle = '#ffffff'
+  ctx.fillRect(0, 0, c.width, c.height)
+  ctx.drawImage(src, 0, 0)
+  const a = document.createElement('a')
+  a.href = c.toDataURL('image/png')
+  a.download = `${nomFichier}_${new Date().toISOString().slice(0, 10)}.png`
+  a.click()
+}
+
+function BtnPNG({ chartRef, nom }) {
+  return (
+    <button
+      onClick={() => telechargerGraphePNG(chartRef, nom)}
+      title="Télécharger ce graphe en PNG"
+      aria-label="Télécharger ce graphe en PNG"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+        background: '#f0f4f8', border: '1px solid #e2e8f0',
+        cursor: 'pointer', color: C.textMuted,
+      }}
+    >
+      <ImageDown size={14} />
     </button>
   )
 }
@@ -321,6 +358,11 @@ function GraphiquesPage() {
   // ── Heatmap : jours × heures, palette vert→rouge ────────────
   const heatScrollRef = useRef(null)
 
+  // Refs des graphes Chart.js pour l'export PNG
+  const lineRef  = useRef(null)
+  const barRef   = useRef(null)
+  const donutRef = useRef(null)
+
   // Heures affichées (6h → 22h)
   const HM_HEURES = Array.from({ length: 17 }, (_, i) => i + 6)
 
@@ -503,17 +545,20 @@ function GraphiquesPage() {
               <Pill active={lineDir === 'retour'} onClick={() => setLineDir('retour')}>Retour</Pill>
             </div>
           </div>
-          <select className="fp-select" style={{ width: 'auto', alignSelf: 'flex-start' }} value={axeFilter} onChange={e => setAxeFilter(e.target.value)}>
-            <option value="tous">Tous les axes</option>
-            {axeDefs.map((axe, i) => (
-              <option key={axe.id} value={String(i)}>{axe.label}</option>
-            ))}
-          </select>
+          <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
+            <select className="fp-select" style={{ width: 'auto' }} value={axeFilter} onChange={e => setAxeFilter(e.target.value)}>
+              <option value="tous">Tous les axes</option>
+              {axeDefs.map((axe, i) => (
+                <option key={axe.id} value={String(i)}>{axe.label}</option>
+              ))}
+            </select>
+            <BtnPNG chartRef={lineRef} nom="FlowPort_temps_par_heure" />
+          </div>
         </div>
 
         {lineHasData ? (
           <div style={{ height: 300 }}>
-            <Line data={lineData} options={{
+            <Line ref={lineRef} data={lineData} options={{
               ...CHART_OPTIONS_BASE,
               spanGaps: true,
               // mode 'index' + intersect:false : le tooltip apparaît dès que le
@@ -567,10 +612,11 @@ function GraphiquesPage() {
                 Minimum · Moyenne · Maximum des relevés (24 h)
               </span>
             </div>
+            <BtnPNG chartRef={barRef} nom="FlowPort_min_moy_max" />
           </div>
           {minMaxData ? (
             <div style={{ height: 240 }}>
-              <Bar data={minMaxData.chart} options={{
+              <Bar ref={barRef} data={minMaxData.chart} options={{
                 ...CHART_OPTIONS_BASE,
                 interaction: { mode: 'index', intersect: false },
                 plugins: {
@@ -624,15 +670,18 @@ function GraphiquesPage() {
         <div className="fp-card" style={{ flex: '1 1 300px', minWidth: 0 }}>
           <div className="fp-section-header">
             <span className="fp-section-title">Répartition par niveau</span>
-            <select className="fp-select" style={{ width: 'auto' }} value={periode} onChange={e => setPeriode(e.target.value)}>
-              <option value="tous">Tous les jours</option>
-              <option value="ouvrable">Jours ouvrables</option>
-              <option value="weekend">Week-end</option>
-            </select>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <select className="fp-select" style={{ width: 'auto' }} value={periode} onChange={e => setPeriode(e.target.value)}>
+                <option value="tous">Tous les jours</option>
+                <option value="ouvrable">Jours ouvrables</option>
+                <option value="weekend">Week-end</option>
+              </select>
+              <BtnPNG chartRef={donutRef} nom="FlowPort_repartition_niveaux" />
+            </div>
           </div>
           {donutHasData ? (
             <div style={{ height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Doughnut data={donutData} options={{
+              <Doughnut ref={donutRef} data={donutData} options={{
                 responsive: true, maintainAspectRatio: false, cutout: '64%',
                 plugins: {
                   legend: {
