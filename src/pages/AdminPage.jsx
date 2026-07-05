@@ -366,14 +366,40 @@ const arrowBtnStyle = {
 // ══════════════════════════════════════════════════════════
 // COMPOSANT : Aperçu carte en temps réel
 // ══════════════════════════════════════════════════════════
-function FitBoundsHelper({ positions }) {
+function FitBoundsHelper({ positions, once = false }) {
   const map = useMap()
+  const done = useRef(false)
   useEffect(() => {
+    // once : ne cadre qu'au premier rendu — évite que la carte saute à
+    // chaque déplacement de point pendant l'édition au glisser-déposer
+    if (once && done.current) return
     if (positions.length >= 2) {
-      try { map.fitBounds(positions, { padding: [20, 20], maxZoom: 16 }) } catch { /* bounds invalides — ignoré */ }
+      try {
+        map.fitBounds(positions, { padding: [20, 20], maxZoom: 16 })
+        done.current = true
+      } catch { /* bounds invalides — ignoré */ }
     }
   }, [JSON.stringify(positions)])
   return null
+}
+
+// Index du segment [i, i+1] le plus proche d'un point (insertion au clic
+// sur le trait de contrôle) — distance point-segment en coordonnées planes,
+// suffisante à l'échelle locale d'Abidjan.
+function nearestSegmentIndex(positions, lat, lng) {
+  function distSeg(p, a, b) {
+    const [px, py] = [p[1], p[0]], [ax, ay] = [a[1], a[0]], [bx, by] = [b[1], b[0]]
+    const dx = bx - ax, dy = by - ay
+    const l2 = dx * dx + dy * dy
+    const t = l2 === 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / l2))
+    return Math.hypot(px - (ax + t * dx), py - (ay + t * dy))
+  }
+  let best = 0, bestD = Infinity
+  for (let i = 0; i < positions.length - 1; i++) {
+    const d = distSeg([lat, lng], positions[i], positions[i + 1])
+    if (d < bestD) { bestD = d; best = i }
+  }
+  return best
 }
 
 // Capture les clics sur la carte et appelle onAddPoint(lat, lng)
@@ -441,7 +467,7 @@ function makeTronconLabel(label, color) {
 
 const TRONCON_PALETTE = ['#E67E22', '#8E44AD', '#16A085', '#C0392B', '#2980B9', '#D35400']
 
-function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected, backgroundAxe, mapHeight = 300, existingTroncons = [], initialGeometry = null }) {
+function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onMovePoint, onRemovePoint, onInsertPoint, onRouteSelected, backgroundAxe, mapHeight = 300, existingTroncons = [], initialGeometry = null }) {
   const [gmOpen,       setGmOpen]       = useState(false)
   const [gmInput,      setGmInput]      = useState('')
   const [gmError,      setGmError]      = useState('')
@@ -603,14 +629,16 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
           <div style={{
             position: 'absolute', bottom: 10, left: '50%', transform: 'translateX(-50%)',
             zIndex: 1000, background: 'rgba(27,79,138,0.88)', color: '#fff',
-            padding: '5px 14px', borderRadius: '20px', fontSize: 12, fontWeight: 600,
+            padding: '5px 14px', borderRadius: '20px', fontSize: 11.5, fontWeight: 600,
             fontFamily: "'Inter',sans-serif", whiteSpace: 'nowrap', pointerEvents: 'none',
             boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
           }}>
-            ✚ Cliquez sur la carte pour placer un point
+            ✚ Clic : ajouter{onMovePoint ? ' · glisser un point : déplacer' : ''}{onRemovePoint ? ' · clic droit : supprimer' : ''}
           </div>
         )}
-        <MapContainer key={center.join(',') + bgPositions.length + existingTroncons.length} center={center}
+        {/* key sans le centre : sinon déplacer le 1er point remonte toute
+            la carte en plein glisser-déposer */}
+        <MapContainer key={'carte' + bgPositions.length + existingTroncons.length} center={center}
           zoom={positions.length > 1 ? 14 : bgPositions.length > 1 ? 13 : 12}
           style={{ width: '100%', height: '100%', cursor: onAddPoint ? 'crosshair' : undefined }} zoomControl attributionControl={false}>
           <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -664,31 +692,67 @@ function MiniMapPreview({ points, color = '#1B4F8A', onAddPoint, onRouteSelected
             // Tracé routier TomTom déjà stocké (mode édition)
             <Polyline positions={initialGeometry} color={color} weight={5} opacity={0.85} />
           ) : (
-            // Ligne de contrôle en pointillés entre les waypoints
-            positions.length >= 2 && <Polyline positions={positions} color={color} weight={4} opacity={0.6} dashArray="6 4" />
+            // Ligne de contrôle en pointillés entre les waypoints —
+            // cliquable pour INSÉRER un point entre deux existants
+            positions.length >= 2 && (
+              <Polyline
+                positions={positions} color={color} weight={onInsertPoint ? 8 : 4}
+                opacity={0.6} dashArray="6 4"
+                eventHandlers={onInsertPoint ? {
+                  click: (e) => {
+                    L.DomEvent.stopPropagation(e.originalEvent)
+                    const lat = Math.round(e.latlng.lat * 100000) / 100000
+                    const lng = Math.round(e.latlng.lng * 100000) / 100000
+                    onInsertPoint(nearestSegmentIndex(positions, lat, lng), String(lat), String(lng))
+                  },
+                } : undefined}
+              />
+            )
           )}
 
-          {/* Marqueurs avec noms */}
+          {/* Marqueurs avec noms — déplaçables au glisser, clic droit = supprimer */}
           {positions.map((pos, i) => {
             const label = i === 0 ? 'D' : i === positions.length - 1 ? 'A' : String(i)
             const dotColor = i === 0 ? '#27AE60' : i === positions.length - 1 ? '#C0392B' : '#1B4F8A'
             const name = points[i]?.name?.trim()
             return (
-              <Marker key={i} position={pos} icon={makeClickIcon(label, dotColor)}>
+              <Marker
+                key={i} position={pos} icon={makeClickIcon(label, dotColor)}
+                draggable={Boolean(onMovePoint)}
+                eventHandlers={{
+                  ...(onMovePoint ? {
+                    dragend: (e) => {
+                      const ll = e.target.getLatLng()
+                      onMovePoint(i,
+                        String(Math.round(ll.lat * 100000) / 100000),
+                        String(Math.round(ll.lng * 100000) / 100000))
+                    },
+                  } : {}),
+                  ...(onRemovePoint ? {
+                    contextmenu: (e) => {
+                      L.DomEvent.stopPropagation(e.originalEvent)
+                      e.originalEvent?.preventDefault?.()
+                      onRemovePoint(i)
+                    },
+                  } : {}),
+                }}
+              >
                 {name && <Popup><strong>{name}</strong></Popup>}
               </Marker>
             )
           })}
           {(alternatives.length > 0 || initialGeometry?.length >= 2 || positions.length >= 2) && (
-            <FitBoundsHelper positions={
-              alternatives.length > 0
-                ? selectedIdx !== null
-                  ? alternatives[selectedIdx]?.geometry ?? []
-                  : alternatives.flatMap(a => a.geometry ?? [])
-                : initialGeometry?.length >= 2
-                  ? initialGeometry
-                  : positions
-            } />
+            <FitBoundsHelper
+              once={alternatives.length === 0 && !(initialGeometry?.length >= 2)}
+              positions={
+                alternatives.length > 0
+                  ? selectedIdx !== null
+                    ? alternatives[selectedIdx]?.geometry ?? []
+                    : alternatives.flatMap(a => a.geometry ?? [])
+                  : initialGeometry?.length >= 2
+                    ? initialGeometry
+                    : positions
+              } />
           )}
           {positions.length < 2 && !initialGeometry && bgPositions.length >= 2 && (
             <FitBoundsHelper positions={bgPositions} />
@@ -1203,6 +1267,21 @@ function ModalAxe({ axe, axes, onSave, onClose }) {
             setSelectedGeometry(null)
             setRouteChanged(false)
           }}
+          onMovePoint={(i, lat, lng) => {
+            setCoords(prev => prev.map((p, j) => (j === i ? { ...p, lat, lng } : p)))
+            setSelectedGeometry(null)
+            setRouteChanged(false)
+          }}
+          onRemovePoint={(i) => {
+            setCoords(prev => prev.filter((_, j) => j !== i))
+            setSelectedGeometry(null)
+            setRouteChanged(false)
+          }}
+          onInsertPoint={(apres, lat, lng) => {
+            setCoords(prev => [...prev.slice(0, apres + 1), { name: '', lat, lng }, ...prev.slice(apres + 1)])
+            setSelectedGeometry(null)
+            setRouteChanged(false)
+          }}
           onRouteSelected={route => {
             if (!route) {
               setSelectedGeometry(null)
@@ -1496,6 +1575,15 @@ function ModalTroncon({ troncon, axes, troncons, onSave, onClose }) {
               existingTroncons={axisTroncons}
               mapHeight={380}
               onAddPoint={(lat, lng) => { setCoords(prev => [...prev, { lat, lng }]); setSelectedGeometry(null) }}
+              onMovePoint={(i, lat, lng) => {
+                setCoords(prev => prev.map((p, j) => (j === i ? { ...p, lat, lng } : p)))
+                setSelectedGeometry(null)
+              }}
+              onRemovePoint={(i) => { setCoords(prev => prev.filter((_, j) => j !== i)); setSelectedGeometry(null) }}
+              onInsertPoint={(apres, lat, lng) => {
+                setCoords(prev => [...prev.slice(0, apres + 1), { lat, lng }, ...prev.slice(apres + 1)])
+                setSelectedGeometry(null)
+              }}
               onRouteSelected={route => {
                 if (!route) { setSelectedGeometry(null); setDistAutoFilled(false); return }
                 setSelectedGeometry(route.geometry)
