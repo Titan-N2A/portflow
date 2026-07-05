@@ -233,10 +233,11 @@ async function main() {
         niveau, vitesse, retard, timestamp, source,
       })
 
-      // 2. Historique graphiques
-      await fsAdd('mesures', {
-        axeId: route.axeId, sens: route.sens, date, heure, temps_min: tempsMin,
-      })
+      // 2. (supprimé 05/07/2026) — l'ajout dans "mesures" est coupé : cette
+      // collection ne sert qu'au jeu historique figé de février 2025
+      // (useHistoricalData) ; y accumuler ~1 728 docs/jour ne servait à
+      // rien et a contribué à l'explosion du quota Firestore. L'historique
+      // vivant est déjà archivé dans collecte_auto ci-dessous.
 
       // 3. Archive collecte (export, ML)
       await fsAdd('collecte_auto', {
