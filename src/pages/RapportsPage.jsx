@@ -1,8 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FileText, Download, Trash2, FilePlus, Database } from 'lucide-react'
 import { C } from '../styles/tokens'
-import { collection, query, where, orderBy, getDocs, limit } from 'firebase/firestore'
-import { db } from '../services/firebase'
+import {
+  collection, query, where, orderBy, getDocs, limit,
+  addDoc, deleteDoc, doc, onSnapshot,
+} from 'firebase/firestore'
+import { db, auth } from '../services/firebase'
 import { useTrafficData, AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { construireModele, chargerMetaML, nomCompletAxe } from '../utils/rapport/commun'
@@ -113,50 +116,68 @@ function RapportsPage() {
   const [format,   setFormat]   = useState('pdf')
   const [rapports, setRapports] = useState([])
   const [loading,  setLoading]  = useState(false)
+  const [dlEnCours, setDlEnCours] = useState(null)   // id du rapport en cours de téléchargement
+
+  // ── Registre persistant : les rapports générés survivent au rechargement ──
+  // (métadonnées dans rapports_generes ; le contenu est régénéré à la
+  // demande depuis collecte_auto au moment du téléchargement)
+  useEffect(() => {
+    const q = query(collection(db, 'rapports_generes'), orderBy('genereLe', 'desc'), limit(50))
+    return onSnapshot(q,
+      snap => setRapports(snap.docs.map(d => {
+        const data = d.data()
+        return { id: d.id, ...data, date: new Date(data.genereLe) }
+      })),
+      err => console.error('Registre rapports :', err),
+    )
+  }, [])
 
   async function genererRapport() {
     setLoading(true)
     try {
       const records      = await fetchPeriodData(type, periode)
-      const rows         = aggregerParAxe(records, mesures, axes)
       const { label }    = getPeriodeBounds(type, periode)
-      const nbMesuresTotal = records.length
       const nom          = `PAA-${type.charAt(0).toUpperCase() + type.slice(1)}-${periode}`
-
-      setRapports(prev => [{
-        id: Date.now(), nom, type, periode,
-        periodeLabel:  label,
-        format, date:  new Date(),
-        rows, nbMesuresTotal,
-        records,                      // relevés réels pour séries, graphiques et données brutes
-      }, ...prev])
+      await addDoc(collection(db, 'rapports_generes'), {
+        nom, type, periode,
+        periodeLabel:   label,
+        nbMesuresTotal: records.length,
+        genereLe:       new Date().toISOString(),
+        genereParEmail: auth.currentUser?.email ?? null,
+      })
+      // La liste se met à jour via onSnapshot — rien d'autre à faire
     } catch (err) {
       console.error('Erreur génération rapport :', err)
-      // Fallback live si Firestore inaccessible
-      const rows = aggregerParAxe([], mesures, axes)
-      const nom  = `PAA-${type.charAt(0).toUpperCase() + type.slice(1)}-${periode}`
-      setRapports(prev => [{
-        id: Date.now(), nom, type, periode,
-        periodeLabel:  periode,
-        format, date:  new Date(),
-        rows, nbMesuresTotal: 0,
-        records: [],
-      }, ...prev])
     } finally {
       setLoading(false)
     }
   }
 
   async function telecharger(rapport, fmt) {
+    setDlEnCours(rapport.id)
     try {
-      // Modèle unique (valeurs, séries, textes) partagé par les 3 formats
-      const ml     = await chargerMetaML()
-      const modele = construireModele(rapport, ml)
-      if (fmt === 'pdf')        await telechargerPDF(rapport, modele)
-      else if (fmt === 'excel') await telechargerExcel(rapport, modele)
-      else if (fmt === 'word')  await telechargerWord(rapport, modele)
+      // Contenu régénéré depuis les relevés archivés (déterministe pour
+      // une période close), puis modèle unique partagé par les 3 formats
+      const records = rapport.records ?? await fetchPeriodData(rapport.type, rapport.periode)
+      const rows    = rapport.rows ?? aggregerParAxe(records, mesures, axes)
+      const complet = { ...rapport, records, rows }
+      const ml      = await chargerMetaML()
+      const modele  = construireModele(complet, ml)
+      if (fmt === 'pdf')        await telechargerPDF(complet, modele)
+      else if (fmt === 'excel') await telechargerExcel(complet, modele)
+      else if (fmt === 'word')  await telechargerWord(complet, modele)
     } catch (err) {
       console.error(`Erreur téléchargement ${fmt} :`, err)
+    } finally {
+      setDlEnCours(null)
+    }
+  }
+
+  async function supprimerRapport(id) {
+    try {
+      await deleteDoc(doc(db, 'rapports_generes', id))
+    } catch (err) {
+      console.error('Erreur suppression rapport :', err)
     }
   }
 
@@ -241,7 +262,10 @@ function RapportsPage() {
                     <div>
                       <p style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{r.nom}</p>
                       <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: 2 }}>
-                        <p style={{ fontSize: 11, color: C.textMuted }}>{r.type} · {r.periodeLabel}</p>
+                        <p style={{ fontSize: 11, color: C.textMuted }}>
+                          {r.type} · {r.periodeLabel} · généré le {r.date.toLocaleDateString('fr-FR')}
+                          {r.genereParEmail ? ` par ${r.genereParEmail}` : ''}
+                        </p>
                         {r.nbMesuresTotal > 0 && (
                           <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#27AE60', fontWeight: 600 }}>
                             <Database size={9} /> {r.nbMesuresTotal} mesures
@@ -253,17 +277,20 @@ function RapportsPage() {
                       </div>
                     </div>
                   </div>
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button className="fp-btn fp-btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: 12 }} onClick={() => telecharger(r, 'pdf')}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {dlEnCours === r.id && (
+                      <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>Préparation…</span>
+                    )}
+                    <button className="fp-btn fp-btn-primary" style={{ padding: '0.35rem 0.75rem', fontSize: 12 }} disabled={dlEnCours === r.id} onClick={() => telecharger(r, 'pdf')}>
                       <Download size={12} /> PDF
                     </button>
-                    <button className="fp-btn fp-btn-ghost" style={{ padding: '0.35rem 0.75rem', fontSize: 12 }} onClick={() => telecharger(r, 'excel')}>
+                    <button className="fp-btn fp-btn-ghost" style={{ padding: '0.35rem 0.75rem', fontSize: 12 }} disabled={dlEnCours === r.id} onClick={() => telecharger(r, 'excel')}>
                       <Download size={12} /> Excel
                     </button>
-                    <button className="fp-btn fp-btn-ghost" style={{ padding: '0.35rem 0.75rem', fontSize: 12 }} onClick={() => telecharger(r, 'word')}>
+                    <button className="fp-btn fp-btn-ghost" style={{ padding: '0.35rem 0.75rem', fontSize: 12 }} disabled={dlEnCours === r.id} onClick={() => telecharger(r, 'word')}>
                       <Download size={12} /> Word
                     </button>
-                    <button className="fp-btn fp-btn-danger" style={{ padding: '0.35rem 0.6rem' }} onClick={() => setRapports(prev => prev.filter(x => x.id !== r.id))}>
+                    <button className="fp-btn fp-btn-danger" style={{ padding: '0.35rem 0.6rem' }} onClick={() => supprimerRapport(r.id)}>
                       <Trash2 size={12} />
                     </button>
                   </div>

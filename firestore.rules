@@ -86,6 +86,15 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── Registre des rapports générés (page Rapports, connectés) ─────────
+    // Métadonnées uniquement (nom, type, période, auteur) — le contenu est
+    // régénéré à la demande depuis collecte_auto au téléchargement.
+    match /rapports_generes/{doc} {
+      allow read, create: if request.auth != null;
+      allow delete: if request.auth != null;
+      allow update: if false;
+    }
+
     // ── Utilisateurs ──────────────────────────────────────────────────────
     // - Un utilisateur connecté peut lire son propre doc (rôle) : useAuth.js.
     // - Seul un admin peut lister tous les users (AdminPage) ou modifier/
