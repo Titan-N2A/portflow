@@ -437,16 +437,23 @@ function GraphiquesPage() {
   // 24 h : relevés bruts de la fenêtre glissante ; 7 j / 30 j : agrégats
   // quotidiens combinés (min des min, max des max, moyenne pondérée).
   const minMaxData = useMemo(() => {
+    // 7 j / 30 j : agrégats quotidiens (jours révolus) + relevés bruts du
+    // jour courant (jamais agrégé puisque la journée n'est pas finie).
+    // Fonctionne donc même quand les agrégats sont encore vides — la
+    // profondeur s'étoffe au fil du workflow nocturne.
+    const aujourdHui = new Date().toISOString().slice(0, 10)
     const stats = periodeStats === '24h'
       ? computeMinMaxParAxe(data24h, axeDefs, lineDir)
       : axeDefs.map(axe => {
-          const rs = agregats.filter(a => a.axeId === axe.id && a.sens === lineDir)
-          if (!rs.length) return { min: 0, moy: 0, max: 0, n: 0 }
-          const n = rs.reduce((s, a) => s + (a.n ?? 0), 0)
+          const morceaux = agregats.filter(a => a.axeId === axe.id && a.sens === lineDir)
+          const [duJour] = computeMinMaxParAxe(data24h.filter(d => d.date === aujourdHui), [axe], lineDir)
+          if (duJour.n > 0) morceaux.push(duJour)
+          if (!morceaux.length) return { min: 0, moy: 0, max: 0, n: 0 }
+          const n = morceaux.reduce((s, a) => s + (a.n ?? 0), 0)
           return {
-            min: Math.round(Math.min(...rs.map(a => a.min)) * 10) / 10,
-            max: Math.round(Math.max(...rs.map(a => a.max)) * 10) / 10,
-            moy: Math.round(rs.reduce((s, a) => s + a.moy * (a.n ?? 0), 0) / (n || 1) * 10) / 10,
+            min: Math.round(Math.min(...morceaux.map(a => a.min)) * 10) / 10,
+            max: Math.round(Math.max(...morceaux.map(a => a.max)) * 10) / 10,
+            moy: Math.round(morceaux.reduce((s, a) => s + a.moy * (a.n ?? 0), 0) / (n || 1) * 10) / 10,
             n,
           }
         })
@@ -480,8 +487,8 @@ function GraphiquesPage() {
   // plutôt qu'une palette recréée à la main.
   const repartition  = useMemo(() => {
     if (periodeStats === '24h') return computeRepartitionNiveaux(data24h, periode, refsHoraires)
-    // 7 j / 30 j : compte des niveaux stockés dans les agrégats quotidiens,
-    // filtré jours ouvrables / week-end par la date de chaque agrégat
+    // 7 j / 30 j : niveaux stockés dans les agrégats quotidiens (jours
+    // révolus) + relevés bruts du jour courant, filtre ouvrable/week-end
     const cats = { 'Fluide': 0, 'Modéré': 0, 'Dense': 0, 'Congestionné': 0 }
     let total = 0
     agregats.forEach(a => {
@@ -495,6 +502,10 @@ function GraphiquesPage() {
       cats['Fluide'] += f; cats['Modéré'] += nv[3] ?? 0; cats['Dense'] += nv[4] ?? 0; cats['Congestionné'] += nv[5] ?? 0
       total += f + (nv[3] ?? 0) + (nv[4] ?? 0) + (nv[5] ?? 0)
     })
+    // Jour courant (pas encore agrégé)
+    const aujourdHui = new Date().toISOString().slice(0, 10)
+    computeRepartitionNiveaux(data24h.filter(d => d.date === aujourdHui), periode, refsHoraires)
+      .forEach(({ label, count }) => { cats[label] += count; total += count })
     return Object.entries(cats).map(([label, count]) => ({
       label, count, pct: total ? Math.round((count / total) * 1000) / 10 : 0,
     }))
@@ -657,6 +668,9 @@ function GraphiquesPage() {
               <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
                 Minimum · Moyenne · Maximum des relevés
                 {agregatsLoading && ' — chargement…'}
+                {!agregatsLoading && periodeStats !== '24h' && (
+                  ` — ${new Set(agregats.map(a => a.date)).size} jour(s) agrégé(s) + aujourd'hui`
+                )}
               </span>
               <div style={{ display: 'flex', gap: 4 }}>
                 {['24h', '7j', '30j'].map(p => (
