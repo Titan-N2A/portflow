@@ -1,0 +1,27 @@
+name: Calibrer les références horaires
+
+# Recalcule chaque semaine les médianes horaires par axe/sens depuis
+# les relevés réels (7 derniers jours) — la heatmap et la synthèse de
+# la page Graphiques se comparent ainsi au trafic récent plutôt qu'à
+# la base figée de février 2025.
+on:
+  schedule:
+    - cron: '0 4 * * 1'   # lundi 4h UTC (= 4h Abidjan)
+  workflow_dispatch:
+
+jobs:
+  calibrer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Calibrer et publier les références
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          FLOWPORT_BOT_EMAIL: ${{ secrets.FLOWPORT_BOT_EMAIL }}
+          FLOWPORT_BOT_PASSWORD: ${{ secrets.FLOWPORT_BOT_PASSWORD }}
+        run: node scripts/calibrer_references.js

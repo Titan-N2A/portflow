@@ -83,13 +83,20 @@ export const REFERENCES_GLOBALES = {
 }
 
 /**
- * Retourne le temps de référence pour un axe/sens/heure donnés
+ * Retourne le temps de référence pour un axe/sens/heure donnés.
  * @param {string} axeId  — 'axe1', 'axe2', 'axe3'
  * @param {string} sens   — 'aller' | 'retour'
  * @param {number} heure  — 7 à 18
+ * @param {Object|null} dynamiques — références recalibrées (médianes des
+ *   7 derniers jours, doc flowport_references/horaires publié chaque
+ *   semaine par scripts/calibrer_references.js) ; prioritaires sur la
+ *   base statique de février 2025 quand elles existent.
  * @returns {number} temps de référence en minutes
  */
-export function getReference(axeId, sens, heure) {
+export function getReference(axeId, sens, heure, dynamiques = null) {
   const key = `${axeId}_${sens}_${heure}`
-  return REFERENCES[key] ?? REFERENCES_GLOBALES[`${axeId}_${sens}`]?.moyenne ?? null
+  return dynamiques?.[key]
+    ?? REFERENCES[key]
+    ?? REFERENCES_GLOBALES[`${axeId}_${sens}`]?.moyenne
+    ?? null
 }

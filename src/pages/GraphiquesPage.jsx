@@ -13,6 +13,7 @@ import { AXES_OFFICIELS } from '../hooks/useTrafficData'
 import { computeCourbe24h, computeRepartitionNiveaux } from '../services/aggregations'
 import { computeNiveau } from '../services/indicators'
 import { getReference } from '../data/references'
+import { useReferencesHoraires } from '../hooks/useReferencesHoraires'
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, ArcElement, Title, Tooltip, Legend, Filler)
 
@@ -272,12 +273,16 @@ function GraphiquesPage() {
 
   const live24hCount = data24h.filter(d => AXES_OFFICIELS_IDS.has(d.axeId)).length
 
+  // Références horaires recalibrées chaque semaine sur les relevés réels
+  // (fallback automatique sur la base statique février 2025 si absentes)
+  const { valeurs: refsHoraires, majLe: refsMajLe } = useReferencesHoraires()
+
   // ── Bandeau de synthèse (retard moyen, axe/heure critiques 24h) ──
   const synthese24h = useMemo(() => {
     const rows = data24h
       .filter(d => AXES_OFFICIELS_IDS.has(d.axeId) && d.temps_min > 0 && d.heure != null)
       .map(d => {
-        const ref = getReference(d.axeId, d.sens, d.heure)
+        const ref = getReference(d.axeId, d.sens, d.heure, refsHoraires)
         return ref ? { ...d, ratio: d.temps_min / ref, retard: d.temps_min - ref } : null
       })
       .filter(Boolean)
@@ -309,7 +314,7 @@ function GraphiquesPage() {
       axeImpacte,
       heurePointe,
     }
-  }, [data24h, axeIdsKey])
+  }, [data24h, axeIdsKey, refsHoraires])
 
   // ── Courbes 24h ─────────────────────────────────────────────
   // Dégradé vertical (couleur de l'axe → transparent) plutôt qu'un aplat
@@ -383,7 +388,7 @@ function GraphiquesPage() {
     // de pointe comme "dégradées" alors qu'elles le sont structurellement.
     const acc = {}
     filtered.forEach(d => {
-      const ref = getReference(d.axeId, d.sens, d.heure)
+      const ref = getReference(d.axeId, d.sens, d.heure, refsHoraires)
       if (!ref) return
       const jourJS = new Date(d.date + 'T00:00:00').getDay()
       const key    = `${jourJS}_${d.heure}`
@@ -401,7 +406,7 @@ function GraphiquesPage() {
       grid[key] = { moyenne, ratio, retardPct, niveau: computeNiveau(ratio) }
     })
     return grid
-  }, [data, hmAxe, hmSens])
+  }, [data, hmAxe, hmSens, refsHoraires])
 
   // Jour le plus chargé, dérivé de la heatmap (dataset complet, pas juste 24h)
   const jourPlusCharge = useMemo(() => {
@@ -704,6 +709,11 @@ function GraphiquesPage() {
         <div className="fp-section-header" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             <span className="fp-section-title">Heatmap congestion — jour × heure</span>
+            <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
+              {refsMajLe
+                ? `Écarts vs médianes horaires des 7 derniers jours (recalibrées le ${new Date(refsMajLe).toLocaleDateString('fr-FR')})`
+                : 'Écarts vs base historique février 2025 — recalibrage hebdomadaire dès la première exécution'}
+            </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
               {/* légende N1-N5 — même échelle que la carte (styles/tokens.js) */}
               {[1, 2, 3, 4, 5].map(n => (

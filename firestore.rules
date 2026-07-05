@@ -29,6 +29,13 @@ service cloud.firestore {
       allow read: if true;
       allow write: if isAdmin();
     }
+    // Références horaires recalibrées chaque semaine depuis les relevés
+    // réels (scripts/calibrer_references.js via le compte bot admin).
+    // Lues sans connexion par la page Graphiques (heatmap, synthèse).
+    match /flowport_references/{doc} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
 
     // ── Données de mesures (lecture dashboard + écriture collecte auto) ────
     // scripts/collecte.js (GitHub Actions, toutes les 5 min) écrit ici via
