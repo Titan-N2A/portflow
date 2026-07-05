@@ -724,6 +724,9 @@ function DashboardPage() {
       }
     }
     if (!pire) return null
+    // Sous le seuil orange (N3), rien n'est "critique" : on l'affiche
+    // plutôt que de désigner arbitrairement un tronçon fluide.
+    if (pire.niveau <= 2) return { aucun: true }
     const tronconsAxe = (troncons ?? []).filter(t => t.axeId === pire.axe.id)
     const plusLong = [...tronconsAxe].sort((a, b) => (parseFloat(b.dist) || 0) - (parseFloat(a.dist) || 0))[0]
     return {
@@ -783,9 +786,9 @@ function DashboardPage() {
 
         <KPICard icon={AlertTriangle} iconColor={C.danger}
           title="Tronçon critique"
-          value={tronconCritique?.nom ?? '—'}
-          badge={tronconCritique ? `N${tronconCritique.niveau} — ${levelLabel(tronconCritique.niveau)}` : null}
-          niveau={tronconCritique?.niveau}
+          value={tronconCritique?.aucun ? 'Aucun tronçon critique' : tronconCritique?.nom ?? '—'}
+          badge={tronconCritique?.aucun ? 'Réseau fluide' : tronconCritique ? `N${tronconCritique.niveau} — ${levelLabel(tronconCritique.niveau)}` : null}
+          niveau={tronconCritique?.aucun ? 1 : tronconCritique?.niveau}
           flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={CheckCircle2} iconColor={C.success}
