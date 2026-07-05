@@ -50,6 +50,16 @@ function mediane(valeurs) {
   return t.length % 2 ? t[m] : (t[m - 1] + t[m]) / 2
 }
 
+function percentile(valeurs, p) {
+  const t = [...valeurs].sort((a, b) => a - b)
+  return t[Math.min(t.length - 1, Math.floor((p / 100) * t.length))]
+}
+
+// Part des relevés au-dessus du seuil N3 (ratio > 1,25) pour un tRef donné
+function pctN3(temps, tRef) {
+  return Math.round(temps.filter(v => v / tRef > 1.25).length / temps.length * 100)
+}
+
 async function main() {
   if (!FIREBASE_KEY || !process.env.FLOWPORT_BOT_EMAIL || !process.env.FLOWPORT_BOT_PASSWORD) {
     console.error('❌ Secrets FIREBASE_API_KEY / FLOWPORT_BOT_* requis.')
@@ -78,9 +88,33 @@ async function main() {
     process.exit(1)
   }
 
+  // ── Recommandations tRef par axe (sens aller) ─────────────
+  // P33 des temps observés : même position dans la distribution que les
+  // références bien calibrées (SODECI P33, Toyota P41 — analyse 04/07).
+  // L'Admin (onglet Axes) affiche ces recommandations avec un bouton
+  // Appliquer ; rien n'est modifié automatiquement.
+  const parAxe = new Map()
+  releves.filter(r => r.sens === 'aller').forEach(r => {
+    if (!parAxe.has(r.axeId)) parAxe.set(r.axeId, [])
+    parAxe.get(r.axeId).push(r.temps_min)
+  })
+  const tRefReco = {}
+  parAxe.forEach((temps, axeId) => {
+    if (temps.length < 50) return   // échantillon insuffisant
+    const reco = Math.round(percentile(temps, 33) * 10) / 10
+    tRefReco[axeId] = {
+      valeur:  reco,
+      n:       temps.length,
+      pctN3:   pctN3(temps, reco),          // % du temps en N3+ avec cette référence
+      mediane: Math.round(mediane(temps) * 10) / 10,
+    }
+    console.log(`tRef recommandé ${axeId} : ${reco} min (${temps.length} relevés, ${pctN3(temps, reco)} % en N3+)`)
+  })
+
   const token = await connexionBot()
   const doc = {
     valeurs,
+    tRefReco,
     nbReleves:   releves.length,
     periodeDu:   depuis,
     periodeAu:   new Date().toISOString().slice(0, 10),

@@ -11,6 +11,7 @@ import {
 } from 'lucide-react'
 import { C } from '../styles/tokens'
 import NotificationsConfig from '../components/Admin/NotificationsConfig'
+import CalibrageTref from '../components/Admin/CalibrageTref'
 import { useAxesFirestore } from '../hooks/useAxesFirestore'
 import { AXE_COLORS as DEFAULT_AXE_COLORS, AXE_PALETTE } from '../data/defaultData'
 import UsersLiveMap from '../components/Admin/UsersLiveMap'
@@ -1893,6 +1894,7 @@ function AdminPage() {
       {/* ── AXES ─────────────────────────────────────────── */}
       {tab === 'axes' && (
         <div>
+          <CalibrageTref axes={axes} onToast={showToast} />
           <div className="fp-section-header">
             <span style={{ fontSize: 14, fontWeight: 600, color: C.text }}>
               {axes.length} axe(s) · {axes.filter(a => a.actif).length} actif(s)
