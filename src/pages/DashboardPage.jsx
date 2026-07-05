@@ -711,7 +711,10 @@ function DashboardPage() {
     <div style={{
       display: 'flex', flexDirection: 'column',
       height: isMobile ? 'auto' : '100vh',
-      overflow: isMobile ? 'visible' : 'hidden',
+      // 'auto' (pas 'hidden') : la carte impose une hauteur minimale
+      // confortable (voir rangée Map) — sur petit écran, la page défile
+      // au lieu d'écraser la carte.
+      overflow: isMobile ? 'visible' : 'auto',
       padding: isMobile ? '0.85rem' : '1.1rem',
       gap: '0.85rem',
       // Fond identitaire PAA (carte de Côte d'Ivoire en scène portuaire) —
@@ -783,7 +786,11 @@ function DashboardPage() {
         display: 'flex',
         flexDirection: isMobile ? 'column' : 'row',
         gap: '0.8rem',
-        minHeight: 0,
+        // Hauteur plancher de la carte : si l'écran est trop petit pour
+        // tout afficher, la page défile (overflow auto du conteneur)
+        // plutôt que de comprimer la carte.
+        minHeight: isMobile ? 0 : 540,
+        flexShrink: 0,
       }}>
 
         {/* Carte */}
