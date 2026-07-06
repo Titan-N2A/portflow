@@ -35,7 +35,7 @@ AXE_MAP  = {'axe1': 0, 'axe2': 1, 'axe3': 2}
 SENS_MAP = {'aller': 0, 'retour': 1}
 
 # ── 1. Données historiques ───────────────────────────────────
-HISTO_CSV = '../public/portflow_mesures_normalisees.csv'
+HISTO_CSV = '../public/portflow_mesures_normalisees.csv' if os.path.exists('../public/portflow_mesures_normalisees.csv') else 'public/portflow_mesures_normalisees.csv'
 df_histo = pd.read_csv(HISTO_CSV)
 
 # Normalise les labels vers axeId
@@ -51,7 +51,9 @@ n_histo = len(df_histo)
 print(f"\n📚 Historique PAA (fév. 2025) : {n_histo} mesures")
 
 # ── 1b. Données collecte_auto (optionnel) ───────────────────
-COLLECTE_CSV = 'collecte_auto.csv'
+# Accepte le CSV qu'il soit lancé depuis ml/ (local) ou depuis la racine
+# du dépôt (workflow GitHub) — voir scripts/export_collecte.mjs.
+COLLECTE_CSV = 'collecte_auto.csv' if os.path.exists('collecte_auto.csv') else 'ml/collecte_auto.csv'
 n_live = 0
 
 if os.path.exists(COLLECTE_CSV):
@@ -182,12 +184,14 @@ output = {
     "predictions": predictions,
 }
 
-with open('predictions.json', 'w', encoding='utf-8') as f:
-    json.dump(output, f, ensure_ascii=False, indent=2)
-
-# Copie dans public/ pour être servi par Vite
 import shutil
-shutil.copy('predictions.json', '../public/predictions.json')
+# Chemins tolérants au répertoire d'exécution (ml/ en local, racine en CI)
+ML_OUT     = 'predictions.json' if os.path.basename(os.getcwd()) == 'ml' else 'ml/predictions.json'
+PUBLIC_OUT = '../public/predictions.json' if os.path.exists('../public') else 'public/predictions.json'
+with open(ML_OUT, 'w', encoding='utf-8') as f:
+    json.dump(output, f, ensure_ascii=False, indent=2)
+# Copie dans public/ pour être servi par Vite
+shutil.copy(ML_OUT, PUBLIC_OUT)
 
 print(f"\n✅ predictions.json généré — {len(predictions)} combinaisons")
 print(f"   Sources : {', '.join(sources)}")

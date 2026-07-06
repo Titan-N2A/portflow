@@ -1,0 +1,58 @@
+name: Réentraîner le modèle prédictif
+
+# Action manuelle : exporte la base de collecte accumulée, réentraîne le
+# modèle Random Forest et publie le nouveau public/predictions.json (les
+# pré-alertes ML, le mode « Prévisions » de la carte et le récap matinal
+# passent alors sur le modèle mis à jour). Le déploiement Firebase suit
+# automatiquement le commit.
+#
+# À lancer de préférence juste après 07h00 UTC (reset du quota de lecture
+# Firestore gratuit) pour maximiser le volume exporté.
+on:
+  workflow_dispatch:
+    inputs:
+      max_pages:
+        description: 'Pages d''export (1000 mesures/page)'
+        required: false
+        default: '40'
+
+permissions:
+  contents: write
+
+jobs:
+  reentrainer:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Exporter collecte_auto → CSV
+        env:
+          FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
+          MAX_PAGES: ${{ github.event.inputs.max_pages }}
+        run: node scripts/export_collecte.mjs
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Installer les dépendances Python
+        run: pip install -r ml/requirements.txt
+
+      - name: Réentraîner le modèle
+        run: python ml/train_model.py
+
+      - name: Publier le nouveau modèle
+        run: |
+          git config user.name "FlowPort ML Bot"
+          git config user.email "noreply@portabidjan.ci"
+          git add ml/predictions.json public/predictions.json
+          if git diff --cached --quiet; then
+            echo "Aucun changement de prédictions — rien à committer."
+          else
+            git commit -m "chore(ml): réentraînement du modèle prédictif sur les données accumulées"
+            git push
+          fi
