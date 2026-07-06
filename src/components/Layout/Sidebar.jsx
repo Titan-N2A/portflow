@@ -5,29 +5,24 @@ import InstallPWA from '../shared/InstallPWA'
 
 // Grand public : Dashboard + IA uniquement
 const NAV_PUBLIC = [
-  { id: 'dashboard',    icon: LayoutDashboard, label: 'Dashboard'    },
-  { id: 'ia',           icon: Bot,             label: 'IA FlowPort'  },
-  { id: 'methodologie', icon: BookOpen,        label: 'Méthodologie' },
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard'   },
+  { id: 'ia',        icon: Bot,             label: 'IA FlowPort' },
 ]
 
 // Utilisateurs connectés : + Graphiques, Rapports, Export
-// (Méthodologie toujours en dernier — après Administration chez les admins)
-const NAV_BASE = [
+const NAV_USER = [
   { id: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard'   },
   { id: 'graphiques', icon: BarChart2,        label: 'Graphiques'  },
   { id: 'rapports',   icon: FileText,         label: 'Rapports'    },
   { id: 'export',     icon: Download,         label: 'Export'      },
   { id: 'ia',         icon: Bot,              label: 'IA FlowPort' },
 ]
-const NAV_METHODO = { id: 'methodologie', icon: BookOpen, label: 'Méthodologie' }
 
-const NAV_USER = [...NAV_BASE, NAV_METHODO]
-
-// Administrateurs : + Administration (Méthodologie après)
+// Administrateurs : + Administration + Méthodologie (réservée aux admins)
 const NAV_ADMIN = [
-  ...NAV_BASE,
-  { id: 'admin', icon: Settings, label: 'Administration' },
-  NAV_METHODO,
+  ...NAV_USER,
+  { id: 'admin',        icon: Settings, label: 'Administration' },
+  { id: 'methodologie', icon: BookOpen, label: 'Méthodologie'   },
 ]
 
 function NavItem({ item, active, onClick }) {

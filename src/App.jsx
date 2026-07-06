@@ -28,7 +28,7 @@ const PAGES = {
 
 // Pages interdites sans connexion
 const RESTRICTED  = ['rapports', 'export', 'graphiques']
-const ADMIN_ONLY  = ['admin']
+const ADMIN_ONLY  = ['admin', 'methodologie']
 
 const AUTH_ERRORS = {
   'auth/invalid-credential': 'Email ou mot de passe incorrect.',
@@ -39,9 +39,8 @@ const AUTH_ERRORS = {
 
 // ── Navigation mobile (labels courts) ────────────────────
 const MOB_PUBLIC = [
-  { id: 'dashboard',    icon: LayoutDashboard, label: 'Accueil' },
-  { id: 'ia',           icon: Bot,             label: 'IA'      },
-  { id: 'methodologie', icon: BookOpen,        label: 'Méthodo' },
+  { id: 'dashboard', icon: LayoutDashboard, label: 'Accueil' },
+  { id: 'ia',        icon: Bot,             label: 'IA'      },
 ]
 const MOB_USER = [
   { id: 'dashboard',  icon: LayoutDashboard, label: 'Accueil' },
@@ -52,7 +51,8 @@ const MOB_USER = [
 ]
 const MOB_ADMIN = [
   ...MOB_USER,
-  { id: 'admin', icon: Settings, label: 'Admin' },
+  { id: 'admin',        icon: Settings, label: 'Admin'   },
+  { id: 'methodologie', icon: BookOpen, label: 'Méthodo' },
 ]
 
 // ── Modale de connexion ───────────────────────────────────
