@@ -1766,24 +1766,18 @@ function AdminPage() {
   const [usersLoading, setUsersLoading] = useState(false)
   const [toast,       setToast]       = useState(null)
   const [modal,       setModal]       = useState(null)
-  const [seuilsSaved, setSeuilsSaved] = useState({})
   const [saving,      setSaving]      = useState(false)
-  const [localSeuils, setLocalSeuils] = useState([])  // copie editable des seuils Firestore
 
   // ── Données Firestore temps réel ───────────────────────
   const {
-    axes, troncons, seuils,
+    axes, troncons,
     loading, offline,
     saveAxe:      fsSaveAxe,
     deleteAxe:    fsDeleteAxe,
     toggleAxe:    fsToggleAxe,
     saveTroncon:  fsSaveTroncon,
     deleteTroncon: fsDeleteTroncon,
-    saveSeuil:    fsSaveSeuil,
   } = useAxesFirestore()
-
-  // Synchronise la copie editable locale a chaque mise a jour Firestore
-  useEffect(() => { setLocalSeuils(seuils) }, [seuils])
 
   // Chargement des utilisateurs depuis Firestore
   useEffect(() => {
@@ -1847,20 +1841,6 @@ function AdminPage() {
     } catch (err) {
       showToast('Erreur suppression : ' + err.message, 'error')
     } finally { setSaving(false) }
-  }
-
-  // Seuils
-  async function saveSeuil(axeId) {
-    const seuil = localSeuils.find(s => s.axeId === axeId)
-    if (!seuil) return
-    try {
-      await fsSaveSeuil(seuil)
-      setSeuilsSaved(prev => ({ ...prev, [axeId]: true }))
-      showToast('Seuils enregistrés dans Firestore')
-      setTimeout(() => setSeuilsSaved(prev => ({ ...prev, [axeId]: false })), 2500)
-    } catch (err) {
-      showToast('Erreur : ' + err.message, 'error')
-    }
   }
 
   // Utilisateurs
@@ -2107,44 +2087,41 @@ function AdminPage() {
       {tab === 'seuils' && (
         <div>
           <p style={{ fontSize: 13, color: C.textMuted, marginBottom: '1.25rem', lineHeight: 1.6 }}>
-            Définissez les seuils d'alerte (en minutes) pour chaque axe. Orange = alerte modérée, Rouge = alerte critique.
+            Les seuils d'alerte sont dérivés automatiquement du temps de référence de chaque axe :
+            <strong> Orange = T_ref × 1,4</strong> (alerte modérée), <strong>Rouge = T_ref × 1,8</strong> (alerte critique).
+            Ils suivent donc immédiatement tout recalibrage du temps de référence — aucune valeur n'est figée.
           </p>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            {localSeuils.map((s, i) => (
-              <div key={s.axeId} className="fp-card">
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
-                  <div style={{ width: 10, height: 10, borderRadius: '50%', background: DEFAULT_AXE_COLORS[s.axeId] ?? C.primary, flexShrink: 0 }} />
-                  <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{s.shortNom}</h3>
-                  {seuilsSaved[s.axeId] && (
-                    <span className="fp-badge fp-badge-green" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <CheckCircle size={11} /> Enregistré
-                    </span>
-                  )}
+            {axes.map(a => {
+              const tRef        = a.tRef ?? 0
+              const seuilOrange = Math.round(tRef * 1.4)
+              const seuilRouge  = Math.round(tRef * 1.8)
+              return (
+                <div key={a.id} className="fp-card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: DEFAULT_AXE_COLORS[a.id] ?? C.primary, flexShrink: 0 }} />
+                    <h3 style={{ fontSize: 14, fontWeight: 700, color: C.text }}>{a.shortNom ?? a.nom}</h3>
+                  </div>
+                  <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                    <div>
+                      <label className="fp-label">T_ref (min)</label>
+                      <input className="fp-input" style={{ width: 110, background: '#f8fafc' }} value={tRef} readOnly />
+                    </div>
+                    <div>
+                      <label className="fp-label" style={{ color: '#E67E22' }}>🟠 Seuil Orange (min)</label>
+                      <input className="fp-input" style={{ width: 130, borderColor: '#E67E22', background: '#f8fafc' }} value={seuilOrange} readOnly />
+                    </div>
+                    <div>
+                      <label className="fp-label" style={{ color: '#C0392B' }}>🔴 Seuil Rouge (min)</label>
+                      <input className="fp-input" style={{ width: 130, borderColor: '#C0392B', background: '#f8fafc' }} value={seuilRouge} readOnly />
+                    </div>
+                  </div>
+                  <p style={{ fontSize: 11, color: C.textLight, marginTop: '0.75rem' }}>
+                    Ratios — Orange : ×1,40 · Rouge : ×1,80 par rapport au T_ref
+                  </p>
                 </div>
-                <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <div>
-                    <label className="fp-label">T_ref (min)</label>
-                    <input className="fp-input" style={{ width: 110, background: '#f8fafc' }} value={s.tRef} readOnly />
-                  </div>
-                  <div>
-                    <label className="fp-label" style={{ color: '#E67E22' }}>🟠 Seuil Orange (min)</label>
-                    <input className="fp-input" style={{ width: 130, borderColor: '#E67E22' }} type="number" min={s.tRef} value={s.seuilOrange}
-                      onChange={e => setLocalSeuils(prev => prev.map((x, j) => j === i ? { ...x, seuilOrange: +e.target.value } : x))} />
-                  </div>
-                  <div>
-                    <label className="fp-label" style={{ color: '#C0392B' }}>🔴 Seuil Rouge (min)</label>
-                    <input className="fp-input" style={{ width: 130, borderColor: '#C0392B' }} type="number" min={s.seuilOrange} value={s.seuilRouge}
-                      onChange={e => setLocalSeuils(prev => prev.map((x, j) => j === i ? { ...x, seuilRouge: +e.target.value } : x))} />
-                  </div>
-                  <button className="fp-btn fp-btn-primary" onClick={() => saveSeuil(s.axeId)} disabled={seuilsSaved[s.axeId]}>
-                    <Save size={13} /> Enregistrer
-                  </button>
-                </div>
-                <p style={{ fontSize: 11, color: C.textLight, marginTop: '0.75rem' }}>
-                  Ratios — Orange : ×{(s.seuilOrange / s.tRef).toFixed(2)} · Rouge : ×{(s.seuilRouge / s.tRef).toFixed(2)} par rapport au T_ref
-                </p>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       )}
