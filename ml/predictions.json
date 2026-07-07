@@ -1,1690 +1,1697 @@
 {
   "meta": {
     "modele": "RandomForestClassifier",
-    "accuracy": 0.7918,
-    "date_entrainement": "2026-06-19T11:06:21.470417",
-    "note": "POC niveau axe — base réelle février 2025 (2016 mesures)"
+    "accuracy": 0.8236,
+    "date_entrainement": "2026-07-07T08:12:45.539155",
+    "note": "Modèle combiné historique + live — 11204 mesures totales",
+    "n_records_histo": 2016,
+    "n_records_live": 9188,
+    "n_records_total": 11204,
+    "sources": [
+      "portflow_mesures_normalisees.csv (2016 mesures, fév. 2025)",
+      "collecte_auto.csv (9188 mesures live)"
+    ]
   },
   "predictions": {
     "axe1_aller_lundi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 24.8
+      "confiance_pct": 94.1,
+      "temps_prevu_min": 23.5
     },
     "axe1_aller_lundi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.3,
-      "temps_prevu_min": 25.8
+      "confiance_pct": 96.6,
+      "temps_prevu_min": 25.2
     },
     "axe1_aller_lundi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.5,
-      "temps_prevu_min": 26.0
+      "confiance_pct": 93.4,
+      "temps_prevu_min": 26.9
     },
     "axe1_aller_lundi_10h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 76.9,
-      "temps_prevu_min": 31.5
+      "niveau_prevu": 1,
+      "confiance_pct": 77.2,
+      "temps_prevu_min": 29.7
     },
     "axe1_aller_lundi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 32.1,
-      "temps_prevu_min": 34.8
+      "niveau_prevu": 1,
+      "confiance_pct": 82.4,
+      "temps_prevu_min": 29.2
     },
     "axe1_aller_lundi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 47.0,
-      "temps_prevu_min": 36.0
+      "niveau_prevu": 1,
+      "confiance_pct": 81.7,
+      "temps_prevu_min": 28.5
     },
     "axe1_aller_lundi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 43.8,
-      "temps_prevu_min": 33.5
+      "confiance_pct": 85.6,
+      "temps_prevu_min": 29.1
     },
     "axe1_aller_lundi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 90.8,
-      "temps_prevu_min": 28.2
+      "confiance_pct": 87.3,
+      "temps_prevu_min": 28.1
     },
     "axe1_aller_lundi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 83.8,
-      "temps_prevu_min": 29.2
+      "confiance_pct": 84.6,
+      "temps_prevu_min": 27.7
     },
     "axe1_aller_lundi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 86.2,
+      "confiance_pct": 82.7,
       "temps_prevu_min": 27.8
     },
     "axe1_aller_lundi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 82.5,
-      "temps_prevu_min": 28.2
+      "confiance_pct": 69.6,
+      "temps_prevu_min": 28.3
     },
     "axe1_aller_lundi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 76.1,
-      "temps_prevu_min": 26.5
+      "confiance_pct": 96.7,
+      "temps_prevu_min": 24.4
     },
     "axe1_aller_mardi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.5,
-      "temps_prevu_min": 25.0
+      "confiance_pct": 46.1,
+      "temps_prevu_min": 35.7
     },
     "axe1_aller_mardi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 70.8,
-      "temps_prevu_min": 27.5
+      "confiance_pct": 55.5,
+      "temps_prevu_min": 33.5
     },
     "axe1_aller_mardi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 71.6,
-      "temps_prevu_min": 29.5
+      "confiance_pct": 65.7,
+      "temps_prevu_min": 29.2
     },
     "axe1_aller_mardi_10h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 62.4,
+      "niveau_prevu": 1,
+      "confiance_pct": 56.4,
       "temps_prevu_min": 32.0
     },
     "axe1_aller_mardi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 48.6,
-      "temps_prevu_min": 34.0
+      "niveau_prevu": 1,
+      "confiance_pct": 57.4,
+      "temps_prevu_min": 28.7
     },
     "axe1_aller_mardi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 46.8,
+      "niveau_prevu": 1,
+      "confiance_pct": 56.9,
       "temps_prevu_min": 33.5
     },
     "axe1_aller_mardi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 75.4,
+      "confiance_pct": 65.8,
       "temps_prevu_min": 30.5
     },
     "axe1_aller_mardi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 88.0,
-      "temps_prevu_min": 28.5
+      "confiance_pct": 67.0,
+      "temps_prevu_min": 25.0
     },
     "axe1_aller_mardi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 73.1,
+      "confiance_pct": 65.0,
       "temps_prevu_min": 29.5
     },
     "axe1_aller_mardi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 75.0,
-      "temps_prevu_min": 29.8
+      "confiance_pct": 64.9,
+      "temps_prevu_min": 25.8
     },
     "axe1_aller_mardi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 73.4,
+      "confiance_pct": 61.0,
       "temps_prevu_min": 28.2
     },
     "axe1_aller_mardi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 87.4,
-      "temps_prevu_min": 26.0
+      "confiance_pct": 92.8,
+      "temps_prevu_min": 23.3
     },
     "axe1_aller_mercredi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.8,
+      "confiance_pct": 90.1,
       "temps_prevu_min": 25.0
     },
     "axe1_aller_mercredi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.7,
+      "confiance_pct": 91.6,
       "temps_prevu_min": 25.2
     },
     "axe1_aller_mercredi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.1,
-      "temps_prevu_min": 27.2
+      "confiance_pct": 80.0,
+      "temps_prevu_min": 23.4
     },
     "axe1_aller_mercredi_10h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 52.4,
-      "temps_prevu_min": 30.2
+      "niveau_prevu": 1,
+      "confiance_pct": 57.6,
+      "temps_prevu_min": 30.4
     },
     "axe1_aller_mercredi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 39.4,
+      "niveau_prevu": 1,
+      "confiance_pct": 58.3,
       "temps_prevu_min": 31.8
     },
     "axe1_aller_mercredi_12h": {
-      "niveau_prevu": 3,
-      "confiance_pct": 43.4,
-      "temps_prevu_min": 35.5
+      "niveau_prevu": 1,
+      "confiance_pct": 57.9,
+      "temps_prevu_min": 29.7
     },
     "axe1_aller_mercredi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 61.9,
+      "confiance_pct": 64.4,
       "temps_prevu_min": 31.0
     },
     "axe1_aller_mercredi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 88.9,
+      "confiance_pct": 65.2,
       "temps_prevu_min": 26.8
     },
     "axe1_aller_mercredi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 76.5,
-      "temps_prevu_min": 29.0
+      "confiance_pct": 63.2,
+      "temps_prevu_min": 25.0
     },
     "axe1_aller_mercredi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 79.7,
+      "confiance_pct": 62.7,
       "temps_prevu_min": 26.0
     },
     "axe1_aller_mercredi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 76.1,
-      "temps_prevu_min": 29.8
+      "confiance_pct": 58.5,
+      "temps_prevu_min": 25.3
     },
     "axe1_aller_mercredi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 91.4,
+      "confiance_pct": 93.8,
       "temps_prevu_min": 24.8
     },
     "axe1_aller_jeudi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 24.8
+      "confiance_pct": 91.6,
+      "temps_prevu_min": 21.4
     },
     "axe1_aller_jeudi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.7,
+      "confiance_pct": 92.1,
       "temps_prevu_min": 25.8
     },
     "axe1_aller_jeudi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 78.5,
-      "temps_prevu_min": 29.5
+      "confiance_pct": 77.8,
+      "temps_prevu_min": 29.6
     },
     "axe1_aller_jeudi_10h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 51.9,
-      "temps_prevu_min": 32.8
+      "niveau_prevu": 1,
+      "confiance_pct": 56.7,
+      "temps_prevu_min": 27.8
     },
     "axe1_aller_jeudi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 63.4,
+      "niveau_prevu": 1,
+      "confiance_pct": 57.4,
       "temps_prevu_min": 35.5
     },
     "axe1_aller_jeudi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 50.2,
+      "niveau_prevu": 1,
+      "confiance_pct": 56.9,
       "temps_prevu_min": 32.5
     },
     "axe1_aller_jeudi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 71.0,
-      "temps_prevu_min": 29.5
+      "confiance_pct": 62.2,
+      "temps_prevu_min": 25.0
     },
     "axe1_aller_jeudi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 96.4,
-      "temps_prevu_min": 28.5
+      "confiance_pct": 62.3,
+      "temps_prevu_min": 29.5
     },
     "axe1_aller_jeudi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 96.9,
-      "temps_prevu_min": 28.0
+      "confiance_pct": 59.3,
+      "temps_prevu_min": 29.5
     },
     "axe1_aller_jeudi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 96.8,
-      "temps_prevu_min": 27.2
+      "confiance_pct": 57.7,
+      "temps_prevu_min": 30.3
     },
     "axe1_aller_jeudi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 95.7,
-      "temps_prevu_min": 27.0
+      "confiance_pct": 55.4,
+      "temps_prevu_min": 31.5
     },
     "axe1_aller_jeudi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.7,
-      "temps_prevu_min": 25.0
+      "confiance_pct": 95.9,
+      "temps_prevu_min": 24.9
     },
     "axe1_aller_vendredi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 24.8
+      "confiance_pct": 93.4,
+      "temps_prevu_min": 24.3
     },
     "axe1_aller_vendredi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 24.5
+      "confiance_pct": 93.1,
+      "temps_prevu_min": 24.9
     },
     "axe1_aller_vendredi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.7,
-      "temps_prevu_min": 25.0
+      "confiance_pct": 79.4,
+      "temps_prevu_min": 27.1
     },
     "axe1_aller_vendredi_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 80.8,
-      "temps_prevu_min": 26.5
+      "confiance_pct": 60.0,
+      "temps_prevu_min": 27.8
     },
     "axe1_aller_vendredi_11h": {
       "niveau_prevu": 1,
-      "confiance_pct": 95.7,
-      "temps_prevu_min": 25.2
+      "confiance_pct": 60.3,
+      "temps_prevu_min": 28.7
     },
     "axe1_aller_vendredi_12h": {
       "niveau_prevu": 1,
-      "confiance_pct": 95.7,
-      "temps_prevu_min": 25.5
+      "confiance_pct": 59.8,
+      "temps_prevu_min": 30.3
     },
     "axe1_aller_vendredi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 74.8,
-      "temps_prevu_min": 27.0
+      "confiance_pct": 64.6,
+      "temps_prevu_min": 27.5
     },
     "axe1_aller_vendredi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 82.2,
-      "temps_prevu_min": 27.5
+      "confiance_pct": 64.7,
+      "temps_prevu_min": 28.4
     },
     "axe1_aller_vendredi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.2,
-      "temps_prevu_min": 23.8
+      "confiance_pct": 61.8,
+      "temps_prevu_min": 28.4
     },
     "axe1_aller_vendredi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.7,
-      "temps_prevu_min": 25.0
+      "confiance_pct": 59.9,
+      "temps_prevu_min": 28.6
     },
     "axe1_aller_vendredi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.7,
-      "temps_prevu_min": 24.2
+      "confiance_pct": 61.9,
+      "temps_prevu_min": 29.0
     },
     "axe1_aller_vendredi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.4,
-      "temps_prevu_min": 23.5
+      "confiance_pct": 95.7,
+      "temps_prevu_min": 25.7
     },
     "axe1_aller_samedi_7h": {
       "niveau_prevu": 1,
       "confiance_pct": 100.0,
-      "temps_prevu_min": 21.2
+      "temps_prevu_min": 22.7
     },
     "axe1_aller_samedi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 23.0
+      "confiance_pct": 99.7,
+      "temps_prevu_min": 24.1
     },
     "axe1_aller_samedi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 23.5
+      "confiance_pct": 99.0,
+      "temps_prevu_min": 23.9
     },
     "axe1_aller_samedi_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.1,
-      "temps_prevu_min": 22.8
+      "confiance_pct": 98.9,
+      "temps_prevu_min": 25.6
     },
     "axe1_aller_samedi_11h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.8,
-      "temps_prevu_min": 23.0
+      "confiance_pct": 98.7,
+      "temps_prevu_min": 25.8
     },
     "axe1_aller_samedi_12h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 23.2
+      "confiance_pct": 98.6,
+      "temps_prevu_min": 27.0
     },
     "axe1_aller_samedi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.4,
-      "temps_prevu_min": 23.8
+      "confiance_pct": 99.1,
+      "temps_prevu_min": 26.3
     },
     "axe1_aller_samedi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.7,
-      "temps_prevu_min": 23.8
+      "confiance_pct": 99.6,
+      "temps_prevu_min": 23.6
     },
     "axe1_aller_samedi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.4,
-      "temps_prevu_min": 23.5
+      "confiance_pct": 99.0,
+      "temps_prevu_min": 25.0
     },
     "axe1_aller_samedi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.4,
-      "temps_prevu_min": 23.8
+      "confiance_pct": 99.2,
+      "temps_prevu_min": 24.1
     },
     "axe1_aller_samedi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.4,
-      "temps_prevu_min": 23.5
+      "confiance_pct": 99.0,
+      "temps_prevu_min": 24.8
     },
     "axe1_aller_samedi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 23.2
+      "confiance_pct": 99.8,
+      "temps_prevu_min": 24.4
     },
     "axe1_aller_dimanche_7h": {
       "niveau_prevu": 1,
       "confiance_pct": 100.0,
-      "temps_prevu_min": 24.8
+      "temps_prevu_min": 20.1
     },
     "axe1_aller_dimanche_8h": {
       "niveau_prevu": 1,
       "confiance_pct": 100.0,
-      "temps_prevu_min": 25.2
+      "temps_prevu_min": 20.3
     },
     "axe1_aller_dimanche_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.4,
-      "temps_prevu_min": 27.8
+      "confiance_pct": 97.5,
+      "temps_prevu_min": 21.3
     },
     "axe1_aller_dimanche_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 53.6,
-      "temps_prevu_min": 30.5
+      "confiance_pct": 85.9,
+      "temps_prevu_min": 22.8
     },
     "axe1_aller_dimanche_11h": {
       "niveau_prevu": 1,
-      "confiance_pct": 68.6,
-      "temps_prevu_min": 30.2
+      "confiance_pct": 88.0,
+      "temps_prevu_min": 22.0
     },
     "axe1_aller_dimanche_12h": {
       "niveau_prevu": 1,
-      "confiance_pct": 37.1,
-      "temps_prevu_min": 31.0
+      "confiance_pct": 90.5,
+      "temps_prevu_min": 22.9
     },
     "axe1_aller_dimanche_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 95.6,
-      "temps_prevu_min": 27.0
+      "confiance_pct": 97.0,
+      "temps_prevu_min": 22.2
     },
     "axe1_aller_dimanche_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 94.2,
-      "temps_prevu_min": 25.5
+      "confiance_pct": 97.2,
+      "temps_prevu_min": 20.8
     },
     "axe1_aller_dimanche_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 72.7,
-      "temps_prevu_min": 28.2
+      "confiance_pct": 96.7,
+      "temps_prevu_min": 22.5
     },
     "axe1_aller_dimanche_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 76.0,
-      "temps_prevu_min": 28.2
+      "confiance_pct": 97.2,
+      "temps_prevu_min": 21.5
     },
     "axe1_aller_dimanche_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 74.7,
-      "temps_prevu_min": 28.8
+      "confiance_pct": 96.1,
+      "temps_prevu_min": 22.8
     },
     "axe1_aller_dimanche_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 88.5,
-      "temps_prevu_min": 27.5
+      "confiance_pct": 98.8,
+      "temps_prevu_min": 22.4
     },
     "axe1_retour_lundi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 32.0
+      "confiance_pct": 96.8,
+      "temps_prevu_min": 26.1
     },
     "axe1_retour_lundi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.2,
-      "temps_prevu_min": 32.8
+      "confiance_pct": 98.3,
+      "temps_prevu_min": 29.4
     },
     "axe1_retour_lundi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.1,
-      "temps_prevu_min": 35.8
+      "confiance_pct": 96.2,
+      "temps_prevu_min": 31.7
     },
     "axe1_retour_lundi_10h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 84.4,
-      "temps_prevu_min": 39.0
+      "niveau_prevu": 1,
+      "confiance_pct": 87.6,
+      "temps_prevu_min": 33.5
     },
     "axe1_retour_lundi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 56.3,
-      "temps_prevu_min": 40.8
+      "niveau_prevu": 1,
+      "confiance_pct": 83.5,
+      "temps_prevu_min": 34.8
     },
     "axe1_retour_lundi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 51.8,
-      "temps_prevu_min": 42.2
+      "niveau_prevu": 1,
+      "confiance_pct": 83.6,
+      "temps_prevu_min": 33.4
     },
     "axe1_retour_lundi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 41.4,
-      "temps_prevu_min": 42.0
+      "confiance_pct": 89.3,
+      "temps_prevu_min": 34.8
     },
     "axe1_retour_lundi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 88.2,
-      "temps_prevu_min": 36.0
+      "confiance_pct": 91.0,
+      "temps_prevu_min": 33.4
     },
     "axe1_retour_lundi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 89.6,
-      "temps_prevu_min": 36.0
+      "confiance_pct": 86.9,
+      "temps_prevu_min": 34.5
     },
     "axe1_retour_lundi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 57.6,
-      "temps_prevu_min": 40.5
+      "confiance_pct": 43.3,
+      "temps_prevu_min": 40.1
     },
     "axe1_retour_lundi_17h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 54.6,
-      "temps_prevu_min": 42.2
+      "niveau_prevu": 3,
+      "confiance_pct": 44.9,
+      "temps_prevu_min": 44.5
     },
     "axe1_retour_lundi_18h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 50.4,
-      "temps_prevu_min": 39.2
+      "niveau_prevu": 2,
+      "confiance_pct": 41.1,
+      "temps_prevu_min": 40.1
     },
     "axe1_retour_mardi_7h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.3,
-      "temps_prevu_min": 32.5
+      "niveau_prevu": 2,
+      "confiance_pct": 57.6,
+      "temps_prevu_min": 36.8
     },
     "axe1_retour_mardi_8h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 67.5,
-      "temps_prevu_min": 33.0
+      "niveau_prevu": 2,
+      "confiance_pct": 51.2,
+      "temps_prevu_min": 36.3
     },
     "axe1_retour_mardi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 51.6,
-      "temps_prevu_min": 40.2
+      "confiance_pct": 57.7,
+      "temps_prevu_min": 40.0
     },
     "axe1_retour_mardi_10h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 66.3,
+      "niveau_prevu": 1,
+      "confiance_pct": 57.6,
       "temps_prevu_min": 40.2
     },
     "axe1_retour_mardi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 66.4,
-      "temps_prevu_min": 41.2
+      "niveau_prevu": 1,
+      "confiance_pct": 58.7,
+      "temps_prevu_min": 35.3
     },
     "axe1_retour_mardi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 60.1,
+      "niveau_prevu": 1,
+      "confiance_pct": 59.6,
       "temps_prevu_min": 39.2
     },
     "axe1_retour_mardi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 82.4,
+      "confiance_pct": 67.5,
       "temps_prevu_min": 36.2
     },
     "axe1_retour_mardi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 74.0,
-      "temps_prevu_min": 38.2
+      "confiance_pct": 67.8,
+      "temps_prevu_min": 33.3
     },
     "axe1_retour_mardi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 61.0,
+      "confiance_pct": 63.2,
       "temps_prevu_min": 42.5
     },
     "axe1_retour_mardi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 38.9,
-      "temps_prevu_min": 46.5
+      "confiance_pct": 55.5,
+      "temps_prevu_min": 38.8
     },
     "axe1_retour_mardi_17h": {
-      "niveau_prevu": 3,
-      "confiance_pct": 44.4,
+      "niveau_prevu": 1,
+      "confiance_pct": 36.3,
       "temps_prevu_min": 47.0
     },
     "axe1_retour_mardi_18h": {
-      "niveau_prevu": 3,
-      "confiance_pct": 42.4,
-      "temps_prevu_min": 43.0
+      "niveau_prevu": 1,
+      "confiance_pct": 51.0,
+      "temps_prevu_min": 36.5
     },
     "axe1_retour_mercredi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
+      "confiance_pct": 87.1,
       "temps_prevu_min": 30.8
     },
     "axe1_retour_mercredi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.6,
+      "confiance_pct": 87.8,
       "temps_prevu_min": 32.5
     },
     "axe1_retour_mercredi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 66.3,
-      "temps_prevu_min": 35.5
+      "confiance_pct": 74.5,
+      "temps_prevu_min": 30.0
     },
     "axe1_retour_mercredi_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 82.8,
-      "temps_prevu_min": 35.5
+      "confiance_pct": 67.8,
+      "temps_prevu_min": 34.6
     },
     "axe1_retour_mercredi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 66.5,
+      "niveau_prevu": 1,
+      "confiance_pct": 57.3,
       "temps_prevu_min": 41.0
     },
     "axe1_retour_mercredi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 51.1,
-      "temps_prevu_min": 42.8
+      "niveau_prevu": 1,
+      "confiance_pct": 56.8,
+      "temps_prevu_min": 35.7
     },
     "axe1_retour_mercredi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 65.7,
+      "confiance_pct": 64.4,
       "temps_prevu_min": 39.5
     },
     "axe1_retour_mercredi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 66.4,
+      "confiance_pct": 64.7,
       "temps_prevu_min": 39.0
     },
     "axe1_retour_mercredi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 59.4,
-      "temps_prevu_min": 40.2
+      "confiance_pct": 61.2,
+      "temps_prevu_min": 35.3
     },
     "axe1_retour_mercredi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 50.9,
+      "confiance_pct": 54.1,
       "temps_prevu_min": 42.0
     },
     "axe1_retour_mercredi_17h": {
-      "niveau_prevu": 3,
-      "confiance_pct": 36.9,
-      "temps_prevu_min": 49.2
+      "niveau_prevu": 1,
+      "confiance_pct": 33.9,
+      "temps_prevu_min": 41.8
     },
     "axe1_retour_mercredi_18h": {
-      "niveau_prevu": 3,
-      "confiance_pct": 65.9,
+      "niveau_prevu": 1,
+      "confiance_pct": 44.9,
       "temps_prevu_min": 43.2
     },
     "axe1_retour_jeudi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 33.2
+      "confiance_pct": 94.0,
+      "temps_prevu_min": 28.2
     },
     "axe1_retour_jeudi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
+      "confiance_pct": 94.4,
       "temps_prevu_min": 33.5
     },
     "axe1_retour_jeudi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.5,
-      "temps_prevu_min": 36.8
+      "confiance_pct": 88.4,
+      "temps_prevu_min": 36.2
     },
     "axe1_retour_jeudi_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 94.6,
-      "temps_prevu_min": 38.5
+      "confiance_pct": 78.7,
+      "temps_prevu_min": 32.4
     },
     "axe1_retour_jeudi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 47.3,
+      "niveau_prevu": 1,
+      "confiance_pct": 69.9,
       "temps_prevu_min": 41.5
     },
     "axe1_retour_jeudi_12h": {
-      "niveau_prevu": 3,
-      "confiance_pct": 40.6,
+      "niveau_prevu": 1,
+      "confiance_pct": 68.2,
       "temps_prevu_min": 43.8
     },
     "axe1_retour_jeudi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 50.7,
-      "temps_prevu_min": 38.8
+      "confiance_pct": 76.0,
+      "temps_prevu_min": 33.0
     },
     "axe1_retour_jeudi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 65.6,
-      "temps_prevu_min": 37.5
+      "confiance_pct": 76.5,
+      "temps_prevu_min": 36.7
     },
     "axe1_retour_jeudi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 85.9,
-      "temps_prevu_min": 35.8
+      "confiance_pct": 74.9,
+      "temps_prevu_min": 36.0
     },
     "axe1_retour_jeudi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 71.9,
-      "temps_prevu_min": 36.0
+      "confiance_pct": 62.5,
+      "temps_prevu_min": 36.2
     },
     "axe1_retour_jeudi_17h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 64.1,
-      "temps_prevu_min": 42.2
+      "niveau_prevu": 1,
+      "confiance_pct": 31.1,
+      "temps_prevu_min": 48.4
     },
     "axe1_retour_jeudi_18h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 66.0,
-      "temps_prevu_min": 39.8
+      "niveau_prevu": 1,
+      "confiance_pct": 71.1,
+      "temps_prevu_min": 37.5
     },
     "axe1_retour_vendredi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 28.5
+      "confiance_pct": 96.8,
+      "temps_prevu_min": 25.8
     },
     "axe1_retour_vendredi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 28.8
+      "confiance_pct": 96.9,
+      "temps_prevu_min": 29.3
     },
     "axe1_retour_vendredi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 32.0
+      "confiance_pct": 92.1,
+      "temps_prevu_min": 35.5
     },
     "axe1_retour_vendredi_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.4,
-      "temps_prevu_min": 31.2
+      "confiance_pct": 82.8,
+      "temps_prevu_min": 34.5
     },
     "axe1_retour_vendredi_11h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.7,
-      "temps_prevu_min": 32.8
+      "confiance_pct": 76.6,
+      "temps_prevu_min": 36.8
     },
     "axe1_retour_vendredi_12h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 32.5
+      "confiance_pct": 62.1,
+      "temps_prevu_min": 39.5
     },
     "axe1_retour_vendredi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.7,
-      "temps_prevu_min": 32.2
+      "confiance_pct": 73.7,
+      "temps_prevu_min": 33.8
     },
     "axe1_retour_vendredi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 29.8
+      "confiance_pct": 71.8,
+      "temps_prevu_min": 36.3
     },
     "axe1_retour_vendredi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 31.8
+      "confiance_pct": 60.3,
+      "temps_prevu_min": 39.4
     },
     "axe1_retour_vendredi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 29.2
+      "confiance_pct": 49.8,
+      "temps_prevu_min": 37.2
     },
     "axe1_retour_vendredi_17h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 95.1,
-      "temps_prevu_min": 26.2
+      "niveau_prevu": 2,
+      "confiance_pct": 51.2,
+      "temps_prevu_min": 38.9
     },
     "axe1_retour_vendredi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.6,
-      "temps_prevu_min": 27.5
+      "confiance_pct": 88.8,
+      "temps_prevu_min": 31.7
     },
     "axe1_retour_samedi_7h": {
       "niveau_prevu": 1,
       "confiance_pct": 100.0,
-      "temps_prevu_min": 26.8
+      "temps_prevu_min": 25.5
     },
     "axe1_retour_samedi_8h": {
       "niveau_prevu": 1,
       "confiance_pct": 100.0,
-      "temps_prevu_min": 26.8
+      "temps_prevu_min": 26.9
     },
     "axe1_retour_samedi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 26.2
+      "confiance_pct": 99.8,
+      "temps_prevu_min": 25.7
     },
     "axe1_retour_samedi_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.6,
-      "temps_prevu_min": 27.0
+      "confiance_pct": 99.4,
+      "temps_prevu_min": 28.3
     },
     "axe1_retour_samedi_11h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.7,
-      "temps_prevu_min": 26.5
+      "confiance_pct": 99.3,
+      "temps_prevu_min": 28.3
     },
     "axe1_retour_samedi_12h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 27.2
+      "confiance_pct": 99.4,
+      "temps_prevu_min": 31.4
     },
     "axe1_retour_samedi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 26.8
+      "confiance_pct": 99.5,
+      "temps_prevu_min": 32.3
     },
     "axe1_retour_samedi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 27.8
+      "confiance_pct": 99.6,
+      "temps_prevu_min": 29.8
     },
     "axe1_retour_samedi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 26.8
+      "confiance_pct": 99.3,
+      "temps_prevu_min": 29.8
     },
     "axe1_retour_samedi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 27.0
+      "confiance_pct": 99.2,
+      "temps_prevu_min": 28.8
     },
     "axe1_retour_samedi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 98.0,
-      "temps_prevu_min": 28.2
+      "confiance_pct": 98.5,
+      "temps_prevu_min": 29.7
     },
     "axe1_retour_samedi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.6,
-      "temps_prevu_min": 27.2
+      "confiance_pct": 99.3,
+      "temps_prevu_min": 28.6
     },
     "axe1_retour_dimanche_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 28.2
+      "confiance_pct": 99.8,
+      "temps_prevu_min": 23.1
     },
     "axe1_retour_dimanche_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 29.8
+      "confiance_pct": 99.7,
+      "temps_prevu_min": 23.4
     },
     "axe1_retour_dimanche_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 68.2,
-      "temps_prevu_min": 33.2
+      "confiance_pct": 94.5,
+      "temps_prevu_min": 24.5
     },
     "axe1_retour_dimanche_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 51.5,
-      "temps_prevu_min": 40.5
+      "confiance_pct": 87.2,
+      "temps_prevu_min": 27.1
     },
     "axe1_retour_dimanche_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 60.2,
-      "temps_prevu_min": 40.2
+      "niveau_prevu": 1,
+      "confiance_pct": 86.7,
+      "temps_prevu_min": 27.0
     },
     "axe1_retour_dimanche_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 52.8,
-      "temps_prevu_min": 42.0
+      "niveau_prevu": 1,
+      "confiance_pct": 91.9,
+      "temps_prevu_min": 28.1
     },
     "axe1_retour_dimanche_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 73.4,
-      "temps_prevu_min": 39.5
+      "confiance_pct": 93.2,
+      "temps_prevu_min": 27.2
     },
     "axe1_retour_dimanche_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 94.8,
-      "temps_prevu_min": 33.8
+      "confiance_pct": 94.0,
+      "temps_prevu_min": 24.9
     },
     "axe1_retour_dimanche_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 89.3,
-      "temps_prevu_min": 35.2
+      "confiance_pct": 91.4,
+      "temps_prevu_min": 26.1
     },
     "axe1_retour_dimanche_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 51.2,
-      "temps_prevu_min": 38.2
+      "confiance_pct": 88.0,
+      "temps_prevu_min": 25.9
     },
     "axe1_retour_dimanche_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 35.2,
-      "temps_prevu_min": 44.5
+      "confiance_pct": 84.4,
+      "temps_prevu_min": 29.2
     },
     "axe1_retour_dimanche_18h": {
-      "niveau_prevu": 4,
-      "confiance_pct": 51.6,
-      "temps_prevu_min": 50.8
+      "niveau_prevu": 1,
+      "confiance_pct": 84.4,
+      "temps_prevu_min": 29.6
     },
     "axe2_aller_lundi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 14.5
+      "confiance_pct": 92.6,
+      "temps_prevu_min": 14.7
     },
     "axe2_aller_lundi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.3,
-      "temps_prevu_min": 16.5
+      "confiance_pct": 96.1,
+      "temps_prevu_min": 16.1
     },
     "axe2_aller_lundi_9h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 17.5
+      "niveau_prevu": 2,
+      "confiance_pct": 48.0,
+      "temps_prevu_min": 18.3
     },
     "axe2_aller_lundi_10h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 45.5,
-      "temps_prevu_min": 19.5
+      "niveau_prevu": 2,
+      "confiance_pct": 56.3,
+      "temps_prevu_min": 20.4
     },
     "axe2_aller_lundi_11h": {
       "niveau_prevu": 2,
-      "confiance_pct": 46.3,
-      "temps_prevu_min": 20.5
+      "confiance_pct": 57.1,
+      "temps_prevu_min": 20.9
     },
     "axe2_aller_lundi_12h": {
       "niveau_prevu": 2,
-      "confiance_pct": 51.6,
-      "temps_prevu_min": 23.5
+      "confiance_pct": 59.8,
+      "temps_prevu_min": 21.4
     },
     "axe2_aller_lundi_13h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 49.3,
-      "temps_prevu_min": 23.5
+      "niveau_prevu": 2,
+      "confiance_pct": 60.9,
+      "temps_prevu_min": 20.9
     },
     "axe2_aller_lundi_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 75.3,
-      "temps_prevu_min": 17.0
+      "niveau_prevu": 2,
+      "confiance_pct": 58.7,
+      "temps_prevu_min": 19.0
     },
     "axe2_aller_lundi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 72.6,
-      "temps_prevu_min": 18.8
+      "confiance_pct": 43.5,
+      "temps_prevu_min": 18.7
     },
     "axe2_aller_lundi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 81.9,
-      "temps_prevu_min": 17.5
+      "confiance_pct": 39.3,
+      "temps_prevu_min": 18.6
     },
     "axe2_aller_lundi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 84.3,
-      "temps_prevu_min": 17.5
+      "confiance_pct": 36.4,
+      "temps_prevu_min": 20.9
     },
     "axe2_aller_lundi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 93.9,
-      "temps_prevu_min": 16.0
+      "confiance_pct": 87.7,
+      "temps_prevu_min": 15.5
     },
     "axe2_aller_mardi_7h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 14.0
+      "niveau_prevu": 3,
+      "confiance_pct": 60.4,
+      "temps_prevu_min": 19.9
     },
     "axe2_aller_mardi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 15.0
+      "confiance_pct": 47.8,
+      "temps_prevu_min": 17.9
     },
     "axe2_aller_mardi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 17.0
+      "confiance_pct": 49.4,
+      "temps_prevu_min": 18.0
     },
     "axe2_aller_mardi_10h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 75.0,
+      "niveau_prevu": 2,
+      "confiance_pct": 41.8,
       "temps_prevu_min": 18.2
     },
     "axe2_aller_mardi_11h": {
       "niveau_prevu": 2,
-      "confiance_pct": 40.8,
-      "temps_prevu_min": 19.0
+      "confiance_pct": 44.4,
+      "temps_prevu_min": 19.6
     },
     "axe2_aller_mardi_12h": {
       "niveau_prevu": 2,
-      "confiance_pct": 52.9,
+      "confiance_pct": 48.1,
       "temps_prevu_min": 20.2
     },
     "axe2_aller_mardi_13h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 53.0,
+      "niveau_prevu": 2,
+      "confiance_pct": 50.0,
       "temps_prevu_min": 19.2
     },
     "axe2_aller_mardi_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 76.5,
-      "temps_prevu_min": 17.5
+      "niveau_prevu": 2,
+      "confiance_pct": 48.8,
+      "temps_prevu_min": 18.6
     },
     "axe2_aller_mardi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 66.9,
+      "confiance_pct": 47.2,
       "temps_prevu_min": 17.5
     },
     "axe2_aller_mardi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 60.8,
-      "temps_prevu_min": 19.0
+      "confiance_pct": 42.6,
+      "temps_prevu_min": 19.6
     },
     "axe2_aller_mardi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 62.7,
+      "confiance_pct": 42.6,
       "temps_prevu_min": 19.5
     },
     "axe2_aller_mardi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 76.2,
-      "temps_prevu_min": 18.2
+      "confiance_pct": 60.5,
+      "temps_prevu_min": 19.1
     },
     "axe2_aller_mercredi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
+      "confiance_pct": 81.7,
       "temps_prevu_min": 14.5
     },
     "axe2_aller_mercredi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
+      "confiance_pct": 81.5,
       "temps_prevu_min": 15.0
     },
     "axe2_aller_mercredi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.4,
-      "temps_prevu_min": 16.5
+      "confiance_pct": 56.6,
+      "temps_prevu_min": 17.2
     },
     "axe2_aller_mercredi_10h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 75.2,
-      "temps_prevu_min": 18.2
+      "niveau_prevu": 2,
+      "confiance_pct": 41.3,
+      "temps_prevu_min": 18.5
     },
     "axe2_aller_mercredi_11h": {
       "niveau_prevu": 2,
-      "confiance_pct": 46.9,
+      "confiance_pct": 44.3,
       "temps_prevu_min": 19.5
     },
     "axe2_aller_mercredi_12h": {
       "niveau_prevu": 2,
-      "confiance_pct": 58.4,
-      "temps_prevu_min": 22.0
+      "confiance_pct": 46.5,
+      "temps_prevu_min": 21.6
     },
     "axe2_aller_mercredi_13h": {
       "niveau_prevu": 2,
-      "confiance_pct": 52.9,
+      "confiance_pct": 46.8,
       "temps_prevu_min": 18.8
     },
     "axe2_aller_mercredi_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 85.0,
+      "niveau_prevu": 2,
+      "confiance_pct": 42.0,
       "temps_prevu_min": 15.2
     },
     "axe2_aller_mercredi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 66.7,
-      "temps_prevu_min": 19.5
+      "confiance_pct": 50.2,
+      "temps_prevu_min": 19.4
     },
     "axe2_aller_mercredi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 67.6,
+      "confiance_pct": 45.5,
       "temps_prevu_min": 19.5
     },
     "axe2_aller_mercredi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 72.0,
-      "temps_prevu_min": 17.2
+      "confiance_pct": 49.0,
+      "temps_prevu_min": 17.6
     },
     "axe2_aller_mercredi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 85.8,
+      "confiance_pct": 67.7,
       "temps_prevu_min": 16.5
     },
     "axe2_aller_jeudi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 15.5
+      "confiance_pct": 81.8,
+      "temps_prevu_min": 16.4
     },
     "axe2_aller_jeudi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
+      "confiance_pct": 78.4,
       "temps_prevu_min": 16.0
     },
     "axe2_aller_jeudi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 71.6,
-      "temps_prevu_min": 17.8
+      "confiance_pct": 46.6,
+      "temps_prevu_min": 18.6
     },
     "axe2_aller_jeudi_10h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 48.3,
-      "temps_prevu_min": 18.8
+      "niveau_prevu": 3,
+      "confiance_pct": 37.8,
+      "temps_prevu_min": 19.0
     },
     "axe2_aller_jeudi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 65.4,
+      "niveau_prevu": 3,
+      "confiance_pct": 37.2,
       "temps_prevu_min": 22.0
     },
     "axe2_aller_jeudi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 64.8,
+      "niveau_prevu": 3,
+      "confiance_pct": 33.3,
       "temps_prevu_min": 21.2
     },
     "axe2_aller_jeudi_13h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 83.2,
-      "temps_prevu_min": 19.5
+      "niveau_prevu": 3,
+      "confiance_pct": 33.7,
+      "temps_prevu_min": 19.1
     },
     "axe2_aller_jeudi_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 94.9,
-      "temps_prevu_min": 18.2
+      "niveau_prevu": 3,
+      "confiance_pct": 34.7,
+      "temps_prevu_min": 19.7
     },
     "axe2_aller_jeudi_15h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 94.5,
-      "temps_prevu_min": 17.5
+      "niveau_prevu": 3,
+      "confiance_pct": 43.1,
+      "temps_prevu_min": 22.2
     },
     "axe2_aller_jeudi_16h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 95.4,
-      "temps_prevu_min": 17.2
+      "niveau_prevu": 3,
+      "confiance_pct": 39.7,
+      "temps_prevu_min": 23.0
     },
     "axe2_aller_jeudi_17h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 95.9,
-      "temps_prevu_min": 17.0
+      "niveau_prevu": 3,
+      "confiance_pct": 35.6,
+      "temps_prevu_min": 23.6
     },
     "axe2_aller_jeudi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.5,
-      "temps_prevu_min": 16.5
+      "confiance_pct": 49.5,
+      "temps_prevu_min": 18.5
     },
     "axe2_aller_vendredi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.5
+      "confiance_pct": 85.2,
+      "temps_prevu_min": 16.3
     },
     "axe2_aller_vendredi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.2
+      "confiance_pct": 67.3,
+      "temps_prevu_min": 17.8
     },
     "axe2_aller_vendredi_9h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.5,
-      "temps_prevu_min": 12.2
+      "niveau_prevu": 3,
+      "confiance_pct": 47.7,
+      "temps_prevu_min": 20.2
     },
     "axe2_aller_vendredi_10h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.7,
-      "temps_prevu_min": 13.5
+      "niveau_prevu": 3,
+      "confiance_pct": 48.1,
+      "temps_prevu_min": 19.9
     },
     "axe2_aller_vendredi_11h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.8,
-      "temps_prevu_min": 13.8
+      "niveau_prevu": 3,
+      "confiance_pct": 46.3,
+      "temps_prevu_min": 20.4
     },
     "axe2_aller_vendredi_12h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.6,
-      "temps_prevu_min": 13.5
+      "niveau_prevu": 3,
+      "confiance_pct": 40.1,
+      "temps_prevu_min": 23.2
     },
     "axe2_aller_vendredi_13h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 98.8,
-      "temps_prevu_min": 13.2
+      "niveau_prevu": 3,
+      "confiance_pct": 40.3,
+      "temps_prevu_min": 20.4
     },
     "axe2_aller_vendredi_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.0,
-      "temps_prevu_min": 13.0
+      "niveau_prevu": 3,
+      "confiance_pct": 37.9,
+      "temps_prevu_min": 18.7
     },
     "axe2_aller_vendredi_15h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.8,
-      "temps_prevu_min": 12.2
+      "niveau_prevu": 3,
+      "confiance_pct": 46.1,
+      "temps_prevu_min": 19.3
     },
     "axe2_aller_vendredi_16h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 12.8
+      "niveau_prevu": 3,
+      "confiance_pct": 43.2,
+      "temps_prevu_min": 20.4
     },
     "axe2_aller_vendredi_17h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 13.2
+      "niveau_prevu": 3,
+      "confiance_pct": 38.6,
+      "temps_prevu_min": 19.4
     },
     "axe2_aller_vendredi_18h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.8
+      "niveau_prevu": 2,
+      "confiance_pct": 42.5,
+      "temps_prevu_min": 18.3
     },
     "axe2_aller_samedi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.5
+      "confiance_pct": 96.2,
+      "temps_prevu_min": 16.0
     },
     "axe2_aller_samedi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.5
+      "confiance_pct": 92.6,
+      "temps_prevu_min": 16.3
     },
     "axe2_aller_samedi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.8
+      "confiance_pct": 79.8,
+      "temps_prevu_min": 17.0
     },
     "axe2_aller_samedi_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 13.2
+      "confiance_pct": 47.7,
+      "temps_prevu_min": 17.6
     },
     "axe2_aller_samedi_11h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.8,
-      "temps_prevu_min": 13.0
+      "niveau_prevu": 2,
+      "confiance_pct": 62.8,
+      "temps_prevu_min": 18.7
     },
     "axe2_aller_samedi_12h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.6,
-      "temps_prevu_min": 13.5
+      "niveau_prevu": 2,
+      "confiance_pct": 67.0,
+      "temps_prevu_min": 18.3
     },
     "axe2_aller_samedi_13h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.3,
-      "temps_prevu_min": 13.2
+      "niveau_prevu": 2,
+      "confiance_pct": 65.8,
+      "temps_prevu_min": 17.8
     },
     "axe2_aller_samedi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 13.5
+      "confiance_pct": 75.2,
+      "temps_prevu_min": 16.6
     },
     "axe2_aller_samedi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 12.5
+      "confiance_pct": 75.9,
+      "temps_prevu_min": 16.8
     },
     "axe2_aller_samedi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 12.5
+      "confiance_pct": 75.6,
+      "temps_prevu_min": 16.8
     },
     "axe2_aller_samedi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 12.5
+      "confiance_pct": 71.9,
+      "temps_prevu_min": 17.0
     },
     "axe2_aller_samedi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.5
+      "confiance_pct": 88.0,
+      "temps_prevu_min": 16.1
     },
     "axe2_aller_dimanche_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 14.8
+      "confiance_pct": 98.3,
+      "temps_prevu_min": 12.3
     },
     "axe2_aller_dimanche_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 16.0
+      "confiance_pct": 98.3,
+      "temps_prevu_min": 12.8
     },
     "axe2_aller_dimanche_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 16.8
+      "confiance_pct": 87.3,
+      "temps_prevu_min": 14.3
     },
     "axe2_aller_dimanche_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 95.3,
-      "temps_prevu_min": 17.0
+      "confiance_pct": 92.2,
+      "temps_prevu_min": 13.8
     },
     "axe2_aller_dimanche_11h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.1,
-      "temps_prevu_min": 17.8
+      "confiance_pct": 86.7,
+      "temps_prevu_min": 14.8
     },
     "axe2_aller_dimanche_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 67.1,
-      "temps_prevu_min": 19.2
+      "niveau_prevu": 1,
+      "confiance_pct": 83.1,
+      "temps_prevu_min": 14.9
     },
     "axe2_aller_dimanche_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 68.9,
-      "temps_prevu_min": 18.0
+      "confiance_pct": 86.4,
+      "temps_prevu_min": 15.0
     },
     "axe2_aller_dimanche_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.2,
-      "temps_prevu_min": 16.0
+      "confiance_pct": 85.9,
+      "temps_prevu_min": 14.5
     },
     "axe2_aller_dimanche_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 96.9,
-      "temps_prevu_min": 17.2
+      "confiance_pct": 85.1,
+      "temps_prevu_min": 14.3
     },
     "axe2_aller_dimanche_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.6,
-      "temps_prevu_min": 16.5
+      "confiance_pct": 89.2,
+      "temps_prevu_min": 14.5
     },
     "axe2_aller_dimanche_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 97.0,
-      "temps_prevu_min": 16.5
+      "confiance_pct": 88.8,
+      "temps_prevu_min": 14.3
     },
     "axe2_aller_dimanche_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.2,
-      "temps_prevu_min": 16.5
+      "confiance_pct": 91.6,
+      "temps_prevu_min": 14.7
     },
     "axe3_aller_lundi_7h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.8,
-      "temps_prevu_min": 15.0
+      "niveau_prevu": 2,
+      "confiance_pct": 48.2,
+      "temps_prevu_min": 20.2
     },
     "axe3_aller_lundi_8h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 73.1,
-      "temps_prevu_min": 17.8
+      "niveau_prevu": 3,
+      "confiance_pct": 53.0,
+      "temps_prevu_min": 21.5
     },
     "axe3_aller_lundi_9h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.5,
-      "temps_prevu_min": 17.8
+      "niveau_prevu": 3,
+      "confiance_pct": 59.8,
+      "temps_prevu_min": 23.2
     },
     "axe3_aller_lundi_10h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 38.6,
-      "temps_prevu_min": 19.5
+      "niveau_prevu": 3,
+      "confiance_pct": 56.3,
+      "temps_prevu_min": 24.2
     },
     "axe3_aller_lundi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 43.0,
-      "temps_prevu_min": 22.2
+      "niveau_prevu": 3,
+      "confiance_pct": 54.8,
+      "temps_prevu_min": 25.1
     },
     "axe3_aller_lundi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 40.5,
-      "temps_prevu_min": 22.8
+      "niveau_prevu": 3,
+      "confiance_pct": 54.7,
+      "temps_prevu_min": 25.3
     },
     "axe3_aller_lundi_13h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 51.5,
-      "temps_prevu_min": 20.5
+      "niveau_prevu": 3,
+      "confiance_pct": 55.1,
+      "temps_prevu_min": 24.5
     },
     "axe3_aller_lundi_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 89.4,
-      "temps_prevu_min": 17.8
+      "niveau_prevu": 3,
+      "confiance_pct": 48.6,
+      "temps_prevu_min": 24.1
     },
     "axe3_aller_lundi_15h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 58.3,
-      "temps_prevu_min": 20.5
+      "niveau_prevu": 3,
+      "confiance_pct": 48.5,
+      "temps_prevu_min": 24.8
     },
     "axe3_aller_lundi_16h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 60.2,
-      "temps_prevu_min": 18.8
+      "niveau_prevu": 3,
+      "confiance_pct": 47.2,
+      "temps_prevu_min": 24.6
     },
     "axe3_aller_lundi_17h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 71.5,
-      "temps_prevu_min": 18.2
+      "niveau_prevu": 3,
+      "confiance_pct": 37.7,
+      "temps_prevu_min": 26.4
     },
     "axe3_aller_lundi_18h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 93.9,
-      "temps_prevu_min": 17.0
+      "niveau_prevu": 3,
+      "confiance_pct": 43.5,
+      "temps_prevu_min": 21.4
     },
     "axe3_aller_mardi_7h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 15.0
+      "niveau_prevu": 4,
+      "confiance_pct": 43.2,
+      "temps_prevu_min": 25.4
     },
     "axe3_aller_mardi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 15.5
+      "confiance_pct": 43.2,
+      "temps_prevu_min": 21.3
     },
     "axe3_aller_mardi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 17.5
+      "confiance_pct": 46.6,
+      "temps_prevu_min": 19.8
     },
     "axe3_aller_mardi_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 57.7,
+      "confiance_pct": 35.5,
       "temps_prevu_min": 19.5
     },
     "axe3_aller_mardi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 70.1,
-      "temps_prevu_min": 20.5
+      "niveau_prevu": 1,
+      "confiance_pct": 33.0,
+      "temps_prevu_min": 22.5
     },
     "axe3_aller_mardi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 47.4,
+      "niveau_prevu": 1,
+      "confiance_pct": 33.0,
       "temps_prevu_min": 20.8
     },
     "axe3_aller_mardi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 64.5,
+      "confiance_pct": 34.9,
       "temps_prevu_min": 19.8
     },
     "axe3_aller_mardi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 90.7,
-      "temps_prevu_min": 18.2
+      "confiance_pct": 38.9,
+      "temps_prevu_min": 21.0
     },
     "axe3_aller_mardi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 70.1,
+      "confiance_pct": 39.3,
       "temps_prevu_min": 18.5
     },
     "axe3_aller_mardi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 69.1,
-      "temps_prevu_min": 19.0
+      "confiance_pct": 39.1,
+      "temps_prevu_min": 21.5
     },
     "axe3_aller_mardi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 70.9,
+      "confiance_pct": 39.3,
       "temps_prevu_min": 18.2
     },
     "axe3_aller_mardi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 89.6,
-      "temps_prevu_min": 16.2
+      "confiance_pct": 38.6,
+      "temps_prevu_min": 19.7
     },
     "axe3_aller_mercredi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
+      "confiance_pct": 42.8,
       "temps_prevu_min": 15.5
     },
     "axe3_aller_mercredi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
+      "confiance_pct": 49.4,
       "temps_prevu_min": 16.0
     },
     "axe3_aller_mercredi_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 17.0
+      "confiance_pct": 45.3,
+      "temps_prevu_min": 18.4
     },
     "axe3_aller_mercredi_10h": {
       "niveau_prevu": 1,
-      "confiance_pct": 61.6,
-      "temps_prevu_min": 20.0
+      "confiance_pct": 34.9,
+      "temps_prevu_min": 21.2
     },
     "axe3_aller_mercredi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 66.2,
+      "niveau_prevu": 1,
+      "confiance_pct": 32.5,
       "temps_prevu_min": 20.5
     },
     "axe3_aller_mercredi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 42.5,
-      "temps_prevu_min": 24.0
+      "niveau_prevu": 1,
+      "confiance_pct": 32.5,
+      "temps_prevu_min": 24.5
     },
     "axe3_aller_mercredi_13h": {
       "niveau_prevu": 1,
-      "confiance_pct": 66.9,
+      "confiance_pct": 34.4,
       "temps_prevu_min": 20.0
     },
     "axe3_aller_mercredi_14h": {
       "niveau_prevu": 1,
-      "confiance_pct": 89.5,
+      "confiance_pct": 38.1,
       "temps_prevu_min": 18.2
     },
     "axe3_aller_mercredi_15h": {
       "niveau_prevu": 1,
-      "confiance_pct": 63.0,
-      "temps_prevu_min": 19.8
+      "confiance_pct": 38.5,
+      "temps_prevu_min": 21.6
     },
     "axe3_aller_mercredi_16h": {
       "niveau_prevu": 1,
-      "confiance_pct": 64.7,
+      "confiance_pct": 38.2,
       "temps_prevu_min": 18.8
     },
     "axe3_aller_mercredi_17h": {
       "niveau_prevu": 1,
-      "confiance_pct": 61.6,
-      "temps_prevu_min": 19.8
+      "confiance_pct": 38.5,
+      "temps_prevu_min": 21.4
     },
     "axe3_aller_mercredi_18h": {
       "niveau_prevu": 1,
-      "confiance_pct": 73.5,
+      "confiance_pct": 38.8,
       "temps_prevu_min": 17.2
     },
     "axe3_aller_jeudi_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 16.0
+      "confiance_pct": 42.2,
+      "temps_prevu_min": 17.6
     },
     "axe3_aller_jeudi_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
+      "confiance_pct": 44.3,
       "temps_prevu_min": 15.5
     },
     "axe3_aller_jeudi_9h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 98.9,
-      "temps_prevu_min": 17.8
+      "niveau_prevu": 3,
+      "confiance_pct": 35.8,
+      "temps_prevu_min": 19.3
     },
     "axe3_aller_jeudi_10h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 90.4,
-      "temps_prevu_min": 20.8
+      "niveau_prevu": 3,
+      "confiance_pct": 34.3,
+      "temps_prevu_min": 21.4
     },
     "axe3_aller_jeudi_11h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 90.8,
+      "niveau_prevu": 4,
+      "confiance_pct": 35.7,
       "temps_prevu_min": 20.8
     },
     "axe3_aller_jeudi_12h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 48.0,
+      "niveau_prevu": 4,
+      "confiance_pct": 36.2,
       "temps_prevu_min": 24.8
     },
     "axe3_aller_jeudi_13h": {
-      "niveau_prevu": 2,
-      "confiance_pct": 85.2,
-      "temps_prevu_min": 20.8
+      "niveau_prevu": 4,
+      "confiance_pct": 35.5,
+      "temps_prevu_min": 21.9
     },
     "axe3_aller_jeudi_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 96.9,
-      "temps_prevu_min": 18.2
+      "niveau_prevu": 4,
+      "confiance_pct": 45.8,
+      "temps_prevu_min": 24.8
     },
     "axe3_aller_jeudi_15h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 96.6,
-      "temps_prevu_min": 17.8
+      "niveau_prevu": 4,
+      "confiance_pct": 46.3,
+      "temps_prevu_min": 27.0
     },
     "axe3_aller_jeudi_16h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 97.2,
-      "temps_prevu_min": 18.0
+      "niveau_prevu": 4,
+      "confiance_pct": 46.1,
+      "temps_prevu_min": 28.8
     },
     "axe3_aller_jeudi_17h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 96.6,
-      "temps_prevu_min": 18.5
+      "niveau_prevu": 4,
+      "confiance_pct": 46.2,
+      "temps_prevu_min": 29.8
     },
     "axe3_aller_jeudi_18h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 97.5,
-      "temps_prevu_min": 16.8
+      "niveau_prevu": 4,
+      "confiance_pct": 41.6,
+      "temps_prevu_min": 24.3
     },
     "axe3_aller_vendredi_7h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 14.8
+      "niveau_prevu": 3,
+      "confiance_pct": 43.5,
+      "temps_prevu_min": 20.8
     },
     "axe3_aller_vendredi_8h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 15.5
+      "niveau_prevu": 3,
+      "confiance_pct": 44.5,
+      "temps_prevu_min": 21.5
     },
     "axe3_aller_vendredi_9h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 15.2
+      "niveau_prevu": 3,
+      "confiance_pct": 54.2,
+      "temps_prevu_min": 22.5
     },
     "axe3_aller_vendredi_10h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 98.9,
-      "temps_prevu_min": 15.2
+      "niveau_prevu": 3,
+      "confiance_pct": 45.6,
+      "temps_prevu_min": 23.4
     },
     "axe3_aller_vendredi_11h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 15.2
+      "niveau_prevu": 4,
+      "confiance_pct": 44.5,
+      "temps_prevu_min": 25.8
     },
     "axe3_aller_vendredi_12h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.6,
-      "temps_prevu_min": 15.5
+      "niveau_prevu": 4,
+      "confiance_pct": 44.1,
+      "temps_prevu_min": 26.7
     },
     "axe3_aller_vendredi_13h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 98.5,
-      "temps_prevu_min": 15.2
+      "niveau_prevu": 4,
+      "confiance_pct": 42.9,
+      "temps_prevu_min": 24.9
     },
     "axe3_aller_vendredi_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.4,
-      "temps_prevu_min": 15.2
+      "niveau_prevu": 4,
+      "confiance_pct": 49.4,
+      "temps_prevu_min": 26.2
     },
     "axe3_aller_vendredi_15h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.4,
-      "temps_prevu_min": 15.5
+      "niveau_prevu": 4,
+      "confiance_pct": 49.4,
+      "temps_prevu_min": 27.2
     },
     "axe3_aller_vendredi_16h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.7,
-      "temps_prevu_min": 15.5
+      "niveau_prevu": 4,
+      "confiance_pct": 49.2,
+      "temps_prevu_min": 27.3
     },
     "axe3_aller_vendredi_17h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.8,
-      "temps_prevu_min": 14.5
+      "niveau_prevu": 4,
+      "confiance_pct": 49.1,
+      "temps_prevu_min": 25.9
     },
     "axe3_aller_vendredi_18h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 15.0
+      "niveau_prevu": 4,
+      "confiance_pct": 43.2,
+      "temps_prevu_min": 24.0
     },
     "axe3_aller_samedi_7h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.0
+      "niveau_prevu": 2,
+      "confiance_pct": 56.3,
+      "temps_prevu_min": 19.5
     },
     "axe3_aller_samedi_8h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.8
+      "niveau_prevu": 3,
+      "confiance_pct": 56.1,
+      "temps_prevu_min": 20.9
     },
     "axe3_aller_samedi_9h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 12.2
+      "niveau_prevu": 3,
+      "confiance_pct": 67.8,
+      "temps_prevu_min": 21.0
     },
     "axe3_aller_samedi_10h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.1,
-      "temps_prevu_min": 13.5
+      "niveau_prevu": 3,
+      "confiance_pct": 66.9,
+      "temps_prevu_min": 22.4
     },
     "axe3_aller_samedi_11h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 14.8
+      "niveau_prevu": 3,
+      "confiance_pct": 50.4,
+      "temps_prevu_min": 24.1
     },
     "axe3_aller_samedi_12h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.6,
-      "temps_prevu_min": 12.5
+      "niveau_prevu": 3,
+      "confiance_pct": 50.3,
+      "temps_prevu_min": 23.5
     },
     "axe3_aller_samedi_13h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.0,
-      "temps_prevu_min": 14.5
+      "niveau_prevu": 3,
+      "confiance_pct": 62.9,
+      "temps_prevu_min": 23.3
     },
     "axe3_aller_samedi_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 14.0
+      "niveau_prevu": 3,
+      "confiance_pct": 64.4,
+      "temps_prevu_min": 21.6
     },
     "axe3_aller_samedi_15h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.5,
-      "temps_prevu_min": 11.8
+      "niveau_prevu": 3,
+      "confiance_pct": 66.0,
+      "temps_prevu_min": 21.4
     },
     "axe3_aller_samedi_16h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.7,
-      "temps_prevu_min": 14.2
+      "niveau_prevu": 3,
+      "confiance_pct": 66.9,
+      "temps_prevu_min": 22.1
     },
     "axe3_aller_samedi_17h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.8,
-      "temps_prevu_min": 14.2
+      "niveau_prevu": 3,
+      "confiance_pct": 68.2,
+      "temps_prevu_min": 23.0
     },
     "axe3_aller_samedi_18h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 99.9,
-      "temps_prevu_min": 13.8
+      "niveau_prevu": 3,
+      "confiance_pct": 70.6,
+      "temps_prevu_min": 21.9
     },
     "axe3_aller_dimanche_7h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 15.2
+      "confiance_pct": 99.8,
+      "temps_prevu_min": 17.7
     },
     "axe3_aller_dimanche_8h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 15.5
+      "confiance_pct": 99.8,
+      "temps_prevu_min": 17.7
     },
     "axe3_aller_dimanche_9h": {
       "niveau_prevu": 1,
-      "confiance_pct": 100.0,
-      "temps_prevu_min": 16.8
+      "confiance_pct": 65.6,
+      "temps_prevu_min": 19.6
     },
     "axe3_aller_dimanche_10h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 61.3,
-      "temps_prevu_min": 18.5
+      "niveau_prevu": 2,
+      "confiance_pct": 81.9,
+      "temps_prevu_min": 19.6
     },
     "axe3_aller_dimanche_11h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 85.1,
-      "temps_prevu_min": 19.2
+      "niveau_prevu": 2,
+      "confiance_pct": 79.4,
+      "temps_prevu_min": 20.5
     },
     "axe3_aller_dimanche_12h": {
       "niveau_prevu": 2,
-      "confiance_pct": 71.4,
+      "confiance_pct": 84.3,
       "temps_prevu_min": 20.5
     },
     "axe3_aller_dimanche_13h": {
       "niveau_prevu": 2,
-      "confiance_pct": 51.5,
-      "temps_prevu_min": 19.2
+      "confiance_pct": 81.9,
+      "temps_prevu_min": 20.2
     },
     "axe3_aller_dimanche_14h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 92.3,
-      "temps_prevu_min": 16.2
+      "niveau_prevu": 2,
+      "confiance_pct": 65.9,
+      "temps_prevu_min": 20.3
     },
     "axe3_aller_dimanche_15h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 72.9,
-      "temps_prevu_min": 19.2
+      "niveau_prevu": 2,
+      "confiance_pct": 75.7,
+      "temps_prevu_min": 21.1
     },
     "axe3_aller_dimanche_16h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 72.2,
-      "temps_prevu_min": 20.0
+      "niveau_prevu": 2,
+      "confiance_pct": 68.2,
+      "temps_prevu_min": 21.2
     },
     "axe3_aller_dimanche_17h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 75.0,
-      "temps_prevu_min": 19.2
+      "niveau_prevu": 2,
+      "confiance_pct": 72.3,
+      "temps_prevu_min": 20.7
     },
     "axe3_aller_dimanche_18h": {
-      "niveau_prevu": 1,
-      "confiance_pct": 72.9,
-      "temps_prevu_min": 18.8
+      "niveau_prevu": 2,
+      "confiance_pct": 85.2,
+      "temps_prevu_min": 20.8
     }
   }
 }
