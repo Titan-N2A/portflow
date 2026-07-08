@@ -712,39 +712,70 @@ function DashboardPage() {
 
   const dataAge  = lastUpdate ? Math.max(0, Math.floor((nowTick - lastUpdate.getTime()) / 60000)) : null
   const ageLabel = dataAge == null ? null : dataAge <= 0 ? 'à l\'instant' : dataAge === 1 ? 'il y a 1 min' : `il y a ${dataAge} min`
-  // ── Axe critique : état du réseau AU MOMENT PRÉSENT, sans historique ──
-  // On classe par la VITESSE actuelle la plus basse (km/h), pas par le ratio
-  // de dégradation vs référence : un axe habituellement lent ne doit pas être
-  // "blanchi" par un historique lent, et un axe habituellement rapide ne doit
-  // pas être sur-pénalisé. La vitesse est le seul signal de congestion
-  // instantané disponible (TomTom ne fournit qu'une vitesse par axe, pas par
-  // tronçon — d'où un KPI au niveau AXE, pas tronçon). Aller et retour sont
-  // comparés séparément. Seuils urbains PAA (ajustables) :
-  //   ≥40 N1 · 30-40 N2 · 22-30 N3 · 14-22 N4 · <14 N5
-  const axeCritique = useMemo(() => {
+  // ── Congestion AU MOMENT PRÉSENT — source UNIQUE partagée avec la carte ───
+  // La carte colorie chaque tronçon, chaque polyline et chaque pastille via
+  // speedToNiveau(vitesse live). Les deux KPI ci-dessous réutilisent EXACTEMENT
+  // cette source (pas le ratio de dégradation vs référence historique) : le
+  // tronçon dit « critique » est donc le plus rouge de la carte, et l'axe dit
+  // « meilleur » le plus vert des pastilles « État des axes ».
+  // Seuils urbains PAA (ajustables) : ≥40 N1 · 30-40 N2 · 22-30 N3 · 14-22 N4 · <14 N5
+
+  // Tronçon critique = le sous-segment le plus congestionné DESSINÉ sur la
+  // carte. On parcourt la liste réelle des tronçons (mêmes objets que la carte)
+  // et on les classe par le niveau-vitesse de leur axe parent — TomTom ne
+  // mesure qu'une vitesse par axe (pas par sous-segment), les tronçons héritent
+  // donc de la vitesse de l'aller, comme les polylines pleines. À niveau égal
+  // on départage par la vitesse la plus basse, puis par le tronçon terminal
+  // (ordre max, le plus proche de l'arrivée au port). Fallback au niveau axe
+  // tant qu'aucun tronçon n'est chargé, pour ne jamais laisser le KPI vide.
+  const tronconCritique = useMemo(() => {
     let pire = null
-    for (const axe of axes) {
-      const m = mesures[axe.id]
-      if (!m || m.stale) continue
-      const candidats = [
-        { sens: 'aller', vitesse: m.vitesse },
-        ...(m.tempsRetour != null ? [{ sens: 'retour', vitesse: m.vitesseRetour }] : []),
-      ]
-      for (const c of candidats) {
-        if (!c.vitesse || c.vitesse <= 0) continue
-        if (!pire || c.vitesse < pire.vitesse) pire = { axe, ...c }
+    for (const t of troncons ?? []) {
+      const m = mesures[t.axeId]
+      if (!m || m.stale || !m.vitesse || m.vitesse <= 0) continue
+      const niveau = speedToNiveau(m.vitesse)
+      const better = !pire
+        || niveau > pire.niveau
+        || (niveau === pire.niveau && m.vitesse < pire.vitesse)
+        || (niveau === pire.niveau && m.vitesse === pire.vitesse && (t.ordre ?? 0) > pire.ordre)
+      if (better) pire = { nom: t.nom ?? t.code ?? '?', niveau, vitesse: m.vitesse, ordre: t.ordre ?? 0 }
+    }
+    if (!pire) {
+      // Aucun tronçon chargé → on désigne l'axe le plus lent (aller ou retour).
+      for (const axe of axes) {
+        const m = mesures[axe.id]
+        if (!m || m.stale) continue
+        const cands = [m.vitesse, m.tempsRetour != null ? m.vitesseRetour : null].filter(v => v && v > 0)
+        for (const v of cands) {
+          if (!pire || v < pire.vitesse) pire = { nom: axe.shortNom ?? axe.nom, niveau: speedToNiveau(v), vitesse: v, ordre: 0 }
+        }
       }
     }
     if (!pire) return null
-    const niveau = speedToNiveau(pire.vitesse)
     // Réseau fluide : tant que le plus lent reste correct (N1/N2), rien n'est
-    // "critique" — on l'affiche plutôt que de désigner un axe fluide.
-    if (niveau <= 2) return { aucun: true }
-    return {
-      nom: `${pire.axe.shortNom ?? pire.axe.nom}${pire.sens === 'retour' ? ' (retour)' : ''}`,
-      niveau,
-      vitesse: Math.round(pire.vitesse),
+    // "critique" — on l'affiche plutôt que de désigner un tronçon fluide.
+    if (pire.niveau <= 2) return { aucun: true }
+    return { nom: pire.nom, niveau: pire.niveau, vitesse: Math.round(pire.vitesse) }
+  }, [troncons, axes, mesures])
+
+  // Meilleur axe = l'axe le plus fluide au présent. On classe chaque axe par
+  // son PIRE sens (vitesse la plus basse), exactement comme la pastille « État
+  // des axes » (Math.max des niveaux des deux sens) : l'axe retenu est ainsi le
+  // plus vert de cette liste, et non départagé sur un critère différent.
+  const meilleurAxe = useMemo(() => {
+    let best = null
+    for (const axe of axes) {
+      const m = mesures[axe.id]
+      if (!m || m.stale) continue
+      const vitesses = [m.vitesse, m.tempsRetour != null ? m.vitesseRetour : null].filter(v => v && v > 0)
+      if (vitesses.length === 0) continue
+      const vPire  = Math.min(...vitesses)
+      const niveau = speedToNiveau(vPire)
+      if (!best || niveau < best.niveau || (niveau === best.niveau && vPire > best.vitesse)) {
+        best = { nom: axe.shortNom ?? axe.nom, niveau, vitesse: vPire }
+      }
     }
+    return best ? { ...best, vitesse: Math.round(best.vitesse) } : null
   }, [axes, mesures])
 
   // Contrôle l'affichage de la carte "Mon trajet" ET la hauteur de la carte
@@ -797,17 +828,17 @@ function DashboardPage() {
           title="Temps moyen" value={kpis?.tempsGlobal} unit="min" flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={AlertTriangle} iconColor={C.danger}
-          title="Axe critique"
-          value={axeCritique?.aucun ? 'Aucun axe critique' : axeCritique?.nom ?? '—'}
-          badge={axeCritique?.aucun ? 'Réseau fluide' : axeCritique ? `${axeCritique.vitesse} km/h — ${levelLabel(axeCritique.niveau)}` : null}
-          niveau={axeCritique?.aucun ? 1 : axeCritique?.niveau}
+          title="Tronçon critique"
+          value={tronconCritique?.aucun ? 'Aucun tronçon critique' : tronconCritique?.nom ?? '—'}
+          badge={tronconCritique?.aucun ? 'Réseau fluide' : tronconCritique ? `${tronconCritique.vitesse} km/h — ${levelLabel(tronconCritique.niveau)}` : null}
+          niveau={tronconCritique?.aucun ? 1 : tronconCritique?.niveau}
           flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={CheckCircle2} iconColor={C.success}
           title="Meilleur axe"
-          value={kpis?.meilleurAxe?.nom ?? '—'}
-          badge={kpis?.meilleurAxe ? `N${kpis.meilleurAxe.niveau} — ${levelLabel(kpis.meilleurAxe.niveau)}` : null}
-          niveau={kpis?.meilleurAxe?.niveau}
+          value={meilleurAxe?.nom ?? '—'}
+          badge={meilleurAxe ? `${meilleurAxe.vitesse} km/h — ${levelLabel(meilleurAxe.niveau)}` : null}
+          niveau={meilleurAxe?.niveau}
           flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={Users} iconColor="#8E44AD"
