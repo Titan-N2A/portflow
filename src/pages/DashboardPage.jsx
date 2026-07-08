@@ -36,6 +36,16 @@ function getPredForAxe(predictions, axeId) {
   return predictions[key] ?? null
 }
 
+// Congestion « au moment présent » : dérivée de la VITESSE actuelle (km/h),
+// sans référence historique. C'est la source unique partagée par le KPI
+// « Axe critique », les polylines, les tronçons et les pastilles « État des
+// axes » — pour que la carte et les KPI racontent exactement la même histoire.
+// Seuils urbains PAA (ajustables). Retourne 0 quand la vitesse est absente.
+function speedToNiveau(v) {
+  if (!v || v <= 0) return 0
+  return v >= 40 ? 1 : v >= 30 ? 2 : v >= 22 ? 3 : v >= 14 ? 4 : 5
+}
+
 // ── Marqueur numéroté (cercle bleu) ──────────────────────
 function makeNumIcon(num, color = C.primary) {
   return L.divIcon({
@@ -214,7 +224,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         const isPrevision = mapMode === 'prevision'
         const pred      = isPrevision ? getPredForAxe(predictions, axe.id) : null
         const m         = mesures[axe.id]
-        const niveau    = isPrevision ? (pred?.niveau_prevu ?? 0) : (m?.niveau ?? 0)
+        const niveau    = isPrevision ? (pred?.niveau_prevu ?? 0) : speedToNiveau(m?.vitesse)
         const baseColor = AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length]
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
         // Priorité : tracé ENREGISTRÉ (Admin/Firestore) > aperçu TomTom de
@@ -315,22 +325,15 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         const predNiveau = mapMode === 'prevision'
           ? (getPredForAxe(predictions, t.axeId)?.niveau_prevu ?? null)
           : null
-        const tronconNiveau = predNiveau !== null ? predNiveau
-          : ratioVal !== null ? (
-              ratioVal <= 1.10 ? 1 :
-              ratioVal <= 1.25 ? 2 :
-              ratioVal <= 1.50 ? 3 :
-              ratioVal <= 2.00 ? 4 : 5
-            )
-          : (m?.niveau ?? 0)
+        // Niveau "présent" du tronçon = vitesse actuelle de l'axe (même source
+        // que le KPI et les polylines). Les tronçons héritent de la vitesse
+        // live de leur axe — TomTom ne mesure pas par sous-segment. Le ratio/
+        // temps de référence restent affichés dans le popup comme détail.
+        const tronconNiveau = predNiveau !== null ? predNiveau : speedToNiveau(vitesse)
 
         const baseColor = AXE_COLORS[t.axeId] ?? (axes.find(a => a.id === t.axeId)?.color) ?? AXE_PALETTE[Math.max(axeIdx, 0) % AXE_PALETTE.length]
-        // Priorité : niveau propre du tronçon > niveau de l'axe parent > couleur identité
-        const color = tronconNiveau > 0
-          ? levelColor(tronconNiveau)
-          : (m?.niveau ?? 0) > 0
-            ? levelColor(m.niveau)
-            : baseColor
+        // Couleur = niveau présent du tronçon (vitesse), sinon couleur identité
+        const color = tronconNiveau > 0 ? levelColor(tronconNiveau) : baseColor
 
         // ── Popup cadrant ────────────────────────────────────────────────
         const popup = (
@@ -421,7 +424,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         if (positions.length < 2) return null
         const niveau    = mapMode === 'prevision'
           ? (getPredForAxe(predictions, axe.id)?.niveau_prevu ?? 0)
-          : (m?.niveau ?? 0)
+          : speedToNiveau(m?.vitesse)
         const baseColor = AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length]
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
         const depart    = Array.isArray(positions[0]) ? positions[0] : [positions[0].lat, positions[0].lng]
@@ -450,7 +453,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         // Tracé retour ENREGISTRÉ d'abord (même règle que l'aller)
         const retourPos = (axe.coordinatesRetour?.length > 5) ? axe.coordinatesRetour : (m?.geometryRetour ?? [])
         if (retourPos.length < 2) return null
-        const niveauRetour = m?.niveauRetour ?? 0
+        const niveauRetour = speedToNiveau(m?.vitesseRetour)
         const color     = niveauRetour > 0 ? levelColor(niveauRetour) : (AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length])
         const opacity   = m ? 0.6 : 0.25
         return (
@@ -494,7 +497,7 @@ function DashboardMap({ axes, mesures, mapMode, predictions, troncons, selectedA
         const m         = mesures[axe.id]
         const niveau    = mapMode === 'prevision'
           ? (getPredForAxe(predictions, axe.id)?.niveau_prevu ?? 0)
-          : (m?.niveau ?? 0)
+          : speedToNiveau(m?.vitesse)
         const baseColor = AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length]
         const color     = niveau > 0 ? levelColor(niveau) : baseColor
         return (
@@ -553,8 +556,11 @@ function HeroBanner({ isMobile, mesures, dataHealth, refreshing, lastUpdate, age
     return () => clearInterval(t)
   }, [])
 
-  // Niveau global du réseau (moyenne des niveaux live, sens confondus)
-  const niveaux = Object.values(mesures ?? {}).map(m => m?.niveau).filter(n => n > 0)
+  // Niveau global du réseau AU PRÉSENT (moyenne des niveaux-vitesse, aller +
+  // retour confondus) — cohérent avec la carte et le KPI « Axe critique ».
+  const niveaux = Object.values(mesures ?? {})
+    .flatMap(m => [speedToNiveau(m?.vitesse), speedToNiveau(m?.vitesseRetour)])
+    .filter(n => n > 0)
   const nGlobal = niveaux.length ? Math.round(niveaux.reduce((a, b) => a + b, 0) / niveaux.length) : 0
 
   const freshBg = { live: '#E8F5E9', maybe: '#FEF3E0', lost: '#FEF2F2', none: '#F1F1F1' }[dataHealth.tier] ?? '#F1F1F1'
@@ -706,37 +712,40 @@ function DashboardPage() {
 
   const dataAge  = lastUpdate ? Math.max(0, Math.floor((nowTick - lastUpdate.getTime()) / 60000)) : null
   const ageLabel = dataAge == null ? null : dataAge <= 0 ? 'à l\'instant' : dataAge === 1 ? 'il y a 1 min' : `il y a ${dataAge} min`
-  // ── Tronçon critique : calculé depuis les tronçons Firestore RÉELS ──
-  // (kpis.tronconCritique du hook prenait le dernier code de la liste
-  // statique defaultData de l'axe — d'où des codes fantômes type "T1E"
-  // qui n'existent plus dans l'Admin.) Ici : axe le plus dégradé (aller
-  // ou retour), et son tronçon réel le plus long comme segment
-  // représentatif — les tronçons héritent du niveau live de leur axe.
-  const tronconCritique = useMemo(() => {
+  // ── Axe critique : état du réseau AU MOMENT PRÉSENT, sans historique ──
+  // On classe par la VITESSE actuelle la plus basse (km/h), pas par le ratio
+  // de dégradation vs référence : un axe habituellement lent ne doit pas être
+  // "blanchi" par un historique lent, et un axe habituellement rapide ne doit
+  // pas être sur-pénalisé. La vitesse est le seul signal de congestion
+  // instantané disponible (TomTom ne fournit qu'une vitesse par axe, pas par
+  // tronçon — d'où un KPI au niveau AXE, pas tronçon). Aller et retour sont
+  // comparés séparément. Seuils urbains PAA (ajustables) :
+  //   ≥40 N1 · 30-40 N2 · 22-30 N3 · 14-22 N4 · <14 N5
+  const axeCritique = useMemo(() => {
     let pire = null
     for (const axe of axes) {
       const m = mesures[axe.id]
-      if (!m) continue
+      if (!m || m.stale) continue
       const candidats = [
-        { sens: 'aller', ratio: m.ratio, niveau: m.niveau },
-        ...(m.tempsRetour != null ? [{ sens: 'retour', ratio: m.ratioRetour, niveau: m.niveauRetour }] : []),
+        { sens: 'aller', vitesse: m.vitesse },
+        ...(m.tempsRetour != null ? [{ sens: 'retour', vitesse: m.vitesseRetour }] : []),
       ]
       for (const c of candidats) {
-        if (!c.ratio || !c.niveau) continue
-        if (!pire || c.ratio > pire.ratio) pire = { axe, ...c }
+        if (!c.vitesse || c.vitesse <= 0) continue
+        if (!pire || c.vitesse < pire.vitesse) pire = { axe, ...c }
       }
     }
     if (!pire) return null
-    // Sous le seuil orange (N3), rien n'est "critique" : on l'affiche
-    // plutôt que de désigner arbitrairement un tronçon fluide.
-    if (pire.niveau <= 2) return { aucun: true }
-    const tronconsAxe = (troncons ?? []).filter(t => t.axeId === pire.axe.id)
-    const plusLong = [...tronconsAxe].sort((a, b) => (parseFloat(b.dist) || 0) - (parseFloat(a.dist) || 0))[0]
+    const niveau = speedToNiveau(pire.vitesse)
+    // Réseau fluide : tant que le plus lent reste correct (N1/N2), rien n'est
+    // "critique" — on l'affiche plutôt que de désigner un axe fluide.
+    if (niveau <= 2) return { aucun: true }
     return {
-      nom: `${pire.axe.shortNom ?? pire.axe.nom}${pire.sens === 'retour' ? ' (retour)' : ''}${plusLong ? ` – ${plusLong.code ?? plusLong.nom}` : ''}`,
-      niveau: pire.niveau,
+      nom: `${pire.axe.shortNom ?? pire.axe.nom}${pire.sens === 'retour' ? ' (retour)' : ''}`,
+      niveau,
+      vitesse: Math.round(pire.vitesse),
     }
-  }, [axes, mesures, troncons])
+  }, [axes, mesures])
 
   // Contrôle l'affichage de la carte "Mon trajet" ET la hauteur de la carte
   // mobile — quand elle est masquée, la carte récupère l'espace libéré.
@@ -788,10 +797,10 @@ function DashboardPage() {
           title="Temps moyen" value={kpis?.tempsGlobal} unit="min" flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={AlertTriangle} iconColor={C.danger}
-          title="Tronçon critique"
-          value={tronconCritique?.aucun ? 'Aucun tronçon critique' : tronconCritique?.nom ?? '—'}
-          badge={tronconCritique?.aucun ? 'Réseau fluide' : tronconCritique ? `N${tronconCritique.niveau} — ${levelLabel(tronconCritique.niveau)}` : null}
-          niveau={tronconCritique?.aucun ? 1 : tronconCritique?.niveau}
+          title="Axe critique"
+          value={axeCritique?.aucun ? 'Aucun axe critique' : axeCritique?.nom ?? '—'}
+          badge={axeCritique?.aucun ? 'Réseau fluide' : axeCritique ? `${axeCritique.vitesse} km/h — ${levelLabel(axeCritique.niveau)}` : null}
+          niveau={axeCritique?.aucun ? 1 : axeCritique?.niveau}
           flash={flashKpis} freshness={dataHealth} />
 
         <KPICard icon={CheckCircle2} iconColor={C.success}
@@ -906,7 +915,7 @@ function DashboardPage() {
           {/* ── Panneau axe sélectionné ───────────────────────── */}
           {selectedAxe && (() => {
             const m        = mesures[selectedAxe.id]
-            const niveau   = m?.niveau ?? 0
+            const niveau   = speedToNiveau(m?.vitesse)   // couleur/badge = état présent (comme la carte)
             const axeColor = AXE_COLORS[selectedAxe.id] ?? C.primary
             const color    = niveau > 0 ? levelColor(niveau) : axeColor
             return (
@@ -965,7 +974,7 @@ function DashboardPage() {
                 {/* Retour — grille symétrique à l'aller (vitesse/retard/ratio propres
                     au trajet retour, pas de simples doublons de l'aller) */}
                 {selectedAxe.bidirectionnel && m?.tempsRetour != null && (() => {
-                  const niveauRetour = m.niveauRetour ?? 0
+                  const niveauRetour = speedToNiveau(m.vitesseRetour)   // état présent (comme la carte)
                   const colorRetour  = niveauRetour > 0 ? levelColor(niveauRetour) : axeColor
                   return (
                     <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${C.borderLight}` }}>
@@ -1047,7 +1056,8 @@ function DashboardPage() {
             <p style={{ fontWeight: 700, fontSize: 14, color: C.text, marginBottom: '0.75rem' }}>État des axes</p>
             {axes.map((axe, idx) => {
               const m = mesures[axe.id]
-              const niveau = m?.niveau ?? 0
+              // Pastille = état présent, pire des deux sens (vitesse la plus basse)
+              const niveau = Math.max(speedToNiveau(m?.vitesse), speedToNiveau(m?.vitesseRetour))
               const barColor = AXE_COLORS[axe.id] ?? axe.color ?? AXE_PALETTE[idx % AXE_PALETTE.length]
               return (
                 <div key={axe.id} style={{
