@@ -108,26 +108,32 @@ async function readAxes() {
   }).filter(Boolean)
 }
 
-// ── Google Distance Matrix (1 appel pour toutes les routes) ──
+// ── Google Distance Matrix (un appel 1×1 par route) ──────────
+// IMPORTANT quota : on interroge chaque route séparément (1 origine × 1
+// destination = 1 élément facturé). L'ancienne version demandait une
+// matrice N×N (toutes origines × toutes destinations) mais ne lisait que
+// la diagonale — soit 36 éléments facturés pour 6 utiles (6× de quota
+// gaspillé). C'est ce gaspillage qui épuisait le crédit Google gratuit et
+// forçait la bascule répétée sur TomTom. Les appels partent en parallèle.
 
-async function fetchAllRoutesMatrix(routeList) {
-  if (!GOOGLE_KEY) throw new Error('GOOGLE_MATRIX_API_KEY non défini')
-  const origins      = routeList.map(r => `${r.from.lat},${r.from.lng}`).join('|')
-  const destinations = routeList.map(r => `${r.to.lat},${r.to.lng}`).join('|')
+async function fetchOneRouteMatrix(route) {
   const url = 'https://maps.googleapis.com/maps/api/distancematrix/json'
-    + `?origins=${encodeURIComponent(origins)}`
-    + `&destinations=${encodeURIComponent(destinations)}`
+    + `?origins=${route.from.lat},${route.from.lng}`
+    + `&destinations=${route.to.lat},${route.to.lng}`
     + '&mode=driving&departure_time=now&traffic_model=best_guess'
     + `&key=${GOOGLE_KEY}`
   const res  = await fetch(url)
   const data = await res.json()
   if (data.status !== 'OK') throw new Error(`Matrix API: ${data.status} — ${data.error_message ?? ''}`)
-  return routeList.map((_, i) => {
-    const el = data.rows[i]?.elements[i]
-    if (!el || el.status !== 'OK') throw new Error(`Route ${i} sans résultat (${el?.status})`)
-    const seconds = el.duration_in_traffic?.value ?? el.duration.value
-    return Math.round(seconds / 60 * 10) / 10
-  })
+  const el = data.rows?.[0]?.elements?.[0]
+  if (!el || el.status !== 'OK') throw new Error(`Route sans résultat (${el?.status})`)
+  const seconds = el.duration_in_traffic?.value ?? el.duration.value
+  return Math.round(seconds / 60 * 10) / 10
+}
+
+async function fetchAllRoutesMatrix(routeList) {
+  if (!GOOGLE_KEY) throw new Error('GOOGLE_MATRIX_API_KEY non défini')
+  return Promise.all(routeList.map(fetchOneRouteMatrix))
 }
 
 // ── TomTom (fallback route par route) ────────────────────────
