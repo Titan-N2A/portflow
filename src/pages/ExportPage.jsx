@@ -3,7 +3,7 @@ import { Download, FileSpreadsheet, Database, Calendar, RefreshCw } from 'lucide
 import { C, levelLabel } from '../styles/tokens'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
-import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { AXES_OFFICIELS, useTrafficData } from '../hooks/useTrafficData'
 import { useHistoricalData } from '../hooks/useHistoricalData'
@@ -152,8 +152,22 @@ function useCollecteData(axeFilter, periodeId, enabled) {
     setLoading(true)
     const { start } = getPeriodBounds(periodeId)
 
+    // On borne côté serveur par la date de début de la période choisie
+    // (requête mono-champ sur `timestamp` : filtre + tri, pas d'index
+    // composite). Indispensable pour que « Ce mois / Cette année / Toutes
+    // les données » remontent bien tout l'historique : l'ancien
+    // `limit(5000)` sans filtre tronquait à ~3 jours (les 5000 docs les
+    // plus récents), quelle que soit la période demandée. Le filtre
+    // `timestamp` suppose des documents de type timestamp (migration du
+    // 09/07/2026 : plus aucun document au format string). Le limit reste
+    // un garde-fou large ; c'est la période qui borne réellement le volume.
     const col = collection(db, 'collecte_auto')
-    const q   = query(col, orderBy('timestamp', 'desc'), limit(5000))
+    const q   = query(
+      col,
+      where('timestamp', '>=', start),
+      orderBy('timestamp', 'desc'),
+      limit(60000),
+    )
 
     const unsubscribe = onSnapshot(
       q,
