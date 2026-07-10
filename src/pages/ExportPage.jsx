@@ -197,39 +197,87 @@ async function fetchCollecteRows(periodeId, axeFilter) {
     .map(toExportRow)
 }
 
-// Lecture du résumé quotidien — semaine et plus (à la demande). Lit
-// agregats_quotidiens (~6 docs/jour) : min/moy/max + répartition des niveaux
-// par jour × axe × sens. Filtre par axe côté client (pas d'index composite).
+// Résume une liste de relevés bruts en 1 objet par axe × sens (min/moy/max
+// + répartition des niveaux) — même logique que scripts/agreger_quotidien.js.
+// Sert à calculer le jour courant, jamais présent dans agregats_quotidiens
+// (l'agrégation ne tourne que la nuit).
+function resumerReleves(docs, date) {
+  const groupes = new Map()
+  docs.forEach(r => {
+    if (!r.axeId || !r.sens || !(Number(r.temps_min) > 0)) return
+    const cle = `${r.axeId}_${r.sens}`
+    if (!groupes.has(cle)) groupes.set(cle, [])
+    groupes.get(cle).push(Number(r.temps_min))
+    const n = Math.min(5, Math.max(1, Number(r.niveau) || 1))
+    groupes.get(cle).niveaux = groupes.get(cle).niveaux ?? { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+    groupes.get(cle).niveaux[n]++
+  })
+  const out = []
+  for (const [cle, temps] of groupes) {
+    const [axeId, sens] = cle.split('_')
+    out.push({
+      date, axeId, sens, n: temps.length,
+      min: Math.round(Math.min(...temps) * 10) / 10,
+      moy: Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10,
+      max: Math.round(Math.max(...temps) * 10) / 10,
+      niveaux: temps.niveaux,
+    })
+  }
+  return out
+}
+
+// Transforme un objet résumé (agrégat ou jour courant calculé) en ligne d'export
+function toResumeRow(a) {
+  const axe = AXES_OFFICIELS.find(x => x.id === a.axeId)
+  const nv  = a.niveaux ?? {}
+  const num = v => (Number(v) || 0)
+  return {
+    Date:                 a.date,
+    Axe:                  axe?.shortNom ?? a.axeId,
+    Sens:                 a.sens,
+    'Mesures (n)':        a.n ?? '—',
+    'T_ref (min)':        axe?.tRef ?? '—',
+    'Min (min)':          a.min ?? '—',
+    'Moyenne (min)':      a.moy ?? '—',
+    'Max (min)':          a.max ?? '—',
+    'Retard moy (min)':   (axe?.tRef != null && a.moy != null) ? Math.round((a.moy - axe.tRef) * 10) / 10 : '—',
+    'Fluide (N1-2)':      num(nv[1]) + num(nv[2]),
+    'Modéré (N3)':        num(nv[3]),
+    'Dense (N4)':         num(nv[4]),
+    'Congestionné (N5)':  num(nv[5]),
+    Source:               'Résumé quotidien',
+  }
+}
+
+// Lecture du résumé quotidien (à la demande) : jours révolus depuis
+// agregats_quotidiens (~6 docs/jour) + jour courant calculé depuis les
+// relevés bruts (agrégation nocturne pas encore passée). Filtre par axe
+// côté client (pas d'index composite). Couvre donc TOUTES les divisions,
+// aujourd'hui compris.
 async function fetchAgregatRows(periodeId, axeFilter) {
-  const snap = await getDocs(query(
+  const depuis     = debutPeriodeISO(periodeId)
+  const aujourdHui = new Date().toISOString().slice(0, 10)
+
+  // 1. Jours complets déjà agrégés (aujourd'hui exclu par sûreté)
+  const snapAgg = await getDocs(query(
     collection(db, 'agregats_quotidiens'),
-    where('date', '>=', debutPeriodeISO(periodeId)),
+    where('date', '>=', depuis),
   ))
-  return snap.docs
-    .map(d => d.data())
+  const resumes = snapAgg.docs.map(d => d.data()).filter(a => a.date !== aujourdHui)
+
+  // 2. Jour courant : résumé calculé depuis les relevés bruts du jour
+  if (aujourdHui >= depuis) {
+    const snapJour = await getDocs(query(
+      collection(db, 'collecte_auto'),
+      where('date', '==', aujourdHui),
+    ))
+    resumes.push(...resumerReleves(snapJour.docs.map(d => d.data()), aujourdHui))
+  }
+
+  return resumes
     .filter(a => axeFilter === 'tous' || a.axeId === axeFilter)
     .sort((a, b) => `${b.date}_${b.axeId}_${b.sens}`.localeCompare(`${a.date}_${a.axeId}_${a.sens}`))
-    .map(a => {
-      const axe = AXES_OFFICIELS.find(x => x.id === a.axeId)
-      const nv  = a.niveaux ?? {}
-      const num = v => (Number(v) || 0)
-      return {
-        Date:                 a.date,
-        Axe:                  axe?.shortNom ?? a.axeId,
-        Sens:                 a.sens,
-        'Mesures (n)':        a.n ?? '—',
-        'T_ref (min)':        axe?.tRef ?? '—',
-        'Min (min)':          a.min ?? '—',
-        'Moyenne (min)':      a.moy ?? '—',
-        'Max (min)':          a.max ?? '—',
-        'Retard moy (min)':   (axe?.tRef != null && a.moy != null) ? Math.round((a.moy - axe.tRef) * 10) / 10 : '—',
-        'Fluide (N1-2)':      num(nv[1]) + num(nv[2]),
-        'Modéré (N3)':        num(nv[3]),
-        'Dense (N4)':         num(nv[4]),
-        'Congestionné (N5)':  num(nv[5]),
-        Source:               'Résumé quotidien',
-      }
-    })
+    .map(toResumeRow)
 }
 
 // Route la lecture selon le mode choisi
@@ -311,9 +359,11 @@ function ExportPage() {
     ? (loadingCount || loadingRows)
     : (source === 'historique' ? histoLoading : false)
 
-  // Aperçu disponible dès qu'il y a des lignes potentielles à montrer
+  // Aperçu disponible dès qu'il y a des lignes potentielles à montrer.
+  // En résumé, le jour courant (calculé à la volée) n'entre pas dans `count`
+  // (agrégats), donc on autorise toujours l'aperçu dans ce mode.
   const apercuDispo = source === 'collecte'
-    ? ((count ?? 0) > 0 || (collecteRows?.length ?? 0) > 0)
+    ? (resume || (count ?? 0) > 0 || (collecteRows?.length ?? 0) > 0)
     : rowsExport.length > 0
 
   const previewLabel = useMemo(() => {
@@ -323,6 +373,8 @@ function ExportPage() {
     if (loadingRows)  return 'Lecture des données…'
     if (collecteRows) return `${collecteRows.length} ${unite} prêt(es) à l'export`
     if (loadingCount) return 'Comptage…'
+    // En résumé, `count` (agrégats) exclut le jour courant → ne pas afficher 0
+    if (resume && (count ?? 0) === 0) return 'Résumé du jour en cours prêt à l\'export'
     if (countError)   return 'Comptage indisponible — cliquez pour réessayer'
     if (count === null) return '—'
     const filtre = axe === 'tous' ? '' : ` (axe « ${AXES_OFFICIELS.find(a => a.id === axe)?.shortNom ?? axe} » filtré à l'export)`
@@ -429,9 +481,8 @@ function ExportPage() {
               </div>
               <p style={{ fontSize: 11, color: resume ? C.textMuted : C.warning, marginTop: 6 }}>
                 {resume
-                  ? 'Résumé quotidien : min · moyenne · max + répartition des niveaux, une ligne par jour et par axe. Léger — tient le plan gratuit.'
+                  ? 'Résumé quotidien : min · moyenne · max + répartition des niveaux, une ligne par jour et par axe (jour en cours calculé à la volée). Léger — tient le plan gratuit.'
                   : 'Relevés bruts : une ligne par mesure. Volumineux sur les longues périodes (~14 500 lignes/mois) et lourd en lecture Firestore — à réserver aux périodes courtes.'}
-                {resume && periode === 'today' && ' ⚠️ La journée en cours n\'est agrégée que la nuit : pour aujourd\'hui, choisissez « Toutes les données ».'}
               </p>
             </div>
           )}
