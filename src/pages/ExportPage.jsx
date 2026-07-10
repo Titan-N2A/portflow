@@ -140,16 +140,24 @@ function downloadRows(rows, format, fname) {
   }
 }
 
+// « Aujourd'hui » exporte les relevés bruts (léger : ~1 700 docs, et pas
+// encore agrégé de toute façon). Les périodes plus longues (semaine → tout)
+// exportent le RÉSUMÉ QUOTIDIEN depuis agregats_quotidiens (~6 docs/jour,
+// 30 j max) : un export mensuel = ~180 lectures au lieu de ~14 500 relevés
+// bruts — 80× plus léger, indispensable sur le plan gratuit (Spark 50 k/j).
+const exportEnBrut = periodeId => periodeId === 'today'
+
+// Date de début (YYYY-MM-DD) pour filtrer agregats_quotidiens sur `date`
+function debutPeriodeISO(periodeId) {
+  return getPeriodBounds(periodeId).start.toISOString().slice(0, 10)
+}
+
 // ── Comptage léger (agrégation serveur) ──────────────────────
-// Avant : un onSnapshot(limit 60000) lisait TOUTE la collection
-// (~14 500 lectures) juste pour afficher un compteur, et son
-// gestionnaire d'erreur restait bloqué sur 0 sans se ré-abonner —
-// ce qui épuisait le quota Firestore (Spark 50 k/j) et figeait
-// l'export à « 0 mesures » après le moindre 429.
-// Désormais : getCountFromServer = 1 lecture facturée, sans index
-// composite (filtre mono-champ `timestamp >= début de période`).
-// Les documents réels ne sont lus qu'au moment du téléchargement.
-function useCollecteCount(periodeId, enabled) {
+// getCountFromServer = 1 lecture facturée, sans index composite (filtre
+// mono-champ). On compte la collection réellement exportée selon la période.
+// (Avant : un onSnapshot(limit 60000) lisait toute la collection juste pour
+// un compteur et restait figé sur 0 après un 429 → quota cramé.)
+function usePeriodCount(periodeId, enabled) {
   const [count,   setCount]   = useState(null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState(false)
@@ -159,11 +167,13 @@ function useCollecteCount(periodeId, enabled) {
     if (!enabled) { setCount(null); setError(false); return }
     let annule = false
     setLoading(true); setError(false)
-    const { start } = getPeriodBounds(periodeId)
-    getCountFromServer(query(collection(db, 'collecte_auto'), where('timestamp', '>=', start)))
+    const q = exportEnBrut(periodeId)
+      ? query(collection(db, 'collecte_auto'),      where('timestamp', '>=', getPeriodBounds(periodeId).start))
+      : query(collection(db, 'agregats_quotidiens'), where('date',      '>=', debutPeriodeISO(periodeId)))
+    getCountFromServer(q)
       .then(snap => { if (!annule) { setCount(snap.data().count); setLoading(false) } })
       .catch(err => {
-        console.error('count collecte_auto:', err)
+        console.error('count période:', err)
         if (!annule) { setError(true); setCount(null); setLoading(false) }
       })
     return () => { annule = true }
@@ -172,10 +182,7 @@ function useCollecteCount(periodeId, enabled) {
   return { count, loading, error, reload: () => setTick(t => t + 1) }
 }
 
-// Lecture effective des documents — uniquement à la demande (aperçu /
-// téléchargement). getDocs one-shot borné par la période (filtre + tri
-// mono-champ `timestamp`, pas d'index composite) ; le filtre par axe est
-// appliqué côté client pour ne pas exiger d'index (timestamp × axeId).
+// Lecture des relevés bruts — uniquement pour « Aujourd'hui » (à la demande).
 async function fetchCollecteRows(periodeId, axeFilter) {
   const { start } = getPeriodBounds(periodeId)
   const snap = await getDocs(query(
@@ -191,6 +198,48 @@ async function fetchCollecteRows(periodeId, axeFilter) {
     .map(toExportRow)
 }
 
+// Lecture du résumé quotidien — semaine et plus (à la demande). Lit
+// agregats_quotidiens (~6 docs/jour) : min/moy/max + répartition des niveaux
+// par jour × axe × sens. Filtre par axe côté client (pas d'index composite).
+async function fetchAgregatRows(periodeId, axeFilter) {
+  const snap = await getDocs(query(
+    collection(db, 'agregats_quotidiens'),
+    where('date', '>=', debutPeriodeISO(periodeId)),
+  ))
+  return snap.docs
+    .map(d => d.data())
+    .filter(a => axeFilter === 'tous' || a.axeId === axeFilter)
+    .sort((a, b) => `${b.date}_${b.axeId}_${b.sens}`.localeCompare(`${a.date}_${a.axeId}_${a.sens}`))
+    .map(a => {
+      const axe = AXES_OFFICIELS.find(x => x.id === a.axeId)
+      const nv  = a.niveaux ?? {}
+      const num = v => (Number(v) || 0)
+      return {
+        Date:                 a.date,
+        Axe:                  axe?.shortNom ?? a.axeId,
+        Sens:                 a.sens,
+        'Mesures (n)':        a.n ?? '—',
+        'T_ref (min)':        axe?.tRef ?? '—',
+        'Min (min)':          a.min ?? '—',
+        'Moyenne (min)':      a.moy ?? '—',
+        'Max (min)':          a.max ?? '—',
+        'Retard moy (min)':   (axe?.tRef != null && a.moy != null) ? Math.round((a.moy - axe.tRef) * 10) / 10 : '—',
+        'Fluide (N1-2)':      num(nv[1]) + num(nv[2]),
+        'Modéré (N3)':        num(nv[3]),
+        'Dense (N4)':         num(nv[4]),
+        'Congestionné (N5)':  num(nv[5]),
+        Source:               'Résumé quotidien',
+      }
+    })
+}
+
+// Route la lecture selon la période
+function fetchExportRows(periodeId, axeFilter) {
+  return exportEnBrut(periodeId)
+    ? fetchCollecteRows(periodeId, axeFilter)
+    : fetchAgregatRows(periodeId, axeFilter)
+}
+
 function ExportPage() {
   const { mesures } = useTrafficData()
   const { data: histoData, loading: histoLoading } = useHistoricalData()
@@ -203,13 +252,16 @@ function ExportPage() {
   const [showApercu, setShowApercu] = useState(false)
 
   const { count, loading: loadingCount, error: countError, reload: reloadCount } =
-    useCollecteCount(periode, source === 'collecte')
+    usePeriodCount(periode, source === 'collecte')
 
-  // Docs collecte_auto chargés à la demande (null = pas encore lus).
-  // Remis à zéro dès qu'un paramètre change → jamais de données périmées.
+  // Docs chargés à la demande (null = pas encore lus). Remis à zéro dès
+  // qu'un paramètre change → jamais de données périmées.
   const [collecteRows, setCollecteRows] = useState(null)
   const [loadingRows,  setLoadingRows]  = useState(false)
   useEffect(() => { setCollecteRows(null); setShowApercu(false) }, [source, periode, axe])
+
+  // « Aujourd'hui » = relevés bruts ; sinon = résumé quotidien (léger)
+  const resume = source === 'collecte' && !exportEnBrut(periode)
 
   // Lignes d'export. Pour la collecte, les docs ne sont lus qu'à la première
   // action explicite (aperçu ou téléchargement), puis gardés en cache.
@@ -221,16 +273,16 @@ function ExportPage() {
     return collecteRows ?? []
   }, [source, mesures, histoData, collecteRows, axe])
 
-  // Charge (et met en cache) les docs collecte pour les paramètres courants.
+  // Charge (et met en cache) les lignes d'export pour les paramètres courants.
   async function ensureCollecteRows() {
     if (collecteRows) return collecteRows
     setLoadingRows(true)
     try {
-      const rows = await fetchCollecteRows(periode, axe)
+      const rows = await fetchExportRows(periode, axe)
       setCollecteRows(rows)
       return rows
     } catch (err) {
-      console.error('lecture collecte_auto:', err)
+      console.error('lecture export:', err)
       alert('Lecture des données impossible (quota Firestore ?). Réessayez dans un instant.')
       return []
     } finally {
@@ -242,7 +294,8 @@ function ExportPage() {
     setExporting(true)
     try {
       const rows  = source === 'collecte' ? await ensureCollecteRows() : rowsExport
-      const fname = `FlowPort_${source}_${axe}_${periode}_${new Date().toISOString().slice(0, 10)}`
+      const suffixe = source === 'collecte' && resume ? 'resume' : source
+      const fname = `FlowPort_${suffixe}_${axe}_${periode}_${new Date().toISOString().slice(0, 10)}`
       downloadRows(rows, format, fname)
     } finally {
       setExporting(false)
@@ -266,15 +319,17 @@ function ExportPage() {
   const previewLabel = useMemo(() => {
     if (source === 'live')       return `${AXES_OFFICIELS.length} mesures (snapshot actuel)`
     if (source === 'historique') return `${histoData.filter(d => axe === 'tous' || d.axeId === axe).length} mesures (fév. 2025)`
+    const unite = resume ? 'ligne(s) de résumé' : 'relevé(s)'
     if (loadingRows)  return 'Lecture des données…'
-    if (collecteRows) return `${collecteRows.length} mesures prêtes à l'export`
+    if (collecteRows) return `${collecteRows.length} ${unite} prêt(es) à l'export`
     if (loadingCount) return 'Comptage…'
     if (countError)   return 'Comptage indisponible — cliquez pour réessayer'
     if (count === null) return '—'
-    return axe === 'tous'
-      ? `${count} mesures sur la période`
-      : `${count} mesures sur la période (axe « ${AXES_OFFICIELS.find(a => a.id === axe)?.shortNom ?? axe} » filtré à l'export)`
-  }, [source, histoData, axe, loadingRows, collecteRows, loadingCount, countError, count])
+    const filtre = axe === 'tous' ? '' : ` (axe « ${AXES_OFFICIELS.find(a => a.id === axe)?.shortNom ?? axe} » filtré à l'export)`
+    return resume
+      ? `${count} ${unite} sur la période${filtre}`
+      : `${count} relevé(s) sur la période${filtre}`
+  }, [source, histoData, axe, resume, loadingRows, collecteRows, loadingCount, countError, count])
 
   return (
     <div style={{ padding: '1.25rem', height: '100vh', overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -347,6 +402,11 @@ function ExportPage() {
                   </button>
                 ))}
               </div>
+              <p style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+                {resume
+                  ? 'Résumé quotidien (min · moyenne · max + niveaux par jour et par axe) — export léger et fiable sur les longues périodes.'
+                  : 'Relevés bruts de la journée (une ligne par mesure).'}
+              </p>
             </div>
           )}
 
@@ -457,7 +517,9 @@ function ExportPage() {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: 11, color: C.textLight, marginTop: '0.9rem' }}>
-          Colonnes : Date · Heure · Axe · Sens · T_ref · T_live · Retard · Niveau · Vitesse · Source
+          {resume
+            ? 'Colonnes : Date · Axe · Sens · Mesures · T_ref · Min · Moyenne · Max · Retard moy · Fluide · Modéré · Dense · Congestionné · Source'
+            : 'Colonnes : Date · Heure · Axe · Sens · T_ref · T_live · Retard · Niveau · Vitesse · Source'}
         </p>
       </div>
     </div>
