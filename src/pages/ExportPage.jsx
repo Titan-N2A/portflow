@@ -3,7 +3,7 @@ import { Download, FileSpreadsheet, Database, Calendar, RefreshCw } from 'lucide
 import { C, levelLabel } from '../styles/tokens'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
-import { collection, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore'
+import { collection, query, where, orderBy, limit, getDocs, getCountFromServer } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { AXES_OFFICIELS, useTrafficData } from '../hooks/useTrafficData'
 import { useHistoricalData } from '../hooks/useHistoricalData'
@@ -140,66 +140,55 @@ function downloadRows(rows, format, fname) {
   }
 }
 
-// ── Chargement données collecte_auto depuis Firestore ────────
-// Filtrage client-side pour éviter les index composites Firestore
-function useCollecteData(axeFilter, periodeId, enabled) {
-  const [data,    setData]    = useState([])
-  const [loading, setLoading] = useState(false)
+// ── Comptage léger (agrégation serveur) ──────────────────────
+// Avant : un onSnapshot(limit 60000) lisait TOUTE la collection
+// (~14 500 lectures) juste pour afficher un compteur, et son
+// gestionnaire d'erreur restait bloqué sur 0 sans se ré-abonner —
+// ce qui épuisait le quota Firestore (Spark 50 k/j) et figeait
+// l'export à « 0 mesures » après le moindre 429.
+// Désormais : getCountFromServer = 1 lecture facturée, sans index
+// composite (filtre mono-champ `timestamp >= début de période`).
+// Les documents réels ne sont lus qu'au moment du téléchargement.
+function useCollecteCount(periodeId, enabled) {
   const [count,   setCount]   = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error,   setError]   = useState(false)
+  const [tick,    setTick]    = useState(0)
 
   useEffect(() => {
-    if (!enabled) return
-    setLoading(true)
+    if (!enabled) { setCount(null); setError(false); return }
+    let annule = false
+    setLoading(true); setError(false)
     const { start } = getPeriodBounds(periodeId)
+    getCountFromServer(query(collection(db, 'collecte_auto'), where('timestamp', '>=', start)))
+      .then(snap => { if (!annule) { setCount(snap.data().count); setLoading(false) } })
+      .catch(err => {
+        console.error('count collecte_auto:', err)
+        if (!annule) { setError(true); setCount(null); setLoading(false) }
+      })
+    return () => { annule = true }
+  }, [periodeId, enabled, tick])
 
-    // On borne côté serveur par la date de début de la période choisie
-    // (requête mono-champ sur `timestamp` : filtre + tri, pas d'index
-    // composite). Indispensable pour que « Ce mois / Cette année / Toutes
-    // les données » remontent bien tout l'historique : l'ancien
-    // `limit(5000)` sans filtre tronquait à ~3 jours (les 5000 docs les
-    // plus récents), quelle que soit la période demandée. Le filtre
-    // `timestamp` suppose des documents de type timestamp (migration du
-    // 09/07/2026 : plus aucun document au format string). Le limit reste
-    // un garde-fou large ; c'est la période qui borne réellement le volume.
-    const col = collection(db, 'collecte_auto')
-    const q   = query(
-      col,
-      where('timestamp', '>=', start),
-      orderBy('timestamp', 'desc'),
-      limit(60000),
-    )
+  return { count, loading, error, reload: () => setTick(t => t + 1) }
+}
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snap) => {
-        const rows = snap.docs
-          .map(d => d.data())
-          .filter(d => {
-            const ts = d.timestamp?.toDate?.() ?? new Date(d.timestamp ?? 0)
-            if (ts < start) return false
-            if (axeFilter !== 'tous' && d.axeId !== axeFilter) return false
-            return true
-          })
-          // Le filtre préserve l'ordre de la requête (déjà desc), mais on
-          // retrie explicitement — plus récent → plus ancien — pour ne pas
-          // dépendre d'un détail d'implémentation Firestore.
-          .sort((a, b) => tsToMillis(b.timestamp) - tsToMillis(a.timestamp))
-        setData(rows)
-        setCount(rows.length)
-        setLoading(false)
-      },
-      (err) => {
-        console.error('collecte_auto error:', err)
-        setData([])
-        setCount(0)
-        setLoading(false)
-      },
-    )
-
-    return () => unsubscribe()
-  }, [axeFilter, periodeId, enabled])
-
-  return { data, loading, count }
+// Lecture effective des documents — uniquement à la demande (aperçu /
+// téléchargement). getDocs one-shot borné par la période (filtre + tri
+// mono-champ `timestamp`, pas d'index composite) ; le filtre par axe est
+// appliqué côté client pour ne pas exiger d'index (timestamp × axeId).
+async function fetchCollecteRows(periodeId, axeFilter) {
+  const { start } = getPeriodBounds(periodeId)
+  const snap = await getDocs(query(
+    collection(db, 'collecte_auto'),
+    where('timestamp', '>=', start),
+    orderBy('timestamp', 'desc'),
+    limit(60000),
+  ))
+  return snap.docs
+    .map(d => d.data())
+    .filter(d => axeFilter === 'tous' || d.axeId === axeFilter)
+    .sort((a, b) => tsToMillis(b.timestamp) - tsToMillis(a.timestamp))
+    .map(toExportRow)
 }
 
 function ExportPage() {
@@ -213,36 +202,79 @@ function ExportPage() {
   const [exporting, setExporting] = useState(false)
   const [showApercu, setShowApercu] = useState(false)
 
-  const { data: collecteData, loading: collecteLoading, count } = useCollecteData(axe, periode, source === 'collecte')
+  const { count, loading: loadingCount, error: countError, reload: reloadCount } =
+    useCollecteCount(periode, source === 'collecte')
 
-  // Lignes d'export (mêmes pour le téléchargement et l'aperçu — aucune
-  // lecture supplémentaire, tout est déjà en mémoire)
+  // Docs collecte_auto chargés à la demande (null = pas encore lus).
+  // Remis à zéro dès qu'un paramètre change → jamais de données périmées.
+  const [collecteRows, setCollecteRows] = useState(null)
+  const [loadingRows,  setLoadingRows]  = useState(false)
+  useEffect(() => { setCollecteRows(null); setShowApercu(false) }, [source, periode, axe])
+
+  // Lignes d'export. Pour la collecte, les docs ne sont lus qu'à la première
+  // action explicite (aperçu ou téléchargement), puis gardés en cache.
   const rowsExport = useMemo(() => {
     if (source === 'live') {
       return buildLiveRows(mesures).filter(r => axe === 'tous' || AXES_OFFICIELS.find(a => a.shortNom === r.Axe)?.id === axe)
     }
     if (source === 'historique') return buildHistoRows(histoData, axe)
-    return collecteData.map(toExportRow)
-  }, [source, mesures, histoData, collecteData, axe])
+    return collecteRows ?? []
+  }, [source, mesures, histoData, collecteRows, axe])
 
-  function telecharger() {
-    setExporting(true)
-    const fname = `FlowPort_${source}_${axe}_${periode}_${new Date().toISOString().slice(0,10)}`
-    setTimeout(() => {
-      downloadRows(rowsExport, format, fname)
-      setExporting(false)
-    }, 300)
+  // Charge (et met en cache) les docs collecte pour les paramètres courants.
+  async function ensureCollecteRows() {
+    if (collecteRows) return collecteRows
+    setLoadingRows(true)
+    try {
+      const rows = await fetchCollecteRows(periode, axe)
+      setCollecteRows(rows)
+      return rows
+    } catch (err) {
+      console.error('lecture collecte_auto:', err)
+      alert('Lecture des données impossible (quota Firestore ?). Réessayez dans un instant.')
+      return []
+    } finally {
+      setLoadingRows(false)
+    }
   }
 
-  const isLoading = source === 'collecte' ? collecteLoading : (source === 'historique' ? histoLoading : false)
+  async function telecharger() {
+    setExporting(true)
+    try {
+      const rows  = source === 'collecte' ? await ensureCollecteRows() : rowsExport
+      const fname = `FlowPort_${source}_${axe}_${periode}_${new Date().toISOString().slice(0, 10)}`
+      downloadRows(rows, format, fname)
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  async function toggleApercu() {
+    if (source === 'collecte' && !collecteRows) await ensureCollecteRows()
+    setShowApercu(v => !v)
+  }
+
+  const isLoading = source === 'collecte'
+    ? (loadingCount || loadingRows)
+    : (source === 'historique' ? histoLoading : false)
+
+  // Aperçu disponible dès qu'il y a des lignes potentielles à montrer
+  const apercuDispo = source === 'collecte'
+    ? ((count ?? 0) > 0 || (collecteRows?.length ?? 0) > 0)
+    : rowsExport.length > 0
 
   const previewLabel = useMemo(() => {
-    if (source === 'live') return `${AXES_OFFICIELS.length} mesures (snapshot actuel)`
+    if (source === 'live')       return `${AXES_OFFICIELS.length} mesures (snapshot actuel)`
     if (source === 'historique') return `${histoData.filter(d => axe === 'tous' || d.axeId === axe).length} mesures (fév. 2025)`
-    if (collecteLoading) return 'Chargement…'
+    if (loadingRows)  return 'Lecture des données…'
+    if (collecteRows) return `${collecteRows.length} mesures prêtes à l'export`
+    if (loadingCount) return 'Comptage…'
+    if (countError)   return 'Comptage indisponible — cliquez pour réessayer'
     if (count === null) return '—'
-    return `${count} mesures trouvées`
-  }, [source, mesures, histoData, axe, collecteLoading, count])
+    return axe === 'tous'
+      ? `${count} mesures sur la période`
+      : `${count} mesures sur la période (axe « ${AXES_OFFICIELS.find(a => a.id === axe)?.shortNom ?? axe} » filtré à l'export)`
+  }, [source, histoData, axe, loadingRows, collecteRows, loadingCount, countError, count])
 
   return (
     <div style={{ padding: '1.25rem', height: '100vh', overflow: 'auto', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
@@ -346,22 +378,26 @@ function ExportPage() {
           </div>
 
           {/* Compteur + bascule d'aperçu */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: '8px',
-            padding: '0.65rem 1rem',
-            background: isLoading ? '#f8fafc' : '#EBF8F1',
-            border: `1px solid ${isLoading ? '#e2e8f0' : '#A7E3C3'}`,
-            borderRadius: '8px',
-          }}>
+          <div
+            onClick={() => { if (countError && !collecteRows) reloadCount() }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '8px',
+              padding: '0.65rem 1rem',
+              background: countError ? '#FDECEC' : isLoading ? '#f8fafc' : '#EBF8F1',
+              border: `1px solid ${countError ? '#F5B5B5' : isLoading ? '#e2e8f0' : '#A7E3C3'}`,
+              borderRadius: '8px',
+              cursor: countError && !collecteRows ? 'pointer' : 'default',
+            }}
+          >
             {isLoading
               ? <RefreshCw size={13} color={C.textMuted} className="fp-spin" />
-              : <Database size={13} color={C.success} />}
-            <span style={{ fontSize: 12, color: isLoading ? C.textMuted : C.success, fontWeight: 500 }}>
+              : <Database size={13} color={countError ? C.danger : C.success} />}
+            <span style={{ fontSize: 12, color: countError ? C.danger : isLoading ? C.textMuted : C.success, fontWeight: 500 }}>
               {previewLabel}
             </span>
-            {!isLoading && rowsExport.length > 0 && (
+            {!isLoading && !countError && apercuDispo && (
               <button
-                onClick={() => setShowApercu(v => !v)}
+                onClick={(e) => { e.stopPropagation(); toggleApercu() }}
                 style={{
                   marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer',
                   fontSize: 11.5, fontWeight: 600, color: C.primary, fontFamily: "'Inter',sans-serif",
