@@ -232,8 +232,15 @@ function GraphiquesPage() {
   // Fenêtre des cartes Min/Moy/Max et Répartition : 24 h (relevés bruts)
   // ou 7 j / 30 j (agrégats quotidiens — lectures minimes)
   const [periodeStats, setPeriodeStats] = useState('24h')
+  // Fenêtre du 1er graphe (G1) : 1 h / 24 h / 7 j / 30 j
+  const [fenetreG1, setFenetreG1] = useState('24h')
+  // En mode historique (dataset figé fév. 2025), seul le profil horaire 24 h
+  // a du sens — le sélecteur de fenêtre n'est proposé qu'en collecte live.
+  const effFenetre = source === 'live' ? fenetreG1 : '24h'
 
-  const nbJoursAgregats = periodeStats === '7j' ? 7 : periodeStats === '30j' ? 30 : 0
+  const joursDeFenetre = f => (f === '7j' ? 7 : f === '30j' ? 30 : 0)
+  // Un seul fetch d'agrégats couvre G1 ET les cartes G2/G4 (profondeur = max)
+  const nbJoursAgregats = Math.max(joursDeFenetre(periodeStats), joursDeFenetre(effFenetre))
   const { rows: agregats, loading: agregatsLoading } = useAgregats(nbJoursAgregats)
 
   const data    = source === 'live' ? collecteData : histoData
@@ -276,7 +283,6 @@ function GraphiquesPage() {
       ? Array.from({ length: 24 }, (_, i) => (heureActuelle + 1 + i) % 24)
       : Array.from({ length: 24 }, (_, i) => i),
   [source, heureActuelle])
-  const lineLabels = heuresFenetre.map(h => `${h}h`)
 
   const live24hCount = data24h.filter(d => AXES_OFFICIELS_IDS.has(d.axeId)).length
 
@@ -336,36 +342,110 @@ function GraphiquesPage() {
     return gradient
   }
 
-  const lineDatasets = useMemo(() => axeDefs.map(axe => {
-    const courbe     = computeCourbe24h(data24h, axe.id, lineDir)
-    // Points réordonnés selon la fenêtre glissante (le dernier = maintenant)
-    const dataPoints = heuresFenetre.map(h => courbe[h].temps_moyen)
-    const iPresent   = dataPoints.length - 1
-    return {
-      label:                axe.label,
-      data:                 dataPoints,
-      borderColor:          axe.color,
-      backgroundColor:      context => makeFillGradient(context, axe.color),
-      tension:              0.35,
-      fill:                 true,
-      spanGaps:             true,                            // relie les points au travers des heures sans données
-      // le point de l'heure courante est légèrement accentué (mode live)
-      pointRadius:          dataPoints.map((v, i) => v != null ? (source === 'live' && i === iPresent ? 6.5 : 5) : 0),
-      pointHoverRadius:     7,
-      pointHitRadius:       12,
-      pointBackgroundColor: dataPoints.map((v, i) => source === 'live' && i === iPresent ? axe.color : '#fff'),
-      pointBorderColor:     axe.color,
-      pointBorderWidth:     2,
-      borderWidth:          2.5,
+  // ── G1 — vue multi-fenêtres (1 h / 24 h / 7 j / 30 j) ────────
+  // Chaque fenêtre a sa propre granularité d'axe X :
+  //   1h  → relevés bruts de la dernière heure (résolution minute)
+  //   24h → 24 buckets horaires, fenêtre glissante (comportement d'origine)
+  //   7j / 30j → moyenne journalière (agrégats quotidiens + jour courant)
+  const g1View = useMemo(() => {
+    // rayon des points décroissant quand ils se densifient (30 j = 30 points)
+    const rayon = n => (n > 20 ? 2.5 : 5)
+    const makeDs = (axe, pts, accentLast) => {
+      const iLast = pts.length - 1
+      const r     = rayon(pts.length)
+      return {
+        label:                axe.label,
+        data:                 pts,
+        borderColor:          axe.color,
+        backgroundColor:      context => makeFillGradient(context, axe.color),
+        tension:              0.35,
+        fill:                 true,
+        spanGaps:             true,                          // relie par-dessus les trous
+        // dernier point (heure/jour courant, en cours) légèrement accentué en live
+        pointRadius:          pts.map((v, i) => v == null ? 0 : (accentLast && i === iLast ? r + 1.5 : r)),
+        pointHoverRadius:     7,
+        pointHitRadius:       12,
+        pointBackgroundColor: pts.map((v, i) => accentLast && i === iLast ? axe.color : '#fff'),
+        pointBorderColor:     axe.color,
+        pointBorderWidth:     2,
+        borderWidth:          2.5,
+      }
     }
-  }), [data24h, axeIdsKey, lineDir, heuresFenetre, source])
+    const accent = source === 'live'
+
+    // ── 24 h : fenêtre glissante horaire ──
+    if (effFenetre === '24h') {
+      const labels   = heuresFenetre.map(h => `${h}h`)
+      const datasets = axeDefs.map(axe => {
+        const courbe = computeCourbe24h(data24h, axe.id, lineDir)
+        return makeDs(axe, heuresFenetre.map(h => courbe[h].temps_moyen), accent)
+      })
+      return { labels, datasets, granularite: 'heure' }
+    }
+
+    // ── 1 h : relevés bruts de la dernière heure ──
+    if (effFenetre === '1h') {
+      const cutoff = Date.now() - 60 * 60 * 1000
+      const recent = data.filter(d =>
+        AXES_OFFICIELS_IDS.has(d.axeId) && d.sens === lineDir &&
+        d.temps_min > 0 && tsToMs(d.timestamp) >= cutoff)
+      // Axe des temps = minutes distinctes présentes (la collecte écrit par lots)
+      const keys   = [...new Set(recent.map(d => Math.floor(tsToMs(d.timestamp) / 60000)))].sort((a, b) => a - b)
+      const labels = keys.map(k => new Date(k * 60000)
+        .toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }))
+      const datasets = axeDefs.map(axe => {
+        const parMin = {}
+        recent.filter(d => d.axeId === axe.id).forEach(d => {
+          parMin[Math.floor(tsToMs(d.timestamp) / 60000)] = d.temps_min
+        })
+        return makeDs(axe, keys.map(k => parMin[k] ?? null), accent)
+      })
+      return { labels, datasets, granularite: 'minute' }
+    }
+
+    // ── 7 j / 30 j : moyenne journalière ──
+    const nb    = effFenetre === '7j' ? 7 : 30
+    const jours = Array.from({ length: nb }, (_, i) =>
+      new Date(Date.now() - (nb - 1 - i) * 864e5).toISOString().slice(0, 10))
+    const aujourdHui = new Date().toISOString().slice(0, 10)
+    const labels = jours.map(j => {
+      const dt = new Date(j + 'T00:00:00')
+      const dd = String(dt.getDate()).padStart(2, '0')
+      return nb === 7
+        ? `${JOURS_LABELS[JOURS_ORDRE.indexOf(dt.getDay())]} ${dd}`
+        : `${dd}/${String(dt.getMonth() + 1).padStart(2, '0')}`
+    })
+    const datasets = axeDefs.map(axe => {
+      const pts = jours.map(j => {
+        if (j === aujourdHui) {
+          // jour courant jamais agrégé → moyenne des relevés bruts du jour
+          const vals = data.filter(d => d.date === j && d.axeId === axe.id &&
+            d.sens === lineDir && d.temps_min > 0).map(d => d.temps_min)
+          return vals.length ? Math.round(vals.reduce((s, v) => s + v, 0) / vals.length * 10) / 10 : null
+        }
+        const a = agregats.find(x => x.date === j && x.axeId === axe.id && x.sens === lineDir)
+        return a ? a.moy : null
+      })
+      return makeDs(axe, pts, accent)
+    })
+    return { labels, datasets, granularite: 'jour' }
+  }, [effFenetre, data, data24h, agregats, axeIdsKey, lineDir, heuresFenetre, source])
 
   const filteredLineDatasets = axeFilter === 'tous'
-    ? lineDatasets
-    : lineDatasets.filter((_, i) => i === parseInt(axeFilter))
+    ? g1View.datasets
+    : g1View.datasets.filter((_, i) => i === parseInt(axeFilter))
 
-  const lineData    = { labels: lineLabels, datasets: filteredLineDatasets }
+  const lineData    = { labels: g1View.labels, datasets: filteredLineDatasets }
   const lineHasData = filteredLineDatasets.some(ds => ds.data.some(v => v != null))
+
+  // Sous-titre + graduations de l'axe X selon la granularité de la fenêtre
+  const g1Subtitle = effFenetre === '1h'
+    ? 'Relevés bruts de la dernière heure'
+    : effFenetre === '24h'
+      ? (source === 'live'
+          ? `Fenêtre glissante 24 h — se termine à l'heure actuelle (${heureActuelle}h)`
+          : 'Profil horaire moyen — historique PAA février 2025')
+      : `Moyenne journalière — ${effFenetre === '7j' ? '7' : '30'} derniers jours${agregatsLoading ? ' (chargement…)' : ''}`
 
   // ── Heatmap : jours × heures, palette vert→rouge ────────────
   const heatScrollRef = useRef(null)
@@ -591,15 +671,25 @@ function GraphiquesPage() {
       <div className="fp-card" style={{ flexShrink: 0 }}>
         <div className="fp-section-header" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <span className="fp-section-title">Temps de traversée moyen par heure</span>
-            {source === 'live' && (
-              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
-                Fenêtre glissante sur 24 h — le graphe avance avec le temps et se termine à l'heure actuelle ({heureActuelle}h)
-              </span>
-            )}
-            <div style={{ display: 'flex', gap: 4 }}>
-              <Pill active={lineDir === 'aller'}  onClick={() => setLineDir('aller')}>Aller</Pill>
-              <Pill active={lineDir === 'retour'} onClick={() => setLineDir('retour')}>Retour</Pill>
+            <span className="fp-section-title">Temps de traversée moyen</span>
+            <span style={{ fontSize: 11, color: C.textMuted, fontFamily: "'Inter',sans-serif" }}>
+              {g1Subtitle}
+            </span>
+            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: 4 }}>
+                <Pill active={lineDir === 'aller'}  onClick={() => setLineDir('aller')}>Aller</Pill>
+                <Pill active={lineDir === 'retour'} onClick={() => setLineDir('retour')}>Retour</Pill>
+              </div>
+              {source === 'live' && (
+                <>
+                  <span style={{ width: 1, height: 16, background: '#e2e8f0' }} />
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    {[['1h', '1 h'], ['24h', '24 h'], ['7j', '7 j'], ['30j', '30 j']].map(([val, lbl]) => (
+                      <Pill key={val} active={fenetreG1 === val} onClick={() => setFenetreG1(val)}>{lbl}</Pill>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </div>
           <div style={{ display: 'flex', gap: 6, alignSelf: 'flex-start' }}>
@@ -639,9 +729,15 @@ function GraphiquesPage() {
                   ...CHART_OPTIONS_BASE.scales.x,
                   ticks: {
                     ...CHART_OPTIONS_BASE.scales.x.ticks,
-                    // graduations ancrées sur la droite : l'heure présente
-                    // (dernier point) est toujours affichée
-                    callback: (_, i) => (lineLabels.length - 1 - i) % 3 === 0 ? lineLabels[i] : '',
+                    // 24 h : graduations ancrées à droite (l'heure présente,
+                    // dernier point, toujours affichée) ; 30 j : ~1 label sur 4
+                    // pour éviter le chevauchement ; sinon tous les labels.
+                    callback: (_, i) => {
+                      const L = g1View.labels
+                      if (g1View.granularite === 'heure') return (L.length - 1 - i) % 3 === 0 ? L[i] : ''
+                      if (L.length > 12) return i % Math.ceil(L.length / 8) === 0 ? L[i] : ''
+                      return L[i]
+                    },
                   },
                 },
                 y: {
@@ -653,7 +749,14 @@ function GraphiquesPage() {
             }} />
           </div>
         ) : (
-          <EmptyChart height={300} />
+          <EmptyChart
+            height={300}
+            hint={g1View.granularite === 'jour'
+              ? 'Les moyennes journalières se constituent chaque nuit — repassez en 24 h pour les relevés bruts.'
+              : g1View.granularite === 'minute'
+                ? 'Aucun relevé sur la dernière heure — la prochaine collecte alimentera la courbe.'
+                : undefined}
+          />
         )}
       </div>
 
