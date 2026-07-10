@@ -140,12 +140,11 @@ function downloadRows(rows, format, fname) {
   }
 }
 
-// « Aujourd'hui » exporte les relevés bruts (léger : ~1 700 docs, et pas
-// encore agrégé de toute façon). Les périodes plus longues (semaine → tout)
-// exportent le RÉSUMÉ QUOTIDIEN depuis agregats_quotidiens (~6 docs/jour,
-// 30 j max) : un export mensuel = ~180 lectures au lieu de ~14 500 relevés
-// bruts — 80× plus léger, indispensable sur le plan gratuit (Spark 50 k/j).
-const exportEnBrut = periodeId => periodeId === 'today'
+// Deux modes d'export (au choix de l'utilisateur) :
+//  • Résumé quotidien (defaut) → agregats_quotidiens (~6 docs/jour, 30 j max) :
+//    un export mensuel = ~180 lectures. Léger, tient le plan gratuit (50 k/j).
+//  • Toutes les données → collecte_auto : tous les relevés bruts de la période
+//    (peut atteindre ~14 500 docs sur un mois → lourd en lecture).
 
 // Date de début (YYYY-MM-DD) pour filtrer agregats_quotidiens sur `date`
 function debutPeriodeISO(periodeId) {
@@ -154,10 +153,10 @@ function debutPeriodeISO(periodeId) {
 
 // ── Comptage léger (agrégation serveur) ──────────────────────
 // getCountFromServer = 1 lecture facturée, sans index composite (filtre
-// mono-champ). On compte la collection réellement exportée selon la période.
+// mono-champ). On compte la collection réellement exportée selon le mode.
 // (Avant : un onSnapshot(limit 60000) lisait toute la collection juste pour
 // un compteur et restait figé sur 0 après un 429 → quota cramé.)
-function usePeriodCount(periodeId, enabled) {
+function usePeriodCount(periodeId, resume, enabled) {
   const [count,   setCount]   = useState(null)
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState(false)
@@ -167,9 +166,9 @@ function usePeriodCount(periodeId, enabled) {
     if (!enabled) { setCount(null); setError(false); return }
     let annule = false
     setLoading(true); setError(false)
-    const q = exportEnBrut(periodeId)
-      ? query(collection(db, 'collecte_auto'),      where('timestamp', '>=', getPeriodBounds(periodeId).start))
-      : query(collection(db, 'agregats_quotidiens'), where('date',      '>=', debutPeriodeISO(periodeId)))
+    const q = resume
+      ? query(collection(db, 'agregats_quotidiens'), where('date',      '>=', debutPeriodeISO(periodeId)))
+      : query(collection(db, 'collecte_auto'),       where('timestamp', '>=', getPeriodBounds(periodeId).start))
     getCountFromServer(q)
       .then(snap => { if (!annule) { setCount(snap.data().count); setLoading(false) } })
       .catch(err => {
@@ -177,7 +176,7 @@ function usePeriodCount(periodeId, enabled) {
         if (!annule) { setError(true); setCount(null); setLoading(false) }
       })
     return () => { annule = true }
-  }, [periodeId, enabled, tick])
+  }, [periodeId, resume, enabled, tick])
 
   return { count, loading, error, reload: () => setTick(t => t + 1) }
 }
@@ -233,11 +232,11 @@ async function fetchAgregatRows(periodeId, axeFilter) {
     })
 }
 
-// Route la lecture selon la période
-function fetchExportRows(periodeId, axeFilter) {
-  return exportEnBrut(periodeId)
-    ? fetchCollecteRows(periodeId, axeFilter)
-    : fetchAgregatRows(periodeId, axeFilter)
+// Route la lecture selon le mode choisi
+function fetchExportRows(periodeId, resume, axeFilter) {
+  return resume
+    ? fetchAgregatRows(periodeId, axeFilter)
+    : fetchCollecteRows(periodeId, axeFilter)
 }
 
 function ExportPage() {
@@ -246,22 +245,23 @@ function ExportPage() {
 
   const [source,  setSource]  = useState('collecte')  // 'collecte' | 'live' | 'historique'
   const [periode, setPeriode] = useState('month')
+  const [detail,  setDetail]  = useState('resume')    // 'resume' | 'brut'
   const [axe,     setAxe]     = useState('tous')
   const [format,  setFormat]  = useState('excel')
   const [exporting, setExporting] = useState(false)
   const [showApercu, setShowApercu] = useState(false)
 
+  // Résumé quotidien (léger) ou relevés bruts (toutes les données)
+  const resume = source === 'collecte' && detail === 'resume'
+
   const { count, loading: loadingCount, error: countError, reload: reloadCount } =
-    usePeriodCount(periode, source === 'collecte')
+    usePeriodCount(periode, resume, source === 'collecte')
 
   // Docs chargés à la demande (null = pas encore lus). Remis à zéro dès
   // qu'un paramètre change → jamais de données périmées.
   const [collecteRows, setCollecteRows] = useState(null)
   const [loadingRows,  setLoadingRows]  = useState(false)
-  useEffect(() => { setCollecteRows(null); setShowApercu(false) }, [source, periode, axe])
-
-  // « Aujourd'hui » = relevés bruts ; sinon = résumé quotidien (léger)
-  const resume = source === 'collecte' && !exportEnBrut(periode)
+  useEffect(() => { setCollecteRows(null); setShowApercu(false) }, [source, periode, detail, axe])
 
   // Lignes d'export. Pour la collecte, les docs ne sont lus qu'à la première
   // action explicite (aperçu ou téléchargement), puis gardés en cache.
@@ -278,7 +278,7 @@ function ExportPage() {
     if (collecteRows) return collecteRows
     setLoadingRows(true)
     try {
-      const rows = await fetchExportRows(periode, axe)
+      const rows = await fetchExportRows(periode, resume, axe)
       setCollecteRows(rows)
       return rows
     } catch (err) {
@@ -402,10 +402,36 @@ function ExportPage() {
                   </button>
                 ))}
               </div>
-              <p style={{ fontSize: 11, color: C.textMuted, marginTop: 6 }}>
+            </div>
+          )}
+
+          {/* Détail — résumé quotidien (léger) ou toutes les données (brut) */}
+          {source === 'collecte' && (
+            <div>
+              <label className="fp-label">Détail</label>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                {[
+                  ['resume', 'Résumé quotidien'],
+                  ['brut',   'Toutes les données'],
+                ].map(([val, lbl]) => (
+                  <button key={val} onClick={() => setDetail(val)} style={{
+                    flex: 1, padding: '0.5rem 0.4rem', fontSize: 11.5,
+                    fontFamily: "'Inter', sans-serif",
+                    borderRadius: '8px', cursor: 'pointer',
+                    fontWeight: detail === val ? 700 : 400,
+                    background: detail === val ? C.primary : '#f8fafc',
+                    color: detail === val ? '#fff' : C.text,
+                    border: `1px solid ${detail === val ? C.primary : '#e2e8f0'}`,
+                  }}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+              <p style={{ fontSize: 11, color: resume ? C.textMuted : C.warning, marginTop: 6 }}>
                 {resume
-                  ? 'Résumé quotidien (min · moyenne · max + niveaux par jour et par axe) — export léger et fiable sur les longues périodes.'
-                  : 'Relevés bruts de la journée (une ligne par mesure).'}
+                  ? 'Résumé quotidien : min · moyenne · max + répartition des niveaux, une ligne par jour et par axe. Léger — tient le plan gratuit.'
+                  : 'Relevés bruts : une ligne par mesure. Volumineux sur les longues périodes (~14 500 lignes/mois) et lourd en lecture Firestore — à réserver aux périodes courtes.'}
+                {resume && periode === 'today' && ' ⚠️ La journée en cours n\'est agrégée que la nuit : pour aujourd\'hui, choisissez « Toutes les données ».'}
               </p>
             </div>
           )}
