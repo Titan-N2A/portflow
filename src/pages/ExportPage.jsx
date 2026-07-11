@@ -331,8 +331,21 @@ function ExportPage() {
       return rows
     } catch (err) {
       console.error('lecture export:', err)
-      alert('Lecture des données impossible (quota Firestore ?). Réessayez dans un instant.')
-      return []
+      // Message selon le vrai code d'erreur Firestore (ne plus masquer la cause)
+      const code = err?.code || ''
+      let msg
+      if (code === 'resource-exhausted')
+        msg = 'Quota de lecture Firestore atteint pour aujourd’hui (plan gratuit : 50 000 lectures/jour). Réessayez après le reset (~07:00 UTC) ou utilisez le mode « Résumé quotidien ».'
+      else if (code === 'permission-denied')
+        msg = 'Lecture refusée par les règles de sécurité Firestore (permission-denied).'
+      else if (code === 'unavailable')
+        msg = 'Service Firestore indisponible / connexion interrompue (unavailable). Vérifiez le réseau (ou un bloqueur de pub/anti-traçage) puis réessayez.'
+      else if (code === 'failed-precondition')
+        msg = 'Index Firestore manquant (failed-precondition) — voir la console (F12) pour le lien de création.'
+      else
+        msg = `Lecture impossible : ${code || err?.message || 'erreur inconnue'}. Ouvrez la console (F12) pour le détail.`
+      alert(msg)
+      return null   // null = échec (à distinguer d’un résultat vide légitime)
     } finally {
       setLoadingRows(false)
     }
@@ -342,6 +355,7 @@ function ExportPage() {
     setExporting(true)
     try {
       const rows  = source === 'collecte' ? await ensureCollecteRows() : rowsExport
+      if (rows === null) return   // échec déjà signalé — pas de « Aucune donnée » trompeur
       const suffixe = source === 'collecte' && resume ? 'resume' : source
       const fname = `FlowPort_${suffixe}_${axe}_${periode}_${new Date().toISOString().slice(0, 10)}`
       downloadRows(rows, format, fname)
