@@ -301,6 +301,36 @@ function fetchExportRows(periodeId, resume, axeFilter) {
     : fetchCollecteRows(periodeId, axeFilter)
 }
 
+// Échantillon léger pour l'APERÇU : ~8 lignes seulement, pour ne pas lire
+// toute la collection juste pour un coup d'œil. La lecture complète reste
+// réservée au téléchargement. On lit un petit lot (60 docs) puis on filtre
+// par axe et on garde 8 lignes.
+async function fetchSampleRows(periodeId, resume, axeFilter) {
+  if (resume) {
+    const snap = await getDocs(query(
+      collection(db, 'agregats_quotidiens'),
+      where('date', '>=', debutPeriodeISO(periodeId)),
+      orderBy('date', 'desc'),
+      limit(60),
+    ))
+    return snap.docs.map(d => d.data())
+      .filter(a => axeFilter === 'tous' || a.axeId === axeFilter)
+      .slice(0, 8)
+      .map(toResumeRow)
+  }
+  const { start } = getPeriodBounds(periodeId)
+  const snap = await getDocs(query(
+    collection(db, 'collecte_auto'),
+    where('timestamp', '>=', start),
+    orderBy('timestamp', 'desc'),
+    limit(60),
+  ))
+  return snap.docs.map(d => d.data())
+    .filter(d => axeFilter === 'tous' || d.axeId === axeFilter)
+    .slice(0, 8)
+    .map(toExportRow)
+}
+
 function ExportPage() {
   const { mesures } = useTrafficData()
   const { data: histoData, loading: histoLoading } = useHistoricalData()
@@ -321,9 +351,13 @@ function ExportPage() {
 
   // Docs chargés à la demande (null = pas encore lus). Remis à zéro dès
   // qu'un paramètre change → jamais de données périmées.
-  const [collecteRows, setCollecteRows] = useState(null)
+  const [collecteRows, setCollecteRows] = useState(null)  // lecture complète (téléchargement)
   const [loadingRows,  setLoadingRows]  = useState(false)
-  useEffect(() => { setCollecteRows(null); setShowApercu(false) }, [source, periode, detail, axe])
+  const [sampleRows,   setSampleRows]   = useState(null)  // échantillon léger (aperçu)
+  const [loadingSample, setLoadingSample] = useState(false)
+  useEffect(() => {
+    setCollecteRows(null); setSampleRows(null); setShowApercu(false)
+  }, [source, periode, detail, axe])
 
   // Lignes d'export. Pour la collecte, les docs ne sont lus qu'à la première
   // action explicite (aperçu ou téléchargement), puis gardés en cache.
@@ -378,8 +412,26 @@ function ExportPage() {
     }
   }
 
+  // Aperçu = lecture LÉGÈRE d'un échantillon (pas toute la collection)
+  async function ensureSampleRows() {
+    if (sampleRows) return sampleRows
+    setLoadingSample(true)
+    try {
+      const rows = await fetchSampleRows(periode, resume, axe)
+      setSampleRows(rows)
+      return rows
+    } catch (err) {
+      console.error('aperçu:', err)
+      alert('Aperçu impossible : ' + (err?.code || err?.message || 'erreur inconnue') + '.')
+      return null
+    } finally {
+      setLoadingSample(false)
+    }
+  }
+
   async function toggleApercu() {
-    if (source === 'collecte' && !collecteRows) await ensureCollecteRows()
+    // On ne lit l'échantillon qu'à l'ouverture, et seulement si rien n'est déjà chargé
+    if (!showApercu && source === 'collecte' && !collecteRows && !sampleRows) await ensureSampleRows()
     setShowApercu(v => !v)
   }
 
@@ -398,6 +450,12 @@ function ExportPage() {
   const apercuDispo = source === 'collecte'
     ? (resume || (count ?? 0) > 0 || (collecteRows?.length ?? 0) > 0)
     : rowsExport.length > 0
+
+  // Aperçu : réutilise la lecture complète si déjà faite (téléchargement),
+  // sinon l'échantillon léger ; données en mémoire pour live/historique.
+  const uniteLabel  = resume ? 'lignes de résumé' : 'relevés'
+  const apercuRows  = source === 'collecte' ? (collecteRows ?? sampleRows ?? []) : rowsExport
+  const apercuTotal = source === 'collecte' ? (collecteRows?.length ?? count ?? apercuRows.length) : rowsExport.length
 
   const previewLabel = useMemo(() => {
     if (source === 'live')       return `${AXES_OFFICIELS.length} mesures (snapshot actuel)`
@@ -574,19 +632,24 @@ function ExportPage() {
                   textDecoration: 'underline', padding: 0,
                 }}
               >
-                {showApercu ? 'Masquer l\'aperçu' : 'Aperçu des données'}
+                {loadingSample ? 'Chargement…' : showApercu ? 'Masquer l\'aperçu' : 'Aperçu des données'}
               </button>
             )}
           </div>
 
-          {/* Aperçu : 8 premières lignes, colonnes réelles de l'export */}
-          {showApercu && rowsExport.length > 0 && (
+          {/* Aperçu : échantillon léger (~8 lignes) — ne lit PAS tout le fichier */}
+          {showApercu && loadingSample && (
+            <div style={{ padding: '0.75rem 1rem', fontSize: 12, color: C.textMuted, border: '1px solid #e2e8f0', borderRadius: '8px' }}>
+              Chargement de l'aperçu…
+            </div>
+          )}
+          {showApercu && !loadingSample && apercuRows.length > 0 && (
             <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 10.5, fontFamily: "'Inter',sans-serif" }}>
                   <thead>
                     <tr>
-                      {Object.keys(rowsExport[0]).map(col => (
+                      {Object.keys(apercuRows[0]).map(col => (
                         <th key={col} style={{
                           background: C.primary, color: '#fff', padding: '5px 8px',
                           textAlign: 'left', whiteSpace: 'nowrap', fontWeight: 600,
@@ -595,9 +658,9 @@ function ExportPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {rowsExport.slice(0, 8).map((r, i) => (
+                    {apercuRows.slice(0, 8).map((r, i) => (
                       <tr key={i} style={{ background: i % 2 ? '#f8fafc' : '#fff' }}>
-                        {Object.keys(rowsExport[0]).map(col => (
+                        {Object.keys(apercuRows[0]).map(col => (
                           <td key={col} style={{ padding: '4px 8px', whiteSpace: 'nowrap', color: C.text, borderTop: '1px solid #eef2f6' }}>
                             {String(r[col] ?? '')}
                           </td>
@@ -607,9 +670,9 @@ function ExportPage() {
                   </tbody>
                 </table>
               </div>
-              {rowsExport.length > 8 && (
+              {apercuTotal > Math.min(8, apercuRows.length) && (
                 <p style={{ fontSize: 10.5, color: C.textMuted, padding: '5px 10px', margin: 0, background: '#f8fafc', borderTop: '1px solid #eef2f6' }}>
-                  … et {rowsExport.length - 8} autres lignes dans le fichier
+                  Aperçu de {Math.min(8, apercuRows.length)} ligne(s) — l'export complet contient {source === 'collecte' ? '≈ ' : ''}{apercuTotal} {uniteLabel}.
                 </p>
               )}
             </div>
