@@ -387,6 +387,11 @@ function ExportPage() {
     ? (loadingCount || loadingRows)
     : (source === 'historique' ? histoLoading : false)
 
+  // Style d'erreur (rouge) seulement si le comptage a échoué ET qu'aucune
+  // donnée n'est prête/en cours : des lignes déjà chargées priment sur un
+  // échec du simple compteur (évite « succès en texte / erreur en couleur »).
+  const enErreur = countError && !collecteRows && !loadingRows
+
   // Aperçu disponible dès qu'il y a des lignes potentielles à montrer.
   // En résumé, le jour courant (calculé à la volée) n'entre pas dans `count`
   // (agrégats), donc on autorise toujours l'aperçu dans ce mode.
@@ -544,23 +549,23 @@ function ExportPage() {
 
           {/* Compteur + bascule d'aperçu */}
           <div
-            onClick={() => { if (countError && !collecteRows) reloadCount() }}
+            onClick={() => { if (enErreur) reloadCount() }}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px',
               padding: '0.65rem 1rem',
-              background: countError ? '#FDECEC' : isLoading ? '#f8fafc' : '#EBF8F1',
-              border: `1px solid ${countError ? '#F5B5B5' : isLoading ? '#e2e8f0' : '#A7E3C3'}`,
+              background: enErreur ? '#FDECEC' : isLoading ? '#f8fafc' : '#EBF8F1',
+              border: `1px solid ${enErreur ? '#F5B5B5' : isLoading ? '#e2e8f0' : '#A7E3C3'}`,
               borderRadius: '8px',
-              cursor: countError && !collecteRows ? 'pointer' : 'default',
+              cursor: enErreur ? 'pointer' : 'default',
             }}
           >
             {isLoading
               ? <RefreshCw size={13} color={C.textMuted} className="fp-spin" />
-              : <Database size={13} color={countError ? C.danger : C.success} />}
-            <span style={{ fontSize: 12, color: countError ? C.danger : isLoading ? C.textMuted : C.success, fontWeight: 500 }}>
+              : <Database size={13} color={enErreur ? C.danger : C.success} />}
+            <span style={{ fontSize: 12, color: enErreur ? C.danger : isLoading ? C.textMuted : C.success, fontWeight: 500 }}>
               {previewLabel}
             </span>
-            {!isLoading && !countError && apercuDispo && (
+            {!isLoading && !enErreur && apercuDispo && (
               <button
                 onClick={(e) => { e.stopPropagation(); toggleApercu() }}
                 style={{
