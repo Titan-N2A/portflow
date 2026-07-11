@@ -3,7 +3,7 @@ import { Download, FileSpreadsheet, Database, Calendar, RefreshCw } from 'lucide
 import { C, levelLabel } from '../styles/tokens'
 import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
-import { collection, query, where, orderBy, limit, getDocs, getCountFromServer } from 'firebase/firestore'
+import { collection, query, where, orderBy, limit, startAfter, getDocs, getCountFromServer } from 'firebase/firestore'
 import { db } from '../services/firebase'
 import { AXES_OFFICIELS, useTrafficData } from '../hooks/useTrafficData'
 import { useHistoricalData } from '../hooks/useHistoricalData'
@@ -181,16 +181,30 @@ function usePeriodCount(periodeId, resume, enabled) {
   return { count, loading, error, reload: () => setTick(t => t + 1) }
 }
 
-// Lecture des relevés bruts — uniquement pour « Aujourd'hui » (à la demande).
+// Lecture des relevés bruts (à la demande). Le SDK Firestore plafonne
+// limit() à 10 000 : on pagine donc par tranches de 10 000 via startAfter,
+// ce qui couvre n'importe quel volume (aujourd'hui → tout) sans dépasser
+// cette limite. (garde-fou : PAGES_MAX pour éviter tout emballement.)
+const PAGE_MAX   = 10000
+const PAGES_MAX  = 30   // 300 000 relevés max — largement au-dessus du besoin
+
 async function fetchCollecteRows(periodeId, axeFilter) {
   const { start } = getPeriodBounds(periodeId)
-  const snap = await getDocs(query(
-    collection(db, 'collecte_auto'),
-    where('timestamp', '>=', start),
-    orderBy('timestamp', 'desc'),
-    limit(60000),
-  ))
-  return snap.docs
+  const docs = []
+  let curseur = null
+  for (let p = 0; p < PAGES_MAX; p++) {
+    const contraintes = [
+      where('timestamp', '>=', start),
+      orderBy('timestamp', 'desc'),
+      ...(curseur ? [startAfter(curseur)] : []),
+      limit(PAGE_MAX),
+    ]
+    const snap = await getDocs(query(collection(db, 'collecte_auto'), ...contraintes))
+    docs.push(...snap.docs)
+    if (snap.size < PAGE_MAX) break
+    curseur = snap.docs[snap.docs.length - 1]
+  }
+  return docs
     .map(d => d.data())
     .filter(d => axeFilter === 'tous' || d.axeId === axeFilter)
     .sort((a, b) => tsToMillis(b.timestamp) - tsToMillis(a.timestamp))
