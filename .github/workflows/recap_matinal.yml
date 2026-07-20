@@ -1,11 +1,14 @@
 name: Récap matinal FlowPort — email
 
+# Déclenché par un cron EXTERNE précis (cron-job.org) via l'API GitHub
+# workflow_dispatch, à 6h30 UTC (= 6h30 Abidjan) pile chaque jour.
+# Le `schedule:` natif de GitHub a été retiré volontairement : il dérive de
+# 5-30 min sous charge et ferait DOUBLON (double email) avec le déclencheur
+# externe. Config cron-job.org : POST sur
+# /repos/Titan-N2A/portflow/actions/workflows/recap_matinal.yml/dispatches
+# body {"ref":"main"} — voir la procédure de planification externe.
 on:
-  schedule:
-    # 6h30 heure d'Abidjan (= UTC). Le scheduler GitHub peut décaler de
-    # quelques minutes sous charge — acceptable pour un point du matin.
-    - cron: '30 6 * * *'
-  workflow_dispatch: # test manuel depuis GitHub
+  workflow_dispatch: # déclenché par cron-job.org (ou manuellement depuis GitHub)
 
 jobs:
   recap:

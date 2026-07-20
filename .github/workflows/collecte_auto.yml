@@ -1,16 +1,17 @@
 name: Collecte Auto Trafic PAA
 
 on:
-  schedule:
-    # Toutes les 15 min, 24h/24, 7j/7 (port opère en continu).
-    # 15 min (et non 5) pour caler la consommation Google Distance Matrix
-    # sur l'enveloppe gratuite : ~6 éléments × 96 collectes/j ≈ 17 000/mois,
-    # dans le quota gratuit (à 5 min c'était ~52 000/mois, hors quota).
-    # Le graphe étant une moyenne PAR HEURE, 4 relevés/heure suffisent.
-    # Le scheduler GitHub peut retarder sous charge — le bouton "Actualiser"
-    # du dashboard reste le filet de secours manuel pour une donnée fraîche.
-    - cron: '*/15 * * * *'
-  workflow_dispatch: # déclenchement manuel depuis GitHub
+  # Déclencheur UNIQUE = cron EXTERNE (cron-job.org), toutes les 5 min, via
+  # l'API GitHub workflow_dispatch. Le `schedule:` natif de GitHub a été RETIRÉ
+  # volontairement : le garder ferait DOUBLON avec cron-job.org (collecte en
+  # double → quota TomTom gaspillé). Ne pas le réintroduire.
+  # Config cron-job.org : POST sur
+  #   /repos/Titan-N2A/portflow/actions/workflows/collecte_auto.yml/dispatches
+  #   body {"ref":"main"}, intervalle 5 min.
+  # Quota : 5 min = 288 runs/j × 6 routes = 1 728 req TomTom/j (plafond gratuit
+  # 2 500/j, PARTAGÉ avec l'ETA du front-end → ~772/j de marge, à surveiller).
+  # Filet si cron-job.org tombe : déclencher manuellement le workflow.
+  workflow_dispatch: # déclenché par cron-job.org (ou manuellement depuis GitHub)
 
 jobs:
   collecte:

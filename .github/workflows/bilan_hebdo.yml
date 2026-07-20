@@ -1,11 +1,14 @@
 name: Bilan hebdomadaire FlowPort — email
 
-# Chaque lundi à 6h45 (après le récap matinal de 6h30) : bilan chiffré
+# Chaque lundi à 6h45 UTC (après le récap matinal de 6h30) : bilan chiffré
 # de la semaine écoulée vs la précédente, depuis les agrégats quotidiens.
+# Déclenché par un cron EXTERNE précis (cron-job.org) via l'API GitHub
+# workflow_dispatch, à 6h45 UTC pile chaque lundi. Le `schedule:` natif a été
+# retiré volontairement (dérive 5-30 min + doublon email). Config cron-job.org :
+# POST sur /repos/Titan-N2A/portflow/actions/workflows/bilan_hebdo.yml/dispatches
+# body {"ref":"main"}, uniquement le lundi.
 on:
-  schedule:
-    - cron: '45 6 * * 1'
-  workflow_dispatch:
+  workflow_dispatch: # déclenché par cron-job.org (ou manuellement depuis GitHub)
 
 jobs:
   bilan:
