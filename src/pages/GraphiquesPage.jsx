@@ -200,7 +200,13 @@ function Spinner() {
 }
 
 function GraphiquesPage() {
-  const { data: collecteData, loading: collecteLoading } = useCollecteAuto(8000)
+  // 2500 relevés ≈ 24-30 h à 5 min : couvre G1/G2/G4 (fenêtre 24 h ≈ 1 728) et
+  // la heatmap live (~1 j). Plafonné volontairement pour préserver le quota
+  // Firestore gratuit (50 000 lectures/j) : à 8000, chaque ouverture de la page
+  // lisait ~8 000 docs (+ ~2 000 pour l'historique) et vidait le quota en
+  // quelques visites → dashboard « 0 mesure ». La heatmap SEMAINE complète reste
+  // disponible en bascule « Historique PAA » (jeu de février 2025).
+  const { data: collecteData, loading: collecteLoading } = useCollecteAuto(2500)
   const { data: histoData,    loading: histoLoading    } = useHistoricalData()
   const { axes: firestoreAxes } = useAxesFirestore()
 
