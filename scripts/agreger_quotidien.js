@@ -70,41 +70,57 @@ async function main() {
 
   const token = await connexionBot()
   let traites = 0
+  let quotaEpuise = false
+
+  // Un 429 (quota Firestore gratuit épuisé) n'est PAS un échec : on agrège ce
+  // qu'on peut avec le quota disponible, on s'arrête proprement, et le
+  // rattrapage automatique termine les jours restants au prochain run.
+  const estQuota = (err) => /\b429\b/.test(err.message) || /RESOURCE_EXHAUSTED/i.test(err.message)
 
   for (const date of candidats) {
     if (traites >= MAX_JOURS_PAR_RUN) break
-    if (await jourDejaAgrege(date)) continue
+    try {
+      if (await jourDejaAgrege(date)) continue
 
-    const releves = await lireJour(date)
-    if (releves.length === 0) { console.log(`· ${date} : aucun relevé`); continue }
+      const releves = await lireJour(date)
+      if (releves.length === 0) { console.log(`· ${date} : aucun relevé`); continue }
 
-    const groupes = new Map()
-    releves.forEach(r => {
-      const cle = `${r.axeId}_${r.sens}`
-      if (!groupes.has(cle)) groupes.set(cle, [])
-      groupes.get(cle).push(r)
-    })
-
-    for (const [cle, rs] of groupes) {
-      const temps = rs.map(r => r.temps_min)
-      const niveaux = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
-      rs.forEach(r => { const n = r.niveau ?? 1; niveaux[Math.min(5, Math.max(1, n))]++ })
-      const [axeId, sens] = cle.split('_')
-      await ecrireAgregat(token, `${date}_${cle}`, {
-        date, axeId, sens,
-        n:   rs.length,
-        min: Math.round(Math.min(...temps) * 10) / 10,
-        moy: Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10,
-        max: Math.round(Math.max(...temps) * 10) / 10,
-        niveaux,
-        majLe: new Date().toISOString(),
+      const groupes = new Map()
+      releves.forEach(r => {
+        const cle = `${r.axeId}_${r.sens}`
+        if (!groupes.has(cle)) groupes.set(cle, [])
+        groupes.get(cle).push(r)
       })
+
+      for (const [cle, rs] of groupes) {
+        const temps = rs.map(r => r.temps_min)
+        const niveaux = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 }
+        rs.forEach(r => { const n = r.niveau ?? 1; niveaux[Math.min(5, Math.max(1, n))]++ })
+        const [axeId, sens] = cle.split('_')
+        await ecrireAgregat(token, `${date}_${cle}`, {
+          date, axeId, sens,
+          n:   rs.length,
+          min: Math.round(Math.min(...temps) * 10) / 10,
+          moy: Math.round(temps.reduce((a, b) => a + b, 0) / temps.length * 10) / 10,
+          max: Math.round(Math.max(...temps) * 10) / 10,
+          niveaux,
+          majLe: new Date().toISOString(),
+        })
+      }
+      console.log(`✓ ${date} : ${releves.length} relevés → ${groupes.size} agrégats`)
+      traites++
+    } catch (err) {
+      if (estQuota(err)) {
+        console.warn(`⏳ Quota Firestore épuisé (429) — arrêt propre après ${traites} jour(s) agrégé(s). Le reste sera rattrapé au prochain run (planifié après le reset ~07h UTC).`)
+        quotaEpuise = true
+        break
+      }
+      throw err   // vraie erreur (auth, réseau…) → échec légitime
     }
-    console.log(`✓ ${date} : ${releves.length} relevés → ${groupes.size} agrégats`)
-    traites++
   }
 
-  console.log(traites === 0 ? '✅ Rien à agréger — tout est à jour.' : `✅ ${traites} journée(s) agrégée(s).`)
+  if (quotaEpuise) console.log(`✅ ${traites} journée(s) agrégée(s) avant épuisement du quota — rattrapage au prochain run.`)
+  else console.log(traites === 0 ? '✅ Rien à agréger — tout est à jour.' : `✅ ${traites} journée(s) agrégée(s).`)
 }
 
 main().catch(err => { console.error('Erreur :', err); process.exit(1) })
