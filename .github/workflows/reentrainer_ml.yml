@@ -6,8 +6,12 @@ name: Réentraîner le modèle prédictif
 # passent alors sur le modèle mis à jour). Le déploiement Firebase suit
 # automatiquement le commit.
 #
-# À lancer de préférence juste après 07h00 UTC (reset du quota de lecture
-# Firestore gratuit) pour maximiser le volume exporté.
+# Déclenché par cron-job.org le 1er de chaque mois à 08h00 UTC : après le reset
+# du quota de lecture Firestore gratuit (~07h UTC) pour maximiser le volume
+# exporté. Le schedule GitHub natif est retiré (source unique = cron-job.org).
+# Config cron-job.org : POST .../workflows/reentrainer_ml.yml/dispatches,
+# body {"ref":"main"}, le 1er du mois à 08:00. Reste lançable à la main
+# (workflow_dispatch) avec un nombre de pages personnalisé.
 on:
   workflow_dispatch:
     inputs:
@@ -32,7 +36,7 @@ jobs:
       - name: Exporter collecte_auto → CSV
         env:
           FIREBASE_API_KEY: ${{ secrets.FIREBASE_API_KEY }}
-          MAX_PAGES: ${{ github.event.inputs.max_pages }}
+          MAX_PAGES: ${{ github.event.inputs.max_pages || '40' }}
         run: node scripts/export_collecte.mjs
 
       - uses: actions/setup-python@v5

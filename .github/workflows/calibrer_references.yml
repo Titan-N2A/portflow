@@ -4,9 +4,12 @@ name: Calibrer les références horaires
 # les relevés réels (7 derniers jours) — la heatmap et la synthèse de
 # la page Graphiques se comparent ainsi au trafic récent plutôt qu'à
 # la base figée de février 2025.
+# Déclenché par cron-job.org chaque lundi à 08h00 UTC — APRÈS le reset du quota
+# Firestore (~07h UTC). L'ancien horaire (04h UTC) tombait AVANT le reset : la
+# lecture des 7 derniers jours de relevés échouait en 429. schedule GitHub natif
+# retiré (source unique = cron-job.org). Config cron-job.org : POST
+# .../workflows/calibrer_references.yml/dispatches, body {"ref":"main"}, lundi 08:00.
 on:
-  schedule:
-    - cron: '0 4 * * 1'   # lundi 4h UTC (= 4h Abidjan)
   workflow_dispatch:
 
 jobs:
