@@ -171,7 +171,82 @@ export async function askAI(contents, { temperature = 0.85, maxTokens = 1000 } =
     }
   }
   console.error('Groq error:', lastErr)
-  return `Erreur IA : ${lastErr?.message ?? 'inconnue'}`
+  return messageErreur(lastErr)
+}
+
+// Message d'erreur lisible pour l'utilisateur : le 429 (quota/débit des
+// deux modèles épuisé) est fréquent sur un tier gratuit — on l'explique
+// plutôt que d'afficher un « HTTP 429 » brut.
+function messageErreur(err) {
+  if (err?.status === 429) {
+    return "L'assistant est momentanément très sollicité. Merci de réessayer dans une ou deux minutes."
+  }
+  return `Erreur IA : ${err?.message ?? 'inconnue'}`
+}
+
+// ── Appel API IA en streaming (SSE) ───────────────────────
+// Même contrat que askAI (fallback 70B → 8B sur 429), mais émet la
+// réponse token par token via `onDelta` pour un affichage vivant.
+// Retourne le texte complet (ou un message d'erreur) une fois terminé.
+async function callGroqStream(model, messages, { temperature, maxTokens }, onDelta) {
+  const res = await fetch(GROQ_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type':  'application/json',
+      'Authorization': `Bearer ${GROQ_KEY}`,
+    },
+    body: JSON.stringify({ model, messages, temperature, max_tokens: maxTokens, stream: true }),
+  })
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}))
+    const err = new Error(`HTTP ${res.status} — ${errBody?.error?.message?.slice(0, 120) ?? ''}`)
+    err.status = res.status
+    throw err
+  }
+  const reader  = res.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let full   = ''
+  for (;;) {
+    const { done, value } = await reader.read()
+    if (done) break
+    buffer += decoder.decode(value, { stream: true })
+    const lines = buffer.split('\n')
+    buffer = lines.pop() ?? '' // dernière ligne éventuellement incomplète
+    for (const line of lines) {
+      const l = line.trim()
+      if (!l.startsWith('data:')) continue
+      const payload = l.slice(5).trim()
+      if (payload === '[DONE]') continue
+      try {
+        const delta = JSON.parse(payload)?.choices?.[0]?.delta?.content
+        if (delta) { full += delta; onDelta(delta) }
+      } catch { /* fragment SSE non-JSON — ignoré */ }
+    }
+  }
+  return full || 'Aucune réponse générée.'
+}
+
+export async function askAIStream(contents, onDelta, { temperature = 0.85, maxTokens = 1000 } = {}) {
+  if (!GROQ_KEY) return 'Clé API Groq non configurée (VITE_GROQ_API_KEY).'
+
+  const userMessages = typeof contents === 'string'
+    ? [{ role: 'user', content: contents }]
+    : contents.map(c => ({ role: c.role === 'model' ? 'assistant' : c.role, content: c.parts[0].text }))
+  const messages = [{ role: 'system', content: SYSTEM_INSTRUCTION }, ...userMessages]
+
+  let lastErr = null
+  for (const model of MODELS) {
+    try {
+      return await callGroqStream(model, messages, { temperature, maxTokens }, onDelta)
+    } catch (err) {
+      lastErr = err
+      if (err.status !== 429) break
+      console.warn(`Groq ${model} indisponible (429), fallback sur le modèle suivant...`)
+    }
+  }
+  console.error('Groq stream error:', lastErr)
+  return messageErreur(lastErr)
 }
 
 // ── Contexte trafic courant (injecté dans chaque prompt) ──
@@ -211,23 +286,36 @@ export async function buildTrafficPrompt(mesures, axes, kpis) {
 Sur la base de ces données précises, formule 3 recommandations opérationnelles prioritaires pour la DEESP. Pour chaque recommandation : cite l'axe concerné, le niveau de congestion, et l'action concrète à mener maintenant. Sois spécifique aux valeurs observées, pas générique.`
 }
 
+// ── Détection des messages « sociaux » (salutation, politesse, méta) ──
+// Pour ces messages, inutile d'injecter le bloc trafic (≈40 lectures
+// Firestore + un fetch statique) : le modèle doit juste répondre
+// poliment. On économise ainsi le quota et on évite tout risque de
+// « déversement » de données sur un simple bonjour.
+const SMALLTALK_RE = /^(bonjour|bonsoir|bonne (journée|soirée)|salut|slt|cc|coucou|hello|hi|hey|yo|merci\b.*|thanks?|ok(ay)?|d'?accord|super|nickel|parfait|au revoir|bye|à (bientôt|plus)|ça va|comment (ça )?vas?[- ]?tu|comment allez[- ]?vous|qui (es[- ]?tu|êtes[- ]?vous)|que (sais[- ]?tu|savez[- ]?vous) faire|à quoi sers[- ]?tu|tu sers à quoi|aide|help)[\s!.…?]*$/i
+function estSmallTalk(text) {
+  const t = text.trim()
+  // Court ET conforme à un motif social : évite de rogner une vraie
+  // question qui contiendrait « merci » par politesse en fin de phrase.
+  return t.length <= 45 && SMALLTALK_RE.test(t)
+}
+
 // ── Construction des messages multi-tour pour le chat ─────
 // history = tableau [{role: 'user'|'model', parts: [{text}]}]
 // newQuestion = string
 export async function buildChatContents(history, newQuestion, mesures, axes, kpis) {
-  const dataCtx = await buildDataContext(mesures, axes, kpis)
-
   // Historique existant (sans le message d'accueil initial)
   const turns = history.slice(1).map(msg => ({
     role:  msg.role,
     parts: [{ text: msg.parts[0].text }],
   }))
 
-  // Nouvelle question avec contexte trafic injecté
-  turns.push({
-    role:  'user',
-    parts: [{ text: `${dataCtx}\n\n${newQuestion}` }],
-  })
+  // Contexte trafic injecté uniquement pour une vraie demande ; une
+  // salutation/politesse part telle quelle (voir estSmallTalk).
+  const texte = estSmallTalk(newQuestion)
+    ? newQuestion
+    : `${await buildDataContext(mesures, axes, kpis)}\n\n${newQuestion}`
+
+  turns.push({ role: 'user', parts: [{ text: texte }] })
 
   return turns
 }

@@ -8,14 +8,15 @@
 // ============================================================
 
 import { useState, useEffect } from 'react'
-import { askAI, buildChatContents } from '../services/ai'
+import { askAIStream, buildChatContents } from '../services/ai'
 
-export function makeWelcome(axes) {
-  const names = axes.length > 0 ? axes.map(a => a.shortNom).join(', ') : 'CARENA, Toyota CFAO, SODECI'
-  const count = axes.length > 0 ? axes.length : 3
+// Message d'accueil volontairement court et convivial : les suggestions
+// contextuelles (chips) montrent déjà ce que l'assistant sait faire, donc
+// pas besoin d'énumérer les axes ni les cas d'usage ici.
+export function makeWelcome() {
   return {
     role: 'model',
-    parts: [{ text: `Bonjour ! Je suis FlowPort IA, votre assistant de surveillance du trafic au Port Autonome d'Abidjan.\n\nJe dispose des données trafic en temps réel sur les ${count} axes d'accès au port (${names}). Posez-moi vos questions — état actuel, recommandations opérationnelles, prévisions ou analyse d'un axe spécifique.` }],
+    parts: [{ text: "Bonjour 👋 Je suis **FlowPort IA**, votre assistant de surveillance du trafic au Port Autonome d'Abidjan. Comment puis-je vous aider ?" }],
   }
 }
 
@@ -27,16 +28,9 @@ export function useAIChat(axes, mesures, kpis) {
     } catch {
       // sessionStorage corrompu ou indisponible — repart d'un historique neuf
     }
-    return [makeWelcome(axes)]
+    return [makeWelcome()]
   })
   const [sending, setSending] = useState(false)
-
-  // Met à jour le message d'accueil quand les axes Firestore arrivent
-  useEffect(() => {
-    if (axes.length > 0) {
-      setHistory(prev => [makeWelcome(axes), ...prev.slice(1)])
-    }
-  }, [axes.length])
 
   useEffect(() => {
     try {
@@ -46,23 +40,39 @@ export function useAIChat(axes, mesures, kpis) {
     }
   }, [history])
 
+  // Remplace la dernière bulle assistant, ou l'ajoute si le dernier
+  // message est encore celui de l'utilisateur (premier token / erreur).
+  function upsertModel(text) {
+    setHistory(prev => {
+      const next = prev.slice()
+      const last = next[next.length - 1]
+      const bulle = { role: 'model', parts: [{ text }] }
+      if (last?.role === 'model') next[next.length - 1] = bulle
+      else next.push(bulle)
+      return next
+    })
+  }
+
   async function sendMessage(text) {
     const q = text.trim()
     if (!q || sending) return
-    const userMsg = { role: 'user', parts: [{ text: q }] }
-    setHistory(prev => [...prev, userMsg])
+    setHistory(prev => [...prev, { role: 'user', parts: [{ text: q }] }])
     setSending(true)
 
-    // NB: on passe `history` sans userMsg — buildChatContents l'ajoute lui-même avec le contexte trafic
+    // NB: on passe `history` sans le message courant — buildChatContents l'ajoute lui-même avec le contexte trafic
     const contents = await buildChatContents(history, q, mesures, axes, kpis)
-    const resp = await askAI(contents)
+    let acc = ''
+    const resp = await askAIStream(contents, delta => { acc += delta; upsertModel(acc) })
 
-    setHistory(prev => [...prev, {
-      role: 'model',
-      parts: [{ text: resp ?? 'Erreur : réponse vide.' }],
-    }])
+    // Texte final (identique au flux en cas de succès ; message d'erreur si le flux a échoué avant tout token)
+    upsertModel(resp ?? 'Erreur : réponse vide.')
     setSending(false)
   }
 
-  return { history, sending, sendMessage }
+  function resetConversation() {
+    try { sessionStorage.removeItem('fp_ia_history') } catch { /* best-effort */ }
+    setHistory([makeWelcome()])
+  }
+
+  return { history, sending, sendMessage, resetConversation }
 }

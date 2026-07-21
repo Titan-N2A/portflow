@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Send, Bot, User, RefreshCw, Zap } from 'lucide-react'
+import { Send, Bot, User, RefreshCw, Zap, RotateCcw } from 'lucide-react'
 import { C } from '../styles/tokens'
 import { askAI, buildTrafficPrompt } from '../services/ai'
 import { getCachedAI, setCachedAI, clearCachedAI } from '../utils/aiCache'
@@ -82,7 +82,7 @@ function IAPage() {
   const axes = firestoreAxes.length > 0 ? firestoreAxes : AXES_OFFICIELS
   const { mesures, kpis, loading } = useTrafficData(axes)
 
-  const { history, sending, sendMessage } = useAIChat(axes, mesures, kpis)
+  const { history, sending, sendMessage, resetConversation } = useAIChat(axes, mesures, kpis)
   const [input,    setInput]    = useState('')
   const [autoReco, setAutoReco] = useState('')
   const [recoLoad, setRecoLoad] = useState(false)
@@ -126,11 +126,30 @@ function IAPage() {
       gap: '0.85rem',
     }}>
 
-      <div style={{ flexShrink: 0 }}>
-        <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>IA FlowPort</h1>
-        <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
-          Assistant trafic PAA · Groq (Llama 3.3) · données temps réel
-        </p>
+      <div style={{ flexShrink: 0, display: 'flex', alignItems: 'flex-start', gap: '0.75rem' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ fontSize: isMobile ? 17 : 20, fontWeight: 800, color: C.text }}>IA FlowPort</h1>
+          <p style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>
+            Assistant trafic PAA · Groq (Llama 3.3) · données temps réel
+          </p>
+        </div>
+        {history.length > 1 && (
+          <button
+            onClick={resetConversation}
+            disabled={sending}
+            title="Nouvelle conversation"
+            style={{
+              flexShrink: 0, display: 'flex', alignItems: 'center', gap: 5,
+              padding: '0.35rem 0.7rem', borderRadius: 8,
+              border: '1px solid #e2e8f0', background: '#fff',
+              color: C.textMuted, cursor: sending ? 'not-allowed' : 'pointer',
+              fontSize: 11.5, fontWeight: 600, fontFamily: "'Inter', sans-serif",
+            }}
+          >
+            <RotateCcw size={13} />
+            {!isMobile && 'Nouvelle conversation'}
+          </button>
+        )}
       </div>
 
       {/* ── Recommandations automatiques ─────────────────── */}
@@ -174,7 +193,7 @@ function IAPage() {
       {/* ── Zone messages ────────────────────────────────── */}
       <div style={{ flex: 1, overflow: 'auto', background: '#F8FAFC', borderRadius: '10px', padding: '1rem', border: '1px solid #e2e8f0' }}>
         {history.map((msg, i) => <Bubble key={i} msg={msg} />)}
-        {sending && (
+        {sending && history[history.length - 1]?.role !== 'model' && (
           <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
             <div style={{ width: 32, height: 32, borderRadius: '50%', background: C.sidebarActive, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Bot size={15} color="#fff" />

@@ -7,7 +7,7 @@
 // ============================================================
 
 import { useState, useRef, useEffect } from 'react'
-import { Sparkles, X, Send, Mic } from 'lucide-react'
+import { Sparkles, X, Send, Mic, RotateCcw } from 'lucide-react'
 import { C } from '../../styles/tokens'
 import { useAIChat } from '../../hooks/useAIChat'
 import { CONSENT_KEY, CONSENT_EVENT } from './ConsentBanner'
@@ -62,7 +62,7 @@ function FloatingAIAssistant({ axes, mesures, kpis }) {
   // supérieur) chevaucherait le bouton flottant tant que l'utilisateur n'a
   // pas décidé — on masque le raccourci IA jusqu'à sa disparition.
   const [bannerPending, setBannerPending] = useState(() => !sessionStorage.getItem(CONSENT_KEY))
-  const { history, sending, sendMessage } = useAIChat(axes, mesures, kpis)
+  const { history, sending, sendMessage, resetConversation } = useAIChat(axes, mesures, kpis)
   const bottomRef       = useRef(null)
   const recognitionRef  = useRef(null)
 
@@ -127,8 +127,16 @@ function FloatingAIAssistant({ axes, mesures, kpis }) {
           }}>
             <Sparkles size={15} color="#fff" />
             <span style={{ fontWeight: 700, fontSize: 13, color: '#fff' }}>FlowPort IA</span>
+            {history.length > 1 && (
+              <button onClick={resetConversation} disabled={sending} title="Nouvelle conversation" style={{
+                marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', border: 'none',
+                borderRadius: 6, cursor: sending ? 'not-allowed' : 'pointer', color: '#fff', display: 'flex', padding: 5,
+              }}>
+                <RotateCcw size={13} />
+              </button>
+            )}
             <button onClick={() => setOpen(false)} style={{
-              marginLeft: 'auto', background: 'rgba(255,255,255,0.15)', border: 'none',
+              marginLeft: history.length > 1 ? 0 : 'auto', background: 'rgba(255,255,255,0.15)', border: 'none',
               borderRadius: 6, cursor: 'pointer', color: '#fff', display: 'flex', padding: 5,
             }}>
               <X size={14} />
@@ -138,7 +146,7 @@ function FloatingAIAssistant({ axes, mesures, kpis }) {
           {/* Messages */}
           <div style={{ flex: 1, overflow: 'auto', padding: '0.85rem', background: '#F8FAFC' }}>
             {history.map((msg, i) => <MiniBubble key={i} msg={msg} />)}
-            {sending && <TypingDots />}
+            {sending && history[history.length - 1]?.role !== 'model' && <TypingDots />}
             <div ref={bottomRef} />
           </div>
 
