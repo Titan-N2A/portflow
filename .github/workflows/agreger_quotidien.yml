@@ -4,10 +4,18 @@ name: Agréger la collecte quotidienne
 # par axe/sens (min/moy/max/niveaux) — la page Graphiques lit ces
 # agrégats pour ses vues 7 j / 30 j au lieu des relevés bruts.
 # Rattrapage automatique des jours manquants (max 6 par run).
+#
+# Déclenché par un cron EXTERNE (cron-job.org) chaque jour à 07h30 UTC,
+# APRÈS la réinitialisation quotidienne du quota Firestore (~07h00 UTC, plan
+# Spark gratuit = 50 000 lectures/j). L'ancien horaire (02h00 UTC) tombait
+# AVANT le reset : le script lisait collecte_auto alors que le quota du jour
+# était déjà épuisé → 429 RESOURCE_EXHAUSTED, agrégation en échec systématique.
+# Le schedule GitHub natif est retiré (imprécis + risque de doublon).
+# Config cron-job.org : POST sur
+#   /repos/Titan-N2A/portflow/actions/workflows/agreger_quotidien.yml/dispatches
+#   body {"ref":"main"}, à 07h30 (fuseau UTC/Reykjavik).
 on:
-  schedule:
-    - cron: '0 2 * * *'   # tous les jours à 2h UTC (= 2h Abidjan)
-  workflow_dispatch:
+  workflow_dispatch: # déclenché par cron-job.org (ou manuellement depuis GitHub)
 
 jobs:
   agreger:
